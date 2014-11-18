@@ -3,7 +3,8 @@ import os
 import numpy as np
 import nibabel as nib
 import geometry as geo
-import grid_localize as gl
+import grid as gl
+from electrode import Electrode
 
 def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None):
     '''
@@ -28,9 +29,9 @@ def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None):
         The location of the textfile where the brainmask is located,
         which is currently $SUBJECTS_DIR/mri/brain_ct.nii.gz
     '''
-    if subjects_dir is None:
+    if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
-    if subject is None:
+    if subject is None or subject=='':
         subject = os.environ['SUBJECT']
 
     xfms_dir = os.path.join(subjects_dir, subject, 'mri', 'transforms')
@@ -100,7 +101,8 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
 
     Returns
     -------
-    electrodes : an Nx3 list of electrode locations in CT space.
+    electrodes : List(Electrode)
+        an list of Electrode objects with only the ct coords indicated.
     '''
     from scipy import ndimage
     import sys
@@ -110,7 +112,7 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
 
     if mask is not None and type(mask)==str:
         maski = nib.load(mask)
-        maskd = mask.get_data()
+        maskd = maski.get_data()
         maskd = ndimage.binary_dilation(maskd, iterations=15)
     else:
         maskd = ctd.copy()
@@ -207,7 +209,8 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
 
     sys.setrecursionlimit(recursionlimit)
 
-    return [cluster.center_of_mass() for cluster in electrode_clusters]
+    return [Electrode(ct_coords=cluster.center_of_mass()) 
+            for cluster in electrode_clusters]
 
 def classify_electrodes(electrodes, known_geometry, fixed_points=None,
     delta=.35, rho=35, rho_strict=20, rho_loose=50, color_scheme=None,
@@ -218,8 +221,9 @@ def classify_electrodes(electrodes, known_geometry, fixed_points=None,
 
     Parameters
     ----------
-    electrodes : list of 3-tuples | Nx3 np.ndarray
-        A list of electrode locations, possibly including noise.
+    electrodes : List(electrodes)
+        A list of electrode locations. The CT coordinate attribute of the
+        electrodes is used as the position.
         It is the caller's responsibility to filter the electrodes list as
         appropriate.
     known_geometry : list of 2-tuples | Gx2 np.ndarray
@@ -266,24 +270,37 @@ def classify_electrodes(electrodes, known_geometry, fixed_points=None,
     color_scheme : None | Generator
         The color scheme to be used, described above
     '''
+    from collections import OrderedDict    
+
     if color_scheme is None:
         def color_scheme():
-            predefined_colors = [(.9,.6,1),(.7,1,.6),(.2,.5,.8),(.6,.3,.9),
-                (.9,.7,.1),(1,1,1),(.5,.9,.4),(1,.2,.5),(.7,.7,.9),(0,1,0),
-                (0,1,0)]
+            predefined_colors = [(.7,1,.6),(.2,.5,.8),(.6,.3,.9),(.8,.5,.9),
+                (.9,.7,.1),(1,1,1),(.5,.9,.4),(1,.2,.5),(.7,.7,.9),(0,1,0)]
             for color in predefined_colors:
                 yield color
             while True:
                 yield tuple(np.random.random(3))
 
+    def name_generator():
+        i=0
+        while True:
+            i+=1
+            yield 'grid%i'%i
+
     colors = color_scheme()
+    names = name_generator()
+
+    electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
 
     found_grids = {}
+    grid_colors = OrderedDict()
+    grid_colors['unsorted'] = (1,0,0)
+    grid_geom = {}
     used_points = []
 
     for i,dims in enumerate(known_geometry):
         new_elecs = geo.rm_pts(np.reshape(used_points, (-1,3)), 
-            np.array(electrodes))
+            np.array(electrode_arr))
 
         angles, dists, neighbs = gl.find_init_angles(new_elecs, mindist=0, 
             maxdist=28)
@@ -300,7 +317,8 @@ def classify_electrodes(electrodes, known_geometry, fixed_points=None,
         for j,k in enumerate(ba):
             p0,p1,p2 = neighbs[k]
             pog = gl.Grid(p0,p1,p2,new_elecs, delta=delta,
-                rho=rho, rho_strict=rho_strict, rho_loose=rho_loose)
+                rho=rho, rho_strict=rho_strict, rho_loose=rho_loose,
+                name=names.next())
             pog.extend_grid_arbitrarily()
 
             try:
@@ -312,11 +330,31 @@ def classify_electrodes(electrodes, known_geometry, fixed_points=None,
                 continue
 
             sp = np.reshape(sp, (-1,3))
-            found_grids[pog]=sp
-            [used_points.append(p) for p in sp]
+
+            found_grids[pog.name] = []
+            grid_colors[pog.name] = colors.next()
+            grid_geom[pog.name] = dims
+            for p in sp:
+                used_points.append(p)
+                #import pdb
+                #pdb.set_trace()
+                if tuple(p.tolist()) in electrode_arr:
+                    ix, = np.where(np.logical_and(np.logical_and( 
+                        np.array(electrode_arr)[:,0]==p[0], 
+                        np.array(electrode_arr)[:,1]==p[1]),
+                        np.array(electrode_arr)[:,2]==p[2]))
+                    try:
+                        found_grids[pog.name].append(electrodes[ix])
+                    except IndexError:
+                        raise ValueError("multiple electrodes at same point")
+                else:
+                    found_grids[pog.name].append(Electrode(ct_coords=tuple(p),
+                        is_interpolation=True))
+                    
             break
 
-    return found_grids, colors
+    #return found_grids, grid_colors
+    return grid_colors, grid_geom, found_grids
 
 def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     subject=None):
@@ -344,8 +382,10 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     affine : 4x4 np.ndarray
         The matrix containing the affine transformation from CT to MR space.
     '''
-    #import tempfile
-    import subprocess
+    if subjects_dir is None or subjects_dir=='':
+        subjects_dir = os.environ['SUBJECTS_DIR']
+    if subject is None or subject=='':
+        subject = os.environ['SUBJECT']
 
     #_,lta = tempfile.mkstemp()
     xfms_dir = os.path.join(subjects_dir, subject, 'mri', 'transforms')
@@ -356,10 +396,9 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     if os.path.exists(lta):
         return geo.get_lta(lta)
 
-    if subjects_dir is None:
-        subjects_dir = os.environ['SUBJECTS_DIR']
-    if subject is None:
-        subject = os.environ['SUBJECT']
+    #import tempfile
+    import subprocess
+
     orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
 
     mri_robustreg_cmd = ['mri_robust_register','--mov',ct,'--dst',orig,
@@ -392,9 +431,9 @@ def create_dural_surface(subjects_dir=None, subject=None):
         The freesurfer subject. If this is None, it is assumed to be the
         $SUBJECT environment variable.
     '''
-    if subjects_dir is None:
+    if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
-    if subject is None:
+    if subject is None or subject=='':
         subject = os.environ['SUBJECT']
 
     if (os.path.exists(os.path.join(subjects_dir,subject,'surf','lh.dural'))
@@ -422,7 +461,7 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
 
     Parameters
     ----------
-    electrodes : List(3-tuple) | Nx3 ndarray
+    electrodes : List(Electrode)
         List of electrodes in CT space
     ct2mr : 4x4 np.ndarray
         Matrix containing the ct2mr affine transformation
@@ -432,18 +471,24 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
     subject : Str | None
         The freesurfer subject. If this is None, it is assumed to be the
         $SUBJECT environment variable.
+
+    There is no return value. The 'surf_coords' attribute will be used to
+    store the surface locations of the electrodes
     '''
-    if subjects_dir is None:
+    if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
-    if subject is None:
+    if subject is None or subject=='':
         subject = os.environ['SUBJECT']
 
-    orig_elecs = geo.apply_affine(electrodes, ct2mr)
+    electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
+    orig_elecs = geo.apply_affine(electrode_arr, ct2mr)
 
     orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
     tkr = geo.get_vox2rasxfm(orig, stem='vox2ras-tkr')
 
-    return geo.apply_affine(orig_elecs, tkr)
+    surf_locs = geo.apply_affine(orig_elecs, tkr)
+    for elec, loc in zip(electrodes, surf_locs):
+        elec.surf_coords = loc
 
 def snap_electrodes_to_surface(electrodes, hemi, subjects_dir=None, 
     subject=None, max_steps=40000, giveup_steps=10000):
@@ -454,9 +499,9 @@ def snap_electrodes_to_surface(electrodes, hemi, subjects_dir=None,
 
     Parameters
     ----------
-    electrodes : List(3-tuple) | Nx3 ndarray
-        List of electrodes in surface space, but not necessarily on the
-        surface itself (merely near the surface)
+    electrodes : List(Electrode)
+        List of electrodes with the surf_coords attribute filled. Caller is
+        responsible for filtering these into grids if desired.
     hemi : Str
         "lh" or "rh", depending on the hemisphere to be snapped to. Maybe
         the user has to set this.
@@ -477,20 +522,19 @@ def snap_electrodes_to_surface(electrodes, hemi, subjects_dir=None,
         the algorithm gives up. A higher value may cause the algorithm to
         take longer. The default value is 10000.
 
-    Returns
-    -------
-    emin : Nx3 np.ndarray
-        The electrode positions snapped onto the dural surface.
+    There is no return value. The 'snap_coords' attribute will be used to
+    store the snapped locations of the electrodes
     '''
-    if subjects_dir is None:
+    if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
-    if subject is None:
+    if subject is None or subject=='':
         subject = os.environ['SUBJECT']
 
     from scipy.spatial.distance import cdist
 
     n = len(electrodes)
-    e_init = np.array(electrodes)
+    electrode_arr = map((lambda x:getattr(x, 'surf_coords')), electrodes)
+    e_init = np.array(electrode_arr)
 
     # first set the alpha parameter exactly as described in Dykstra 2012.
     # this parameter controls which electrodes have virtual springs connected.
@@ -637,6 +681,8 @@ def snap_electrodes_to_surface(electrodes, hemi, subjects_dir=None,
 
         print 'step %i ... final lowest cost = %f' % (h, mincost)
 
-    return emin
+    #return the emin coordinates
+    for elec, loc in zip(electrodes, emin):
+        elec.snap_coords = loc
 
     
