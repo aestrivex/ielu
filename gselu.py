@@ -44,11 +44,17 @@ class ElectrodePositionsModel(HasPrivateTraits):
     @cached_property
     def _get__grid_named_objects(self):
         from color_utils import mayavi2traits_color
-        grid_names = [NameHolder(name=''), NameHolder(name='unsorted')]
+        grid_names = [NameHolder(name=''), 
+            GeometryNameHolder(name='unsorted',
+                geometry='n/a',
+                #TODO dont totally hardcode this color
+                color=mayavi2traits_color((1,0,0)))]
+
         for key in self._grids.keys():
             grid_names.append(GeometryNameHolder(name=key, 
                 geometry=str(self._grid_geom[key]), 
                 color=mayavi2traits_color(self._colors[key])))
+
         return grid_names
 
     def _interactive_mode_changed(self):
@@ -60,7 +66,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     def _commit_grid_changes(self):
         for p in (self._points_to_cur_grid, self._points_to_unsorted):
             for loc in p:
-                elec = self._points_to_cur_grid[loc]
+                elec = p[loc]
                 
                 old = elec.grid_name
                 new = elec.grid_transition_to
@@ -68,8 +74,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 elec.grid_name = new
                 elec.grid_transition_to = ''
         
-                self._grids[old].remove(elec)
-                self._grids[new].append(elec)
+                if old != 'unsorted':
+                    self._grids[old].remove(elec)
+                if new != 'unsorted':
+                    self._grids[new].append(elec)
     
     def _run_pipeline(self):
         if self.subjects_dir is None or self.subjects_dir=='':
