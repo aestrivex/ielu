@@ -388,13 +388,14 @@ class iEEGCoregistrationFrame(HasTraits):
     traits_view = View(
         Group(
             Item('surface_visualizer_panel', editor=InstanceEditor(), 
-                style='custom' ),
-            Item('interactive_panel', editor=InstanceEditor(), style='custom'),
+                style='custom', resizable=True ),
+            Item('interactive_panel', editor=InstanceEditor(), style='custom',
+                resizable=True),
         show_labels=False),
 
         title=('llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch is '
             'nice this time of year'),
-        height=800, width=700
+        height=800, width=700, resizable=True
     )
 
     def __init__(self, **kwargs):
