@@ -28,9 +28,39 @@ class GridPoint():
         return str(self)
 
 class Grid():
+    '''
+    p0, p1, p2 : 3x 3-tuple
+        with coordinates of 3 points forming a right angle
+    all_elecs : List(3-tuple)
+        list of possible electrode locations
+    delta : Float 
+        A fitting parameter that controls the relative distance between
+        grid points. A grid point cannot be farther than delta*c from its
+        orthogonal neighbors, where c is an estimate of the distance between
+        grid neighbors, assuming a roughly square grid (Later, this should be
+        a rectangular grid). The default value is .35
+    rho : Float
+        A fitting parameter controlling the distance from which successive
+        angles can diverge from 90. The default value is 35
+    rho_strict : Float
+        A fitting parameter similar to rho but used in different geometric
+        circumstances. The default value is 20.
+    rho_loose : Float
+        A fitting parameter similar to rho but used in different geometric
+        circumstances. The default value is 50.
+    epsilon : Float
+        A fitting parameter controlling the acceptable deviation from 90
+        degrees for the starting point of a KxM grid where K>1,M>1. A
+        larger parameter means the algorithm will try a larger range of
+        starting positions before giving up. The default value is 10.
+    max_cost : Float
+        A fitting parameter for classification with fixed points only.
+        Represents the maximum value of the cost function for normal
+        iteration.
+    '''
 
     def __init__(self,p0,p1,p2, all_elecs, delta=.35, rho=35,
-            rho_strict=20, rho_loose=50, name=''):
+            rho_strict=20, rho_loose=50, max_cost=.4, name=''):
 
         self.name=name 
 
@@ -66,6 +96,8 @@ class Grid():
         self.rho = rho
         self.rho_strict = rho_strict
         self.rho_loose = rho_loose
+
+        self.max_cost = max_cost
 
         #self.delta = .35
         #self.rho = 10
@@ -359,7 +391,6 @@ class Grid():
         return (distance_cond and angle_cond and parallel_cond)
 
     def extend_grid_arbitrarily(self):
-
         points = []
         while len(self.points) != len(points):
             for point in map(GridPoint, self.points):
@@ -369,6 +400,18 @@ class Grid():
 
             self.extend_grid_systematically()
             print 'started with %i points, now has %i' % (len(points), len(self.points))
+
+    def recreate_geometry(self):
+        if len(self.points != 3):
+            raise ValueError("Should only recreate geometry on blank grid")
+
+        #raise ValueError('Noet suppahted')
+
+        #for now do the stupid thing of just building the grid on the
+        #confirmed points.
+
+        #ideally this will later include a cost function
+        self.extend_grid_arbitrarily() 
 
     def extend_grid_systematically(self):
         '''

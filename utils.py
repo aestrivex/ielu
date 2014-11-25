@@ -22,9 +22,31 @@ def clear_scene(scene):
     for child in scene.children:
         child.remove() 
 
+def _count():
+    i=0
+    while True:
+        yield i
+        i+=1
+_counter=_count()
+def gensym():
+    global _counter
+    return _counter.next()
+
+def crash_if_freesurfer_is_not_sourced():
+    import os, subprocess
+    with open(os.devnull) as nil:
+        p = subprocess.call(['which', 'mri_info'], stdout=nil, stderr=nil)
+    if p!=0:
+        print 'Freesurfer is not sourced'
+        import sys
+        sys.exit(1)
+
 class NameHolder(HasTraits):
     name = Str
     traits_view = View()
+
+    def __str__(self):
+        return 'Grid: %s'%self.name
 
 class GeometryNameHolder(NameHolder):
     geometry = Str
@@ -35,3 +57,9 @@ class GeometryNameHolder(NameHolder):
             Item('color', style='readonly'),
         ),
     )
+
+    def __str__(self):
+        return 'Grid: %s, col:%s, geom:%s'%(self.name,self.color,
+            self.geometry)
+    def __repr__(self):
+        return '%s\n'%str(self)

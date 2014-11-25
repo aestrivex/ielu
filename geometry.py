@@ -165,3 +165,32 @@ def apply_affine(locs, affine):
         new_loc = np.dot( affine, (loc[0], loc[1], loc[2], 1))
         new_locs.append( [round(new_loc[i]) for i in xrange(3)] )
     return new_locs
+
+def concat_affines(aff1, aff2):
+    return np.dot( aff2, aff1 )
+
+def save_affine(fname, affine):
+    np.savetxt(fname, affine)
+
+def load_affine(fname):
+    try:
+        return np.loadtxt(fname)
+    except:
+        pass
+
+    try:
+        return np.load(fname)
+    except:
+        pass
+
+    try:
+        return get_lta(fname)
+    except:
+        pass
+
+    try:
+        return get_xfm(fname)
+    except:
+        pass
+
+    raise ValueError('Unrecognized affine transformation format')

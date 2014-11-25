@@ -10,6 +10,8 @@ from traitsui.api import (View, Item, Group, OKCancelButtons, ShellEditor,
 
 from electrode import Electrode
 from utils import virtual_points3d, NameHolder, GeometryNameHolder
+from utils import crash_if_freesurfer_is_not_sourced, gensym
+from geometry import load_affine
 
 class ElectrodePositionsModel(HasPrivateTraits):
     ct_scan = File
@@ -37,9 +39,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
     _points_to_unsorted = Dict
 
     _visualize_event = Event
+    _update_colors_event = Event
 
     _colors = Any # OrderedDict(Grid -> Color)
+    _color_scheme = Any #Generator returning 3-tuples
     _grid_geom = Dict # Grid -> Gx2 list
+
+    ct_registration = File
 
     @cached_property
     def _get__grid_named_objects(self):
@@ -50,10 +56,20 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 #TODO dont totally hardcode this color
                 color=mayavi2traits_color((1,0,0)))]
 
-        for key in self._grids.keys():
-            grid_names.append(GeometryNameHolder(name=key, 
-                geometry=str(self._grid_geom[key]), 
-                color=mayavi2traits_color(self._colors[key])))
+        #for key in sorted(self._grids.keys()):
+        #use the canonical order as the order to appear in the list
+        if self._colors is not None:
+            for key in self._colors.keys():
+                if key=='unsorted':
+                    continue
+                grid_names.append(GeometryNameHolder(
+                    name=key, 
+                    geometry=str(self._grid_geom[key]), 
+                    color=mayavi2traits_color(self._colors[key])))
+
+        #if len(self._grids) > 0:
+        #import pdb
+        #pdb.set_trace()
 
         return grid_names
 
@@ -80,6 +96,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
                     self._grids[new].append(elec)
     
     def _run_pipeline(self):
+        self._commit_grid_changes()
+
         if self.subjects_dir is None or self.subjects_dir=='':
             self.subjects_dir = os.environ['SUBJECTS_DIR']
         if self.subject is None or self.subject=='':
@@ -95,16 +113,21 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._electrodes = pipe.identify_electrodes_in_ctspace(
             self.ct_scan, mask=ct_mask) 
 
-        aff = pipe.register_ct_to_mr_using_mutual_information(self.ct_scan,
-            subjects_dir=self.subjects_dir, subject=self.subject)
+        if self.ct_registration not in (None, ''):
+            aff = load_affine(self.ct_registration)
+        else:
+            aff = pipe.register_ct_to_mr_using_mutual_information(
+                self.ct_scan, subjects_dir=self.subjects_dir, 
+                subject=self.subject)
 
         pipe.create_dural_surface(subjects_dir=self.subjects_dir, 
             subject=self.subject)
 
         #initial sorting
         #self._grids, self._colors = pipe.classify_electrodes(
-        self._colors, self._grid_geom, self._grids = pipe.classify_electrodes(
-            self._electrodes, self.electrode_geometry)
+        self._colors, self._grid_geom, self._grids, self._color_scheme = (
+            pipe.classify_electrodes(self._electrodes,
+                                     self.electrode_geometry))
 
         # add grid labels to electrodes
         for key in self._grids:
@@ -126,8 +149,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #quick results so the user can adjust them
         pipe.snap_electrodes_to_surface(
             self._electrodes, self.hemisphere, subjects_dir=self.subjects_dir,
-            #subject=self.subject, max_steps=2500)
-            subject=self.subject, max_steps=200)
+            subject=self.subject, max_steps=2500)
+            #subject=self.subject, max_steps=200)
 
         # Store the sorted/interpolated points in separate maps for access
         for key in self._grids:
@@ -155,6 +178,30 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._all_electrodes.update(self._sorted_electrodes)
     
         self._visualize_event = True
+
+    def _add_grid(self):
+        name = 'usergrid%s'%gensym()
+
+        self.interactive_mode = self._grid_named_objects[0]
+
+        #force self._grids to update (GUI depends on cached property)
+#        temp_grids = self._grids
+#        self._grids = {}
+#        self._grids.update(temp_grids)
+
+        #geometry and color data should be defined first so that when grids
+        #grids is updated the GUI does not error out looking for this info
+        self._grid_geom[name] = 'user-defined'
+        self._colors[name] = self._color_scheme.next()
+
+        #testing GUI update bug
+        #temp_grids = self._grids.copy()
+        #temp_grids[name] = []
+        #self._grids = temp_grids
+
+        self._grids[name] = []
+        
+        self._update_colors_event = True
 
     def _fit_changes(self):
         #maybe this should be a different call which evaluates a single
@@ -246,6 +293,9 @@ class SurfaceVisualizerPanel(HasTraits):
             grid_elecs = map((lambda x:getattr(x, 'snap_coords')), 
                 self._grids[key])
 
+            if len(grid_elecs)==0:
+                continue
+
             self.gs_glyphs[key] = glyph = virtual_points3d(grid_elecs,
                 scale_factor=0.3, color=self._colors[key], 
                 name=key, figure=self.scene.mayavi_scene)
@@ -313,6 +363,12 @@ class SurfaceVisualizerPanel(HasTraits):
                 elec.grid_transition_to = target
 
         mlab.draw()
+
+    @on_trait_change('model:_update_colors_event')
+    def update_colors(self):
+        from color_utils import set_discrete_lut
+        for glyph in self.gs_glyphs.values():
+            set_discrete_lut(glyph, self._colors.values())
                 
 class InteractivePanel(HasPrivateTraits):
     model = Instance(ElectrodePositionsModel)
@@ -325,6 +381,8 @@ class InteractivePanel(HasPrivateTraits):
     subject = DelegatesTo('model')
     fsdir_writable = DelegatesTo('model')
 
+    ct_registration = DelegatesTo('model')
+
     electrode_geometry = DelegatesTo('model')
     hemisphere = DelegatesTo('model')
 
@@ -332,7 +390,7 @@ class InteractivePanel(HasPrivateTraits):
 
     #interactive_mode = Instance(NameHolder)
     interactive_mode = DelegatesTo('model')
-    find_best_fit_button = Button('Fit changes')
+    add_grid_button = Button('Add new grid')
     shell = Dict
 
     viz = Instance(SurfaceVisualizerPanel)
@@ -341,6 +399,7 @@ class InteractivePanel(HasPrivateTraits):
         HGroup(
             VGroup(
                 Item('ct_scan'),
+                Item('ct_registration', label='reg matrix\n(optional)')
             ),
             VGroup(
                 Item('electrode_geometry', editor=ListEditor(
@@ -362,7 +421,7 @@ class InteractivePanel(HasPrivateTraits):
                     style='custom', label='Add/remove electrodes from'),
             ),
             VGroup(
-                Item('find_best_fit_button', show_label=False),
+                Item('add_grid_button', show_label=False),
             ),
         ),
 
@@ -377,6 +436,9 @@ class InteractivePanel(HasPrivateTraits):
 
     def _run_pipeline_button_fired(self):
         self.model._run_pipeline()
+
+    def _add_grid_button_fired(self):
+        self.model._add_grid()
 
     def _find_best_fit_button_fired(self):
         self.model._fit_changes()
@@ -393,8 +455,8 @@ class iEEGCoregistrationFrame(HasTraits):
                 resizable=True),
         show_labels=False),
 
-        title=('llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch is '
-            'nice this time of year'),
+        title=('llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch is'
+            ' nice this time of year'),
         height=800, width=700, resizable=True
     )
 
@@ -405,5 +467,6 @@ class iEEGCoregistrationFrame(HasTraits):
         self.interactive_panel = InteractivePanel(model, 
             self.surface_visualizer_panel)
 
+crash_if_freesurfer_is_not_sourced()
 iEEGCoregistrationFrame().configure_traits()
 

@@ -29,6 +29,8 @@ def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None):
         The location of the textfile where the brainmask is located,
         which is currently $SUBJECTS_DIR/mri/brain_ct.nii.gz
     '''
+    print 'converting brainmask to CT image space'
+
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
     if subject is None or subject=='':
@@ -45,6 +47,7 @@ def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None):
     ct_brain = os.path.join(subjects_dir, subject, 'mri', 'brain_ct.nii.gz')
 
     if os.path.exists(ct_brain):
+        print 'brainmask in ct space already exists, using it'
         return ct_brain
 
     import tempfile
@@ -104,6 +107,8 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
     electrodes : List(Electrode)
         an list of Electrode objects with only the ct coords indicated.
     '''
+    print 'identifying electrode locations from CT image'
+
     from scipy import ndimage
     import sys
 
@@ -212,7 +217,7 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
     return [Electrode(ct_coords=cluster.center_of_mass()) 
             for cluster in electrode_clusters]
 
-def classify_electrodes(electrodes, known_geometry, fixed_points=None,
+def classify_electrodes(electrodes, known_geometry,
     delta=.35, rho=35, rho_strict=20, rho_loose=50, color_scheme=None,
     epsilon=10):
     '''
@@ -298,11 +303,11 @@ def classify_electrodes(electrodes, known_geometry, fixed_points=None,
     grid_geom = {}
     used_points = []
 
-    for i,dims in enumerate(known_geometry):
+    for dims in known_geometry:
         new_elecs = geo.rm_pts(np.reshape(used_points, (-1,3)), 
             np.array(electrode_arr))
 
-        angles, dists, neighbs = gl.find_init_angles(new_elecs, mindist=0, 
+        angles, _, neighbs = gl.find_init_angles(new_elecs, mindist=0, 
             maxdist=28)
 
         ba = np.squeeze(sorted(zip(*np.where(np.abs(90-angles)<epsilon)),
@@ -311,8 +316,7 @@ def classify_electrodes(electrodes, known_geometry, fixed_points=None,
         if ba.shape==():
             ba=[ba]
         elif len(ba)==0:
-            print "Could not find any good angles"
-            break
+            raise ValueError("Could not find any good angles")
 
         for j,k in enumerate(ba):
             p0,p1,p2 = neighbs[k]
@@ -326,7 +330,11 @@ def classify_electrodes(electrodes, known_geometry, fixed_points=None,
             except gl.StripError as e:
                 print 'Rejected this initialization'
                 if j==len(ba)-1:
-                    raise ValueError('No suitable strip found')
+                    print ('No suitable strip found. Returning an empty '
+                        'strip in its place')
+                    found_grids[pog.name] = []
+                    grid_colors[pog.name] = colors.next()
+                    grid_geom[pog.name] = dims
                 continue
 
             sp = np.reshape(sp, (-1,3))
@@ -354,7 +362,123 @@ def classify_electrodes(electrodes, known_geometry, fixed_points=None,
             break
 
     #return found_grids, grid_colors
-    return grid_colors, grid_geom, found_grids
+    return grid_colors, grid_geom, found_grids, colors
+
+def classify_with_fixed_points(fixed_grids, known_geometry, 
+    delta=.35, rho=35, rho_strict=20, rho_loose=50, 
+    epsilon=10, max_cost=.4):
+    '''
+    Sort the given electrodes (generally in the space of the CT scan) into
+    grids and strips matching the specified geometry.
+
+    Parameters
+    ----------
+    electrodes : List(Electrode)
+        A list of electrode locations. The CT coordinate attribute of the
+        electrodes is used as the position.
+        It is the caller's responsibility to filter the electrodes list as
+        appropriate.
+    fixed_grids : Dict( Str -> List(Electrode)
+        A dictionary describing which electrodes correspond to each grid.
+        Grids are represented by string name and electrode by Electrode
+        objects.
+    known_geometry : Dict( Str -> List(2x1) )
+        A dictionary describing the geometry on each grid. Each grid is
+        associated with the same name as in fixed_grids.
+    delta : Float
+        A fitting parameter that controls the relative distance between
+        grid points. A grid point cannot be farther than delta*c from its
+        orthogonal neighbors, where c is an estimate of the distance between
+        grid neighbors, assuming a roughly square grid (Later, this should be
+        a rectangular grid). The default value is .35
+    rho : Float
+        A fitting parameter controlling the distance from which successive
+        angles can diverge from 90. The default value is 35
+    rho_strict : Float
+        A fitting parameter similar to rho but used in different geometric
+        circumstances. The default value is 20.
+    rho_loose : Float
+        A fitting parameter similar to rho but used in different geometric
+        circumstances. The default value is 50.
+    epsilon : Float
+        A fitting parameter controlling the acceptable deviation from 90
+        degrees for the starting point of a KxM grid where K>1,M>1. A
+        larger parameter means the algorithm will try a larger range of
+        starting positions before giving up. The default value is 10.
+    max_cost : Float
+        A fitting parameter for classification with fixed points only.
+        Represents the maximum value of the cost function for normal
+        iteration.
+    '''
+    electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
+    all_elecs = np.array(electrode_arr)
+
+    found_grids = {}
+
+    for grid_name in fixed_grids:
+        grid = fixed_grids[grid_name]
+        elecs = map((lambda x:getattr(x, 'ct_coords')), grid)
+
+        geom = known_geometry[grid_name]
+
+        # if this grid is already fully populated, just return it
+        if len(elecs) == geom[0]*geom[1]:
+            found_grids[grid_name] = grid
+            continue
+
+        angles, _, neighbs = gl.find_init_angles(elecs, mindist=0,
+            maxdist=28)
+
+        ba = np.squeeze(sorted(zip(*np.where(np.abs(90-angles)<epsilon)),
+                key=lambda v:np.abs(90-angles[v])))
+
+        if ba.shape==():
+            ba=[ba]
+        elif len(ba)==0:
+            raise ValueError("Could not find any good angles")
+
+        for j,k in enumerate(ba):
+            p0,p1,p2 = neighbs[k]
+            pog = gl.Grid(p0, p1, p2, elecs, delta=delta, rho=rho,
+                rho_strict=rho_strict, rho_loose=rho_loose, name=grid_name)
+                
+            try:
+                pog.recreate_geometry( )
+            except gl.StripError as e:
+                print 'Could not recreate geometry with this initialization'
+                continue
+
+            # now set the expanded electrode space to re-fit the other grid
+            # points
+            pog.all_elecs = all_elecs
+
+            pog.extend_grid_arbitrarily()
+
+            try:
+                sp = pog.extract_strip(*geom)
+            except gl.StripError as e:
+                print 'Rejected this choice'
+                if j==len(ba)-1:
+                    raise ValueError("Could not incorporate fixed points")
+
+            found_grids[grid_name] = []
+            for p in sp:
+                if tuple(p.tolist()) in electrode_arr:
+                    ix, = np.where(np.logical_and(np.logical_and( 
+                        np.array(electrode_arr)[:,0]==p[0], 
+                        np.array(electrode_arr)[:,1]==p[1]),
+                        np.array(electrode_arr)[:,2]==p[2]))
+                    try:
+                        found_grids[pog.name].append(electrodes[ix])
+                    except IndexError:
+                        raise ValueError("multiple electrodes at same point")
+                else:
+                    found_grids[pog.name].append(Electrode(ct_coords=tuple(p),
+                        is_interpolation=True))
+
+            break
+ 
+    return found_grids
 
 def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     subject=None):
@@ -382,6 +506,8 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     affine : 4x4 np.ndarray
         The matrix containing the affine transformation from CT to MR space.
     '''
+    print 'registering CT to MR'
+
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
     if subject is None or subject=='':
@@ -394,15 +520,17 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     lta = os.path.join(xfms_dir,'ct2mr.lta')
 
     if os.path.exists(lta):
+        print 'using existing CT to MR transformation'
         return geo.get_lta(lta)
 
     #import tempfile
     import subprocess
 
     orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
+    out = os.path.join(subjects_dir, subject, 'mri', 'ct_ras.nii.gz')
 
     mri_robustreg_cmd = ['mri_robust_register','--mov',ct,'--dst',orig,
-        '--lta',lta,'--satit','--vox2vox','--cost','nmi']
+        '--lta',lta,'--satit','--vox2vox','--cost','nmi','--mapmov',out]
     p=subprocess.call(mri_robustreg_cmd)
 
     affine=geo.get_lta(lta)
@@ -431,6 +559,7 @@ def create_dural_surface(subjects_dir=None, subject=None):
         The freesurfer subject. If this is None, it is assumed to be the
         $SUBJECT environment variable.
     '''
+    print 'create dural surface step'
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
     if subject is None or subject=='':
@@ -439,6 +568,7 @@ def create_dural_surface(subjects_dir=None, subject=None):
     if (os.path.exists(os.path.join(subjects_dir,subject,'surf','lh.dural'))
             and os.path.exists(os.path.join(subjects_dir, subject,'surf',
             'rh.dural'))):
+        print 'dural surfaces already exist'
         return
 
     import subprocess
@@ -454,7 +584,7 @@ def create_dural_surface(subjects_dir=None, subject=None):
     os.chdir(curdir)
 
 def translate_electrodes_to_surface_space(electrodes, ct2mr,
-    subjects_dir=None, subject=None):
+    subjects_dir=None, subject=None, affine=None):
     '''
     Translates electrodes from CT space to orig space, and then from
     orig space to surface space.
@@ -475,6 +605,8 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
     There is no return value. The 'surf_coords' attribute will be used to
     store the surface locations of the electrodes
     '''
+    print 'translating electrodes to surface space'
+
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
     if subject is None or subject=='':
@@ -535,6 +667,10 @@ def snap_electrodes_to_surface(electrodes, hemi, subjects_dir=None,
     n = len(electrodes)
     electrode_arr = map((lambda x:getattr(x, 'surf_coords')), electrodes)
     e_init = np.array(electrode_arr)
+
+    print n, "NUM ELECTRODES"
+    print electrode_arr, "INIT ELECTRODES"
+    print e_init, "NUMPY ARRAY"
 
     # first set the alpha parameter exactly as described in Dykstra 2012.
     # this parameter controls which electrodes have virtual springs connected.
