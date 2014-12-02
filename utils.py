@@ -19,8 +19,13 @@ def virtual_points3d(coords, figure=None, scale_factor=None, color=None,
     #    figure=figure, scale_factor=10*scale_factor, color=color, name=name)
 
 def clear_scene(scene):
-    for child in scene.children:
-        child.remove() 
+    #this bugs out for a reason I haven't figured out yet
+    #for child in scene.children:
+    #    child.remove() 
+
+    scene.children = []
+    import gc
+    gc.collect()
 
 def _count():
     i=0

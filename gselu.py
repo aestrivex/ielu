@@ -19,7 +19,6 @@ class ElectrodePositionsModel(HasPrivateTraits):
     subjects_dir = Directory
     subject = Str
     fsdir_writable = Bool
-    hemisphere = Enum('rh','lh')
 
     electrode_geometry = List(List(Int), [[8,8]]) # Gx2 list
 
@@ -148,9 +147,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #additional cooling offers very marginal returns and we prioritize
         #quick results so the user can adjust them
         pipe.snap_electrodes_to_surface(
-            self._electrodes, self.hemisphere, subjects_dir=self.subjects_dir,
-            subject=self.subject, max_steps=2500)
-            #subject=self.subject, max_steps=200)
+            self._electrodes, subjects_dir=self.subjects_dir,
+            #subject=self.subject, max_steps=2500)
+            subject=self.subject, max_steps=10)
 
         # Store the sorted/interpolated points in separate maps for access
         for key in self._grids:
@@ -217,7 +216,6 @@ class SurfaceVisualizerPanel(HasTraits):
     _visualize_event = DelegatesTo('model')
     subject = DelegatesTo('model')
     subjects_dir = DelegatesTo('model')
-    hemisphere = DelegatesTo('model')
     _colors = DelegatesTo('model')
 
     _grids = DelegatesTo('model')
@@ -273,10 +271,9 @@ class SurfaceVisualizerPanel(HasTraits):
         import surfer
         brain = self.brain = surfer.Brain( 
             self.subject, subjects_dir=self.subjects_dir,
-            surf='pial', curv=False, hemi=self.hemisphere,
+            surf='pial', curv=False, hemi='both',
             figure=self.scene.mayavi_scene)
 
-        brain.brains[0]._geo_surf.actor.property.opacity = 0.35
         brain.toggle_toolbars(True)
 
         unsorted_elecs = map((lambda x:getattr(x, 'snap_coords')),
@@ -309,6 +306,7 @@ class SurfaceVisualizerPanel(HasTraits):
         #set the surface unpickable
         for srf in brain.brains:
             srf._geo_surf.actor.actor.pickable=False
+            srf._geo_surf.actor.property.opacity = 0.4
 
         #setup the node selection callback
         picker = self.scene.mayavi_scene.on_mouse_pick( self.selectnode_cb )
@@ -384,7 +382,6 @@ class InteractivePanel(HasPrivateTraits):
     ct_registration = DelegatesTo('model')
 
     electrode_geometry = DelegatesTo('model')
-    hemisphere = DelegatesTo('model')
 
     _grid_named_objects = DelegatesTo('model')
 
@@ -412,7 +409,6 @@ class InteractivePanel(HasPrivateTraits):
         HGroup(
                 Item('subjects_dir'),
                 Item('subject'),
-                Item('hemisphere')
         ),
         HGroup(
             VGroup(

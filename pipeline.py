@@ -42,8 +42,9 @@ def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None):
     lta = os.path.join(xfms_dir,'mr2ct.lta')
     #_,lta = tempfile.mkstemp()
     
-    orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
+    rawavg = os.path.join(subjects_dir, subject, 'mri', 'rawavg.mgz')
     brain = os.path.join(subjects_dir, subject, 'mri', 'brain.mgz')
+    nas_brain = os.path.join(subjects_dir, subject, 'mri', 'brain_nas.nii.gz')
     ct_brain = os.path.join(subjects_dir, subject, 'mri', 'brain_ct.nii.gz')
 
     if os.path.exists(ct_brain):
@@ -53,13 +54,17 @@ def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None):
     import tempfile
     import subprocess
 
-    mri_robustreg_cmd1 = ['mri_robust_register','--mov',orig,'--dst',ct,
+    mri_vol2vol_cmd = ['mri_vol2vol','--mov',brain,'--targ',rawavg,
+        '--regheader','--o',nas_brain,'--no-save-reg']
+    r=subprocess.call(mri_vol2vol_cmd)
+
+    mri_robustreg_cmd1 = ['mri_robust_register','--mov',rawavg,'--dst',ct,
         '--lta',lta,'--satit','--vox2vox','--cost','nmi']
     p=subprocess.call(mri_robustreg_cmd1)
 
     _,gbg = tempfile.mkstemp()
 
-    mri_robustreg_cmd2 = ['mri_robust_register','--mov',brain,'--dst',ct,
+    mri_robustreg_cmd2 = ['mri_robust_register','--mov',nas_brain,'--dst',ct,
         '--lta',gbg,'--satit','--cost','nmi','--ixform',lta,'--mapmov',
         ct_brain]
     q=subprocess.call(mri_robustreg_cmd2)
@@ -526,16 +531,16 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     #import tempfile
     import subprocess
 
-    orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
-    out = os.path.join(subjects_dir, subject, 'mri', 'ct_ras.nii.gz')
+    rawavg = os.path.join(subjects_dir, subject, 'mri', 'rawavg.mgz')
+    out = os.path.join(subjects_dir, subject, 'mri', 'ct_nas.nii.gz')
 
-    mri_robustreg_cmd = ['mri_robust_register','--mov',ct,'--dst',orig,
+    mri_robustreg_cmd = ['mri_robust_register','--mov',ct,'--dst',rawavg,
         '--lta',lta,'--satit','--vox2vox','--cost','nmi','--mapmov',out]
     p=subprocess.call(mri_robustreg_cmd)
 
     affine=geo.get_lta(lta)
-
     #os.unlink(lta)
+
     return affine
 
 def create_dural_surface(subjects_dir=None, subject=None):
@@ -615,14 +620,28 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
     electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
     orig_elecs = geo.apply_affine(electrode_arr, ct2mr)
 
+    rawavg = os.path.join(subjects_dir, subject, 'mri', 'rawavg.mgz')
     orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
+    lta = os.path.join(subjects_dir, subject, 'mri', 'transforms',
+        'raw2orig.lta')
+
+    if not os.path.exists(lta):
+        import subprocess
+        mri_robustreg_cmd = ['mri_robust_register','--mov',rawavg,'--dst',orig,
+            '--lta',lta,'--satit','--vox2vox']
+        p = subprocess.call(mri_robustreg_cmd)
+
+    nas2ras = geo.get_lta(lta)
+
+    nas_locs = geo.apply_affine(orig_elecs, nas2ras)
+
     tkr = geo.get_vox2rasxfm(orig, stem='vox2ras-tkr')
 
-    surf_locs = geo.apply_affine(orig_elecs, tkr)
+    surf_locs = geo.apply_affine(nas_locs, tkr)
     for elec, loc in zip(electrodes, surf_locs):
         elec.surf_coords = loc
 
-def snap_electrodes_to_surface(electrodes, hemi, subjects_dir=None, 
+def snap_electrodes_to_surface(electrodes, subjects_dir=None, 
     subject=None, max_steps=40000, giveup_steps=10000):
     '''
     Transforms electrodes from surface space to positions on the surface
@@ -634,9 +653,6 @@ def snap_electrodes_to_surface(electrodes, hemi, subjects_dir=None,
     electrodes : List(Electrode)
         List of electrodes with the surf_coords attribute filled. Caller is
         responsible for filtering these into grids if desired.
-    hemi : Str
-        "lh" or "rh", depending on the hemisphere to be snapped to. Maybe
-        the user has to set this.
     subjects_dir : Str | None
         The freesurfer subjects_dir. If this is None, it is assumed to be the 
         $SUBJECTS_DIR environment variable. Needed to access the dural
@@ -667,10 +683,6 @@ def snap_electrodes_to_surface(electrodes, hemi, subjects_dir=None,
     n = len(electrodes)
     electrode_arr = map((lambda x:getattr(x, 'surf_coords')), electrodes)
     e_init = np.array(electrode_arr)
-
-    print n, "NUM ELECTRODES"
-    print electrode_arr, "INIT ELECTRODES"
-    print e_init, "NUMPY ARRAY"
 
     # first set the alpha parameter exactly as described in Dykstra 2012.
     # this parameter controls which electrodes have virtual springs connected.
@@ -747,8 +759,13 @@ def snap_electrodes_to_surface(electrodes, hemi, subjects_dir=None,
         return H
 
     #load the dural surface locations
-    dura, _ = nib.freesurfer.read_geometry(
-        os.path.join(subjects_dir, subject, 'surf', '%s.dural'%hemi))
+    lh_dura, _ = nib.freesurfer.read_geometry(
+        os.path.join(subjects_dir, subject, 'surf', 'lh.dural'))
+
+    rh_dura, _ = nib.freesurfer.read_geometry(
+        os.path.join(subjects_dir, subject, 'surf', 'rh.dural'))
+
+    dura = np.vstack((lh_dura, rh_dura))
 
     max_deformation = 3
     deformation_choice = 50
