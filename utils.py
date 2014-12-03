@@ -23,9 +23,20 @@ def clear_scene(scene):
     #for child in scene.children:
     #    child.remove() 
 
-    scene.children = []
-    import gc
-    gc.collect()
+    #this causes a picker bug with or without gc
+    #scene.children = []
+    #import gc
+    #gc.collect()
+
+    #while scene.children: 
+    #    for child in scene.children:
+    #        child.remove()
+
+    #Now we handle this by building a new viewport-like object
+    #which CANNOT be done inside the viewport itself
+    pass
+
+    #mlab.clf(figure=scene)
 
 def _count():
     i=0

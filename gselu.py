@@ -6,7 +6,8 @@ from traits.api import (Bool, Button, cached_property, File, HasTraits,
     Instance, on_trait_change, Str, Property, Directory, Dict, DelegatesTo,
     HasPrivateTraits, Any, List, Enum, Int, Event)
 from traitsui.api import (View, Item, Group, OKCancelButtons, ShellEditor,
-    HGroup,VGroup, InstanceEditor, TextEditor, ListEditor, CSVListEditor)
+    HGroup,VGroup, InstanceEditor, TextEditor, ListEditor, CSVListEditor,
+    Handler)
 
 from electrode import Electrode
 from utils import virtual_points3d, NameHolder, GeometryNameHolder
@@ -37,7 +38,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     _points_to_cur_grid = Dict
     _points_to_unsorted = Dict
 
-    _visualize_event = Event
+    _rebuild_vizpanel_event = Event
+    _visualization_ready = Bool(False)
     _update_colors_event = Event
 
     _colors = Any # OrderedDict(Grid -> Color)
@@ -95,15 +97,23 @@ class ElectrodePositionsModel(HasPrivateTraits):
                     self._grids[new].append(elec)
     
     def _run_pipeline(self):
-        self._commit_grid_changes()
-
+        #setup
         if self.subjects_dir is None or self.subjects_dir=='':
             self.subjects_dir = os.environ['SUBJECTS_DIR']
         if self.subject is None or self.subject=='':
             self.subject = os.environ['SUBJECT']
 
-        self._electrodes=[]
+        self.interactive_mode = self._grid_named_objects[0]
 
+        self._electrodes = []
+        self._all_electrodes = {}
+        self._unsorted_electrodes = {}
+        self._sorted_electrodes = {}
+        self._interpolated_electrodes = {}
+
+        self._visualization_ready = False
+
+        #pipeline
         import pipeline as pipe
         
         ct_mask = pipe.create_brainmask_in_ctspace(self.ct_scan,
@@ -126,7 +136,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #self._grids, self._colors = pipe.classify_electrodes(
         self._colors, self._grid_geom, self._grids, self._color_scheme = (
             pipe.classify_electrodes(self._electrodes,
-                                     self.electrode_geometry))
+                                     self.electrode_geometry,
+                                     delta = .5
+                                    ))
 
         # add grid labels to electrodes
         for key in self._grids:
@@ -176,7 +188,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._all_electrodes.update(self._unsorted_electrodes)
         self._all_electrodes.update(self._sorted_electrodes)
     
-        self._visualize_event = True
+        self._visualization_ready = True
+        self._rebuild_vizpanel_event = True
 
     def _add_grid(self):
         name = 'usergrid%s'%gensym()
@@ -209,11 +222,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self._electrodes, self.electrode_geometry,
             fixed_points=self._grids.values())
 
+#class IntermediateVizInterface(Handler):
+#    viz = Instance(SurfaceVisualizerPanel)
+
 class SurfaceVisualizerPanel(HasTraits):
     scene = Instance(MlabSceneModel,())
     model = Instance(ElectrodePositionsModel)
 
-    _visualize_event = DelegatesTo('model')
     subject = DelegatesTo('model')
     subjects_dir = DelegatesTo('model')
     _colors = DelegatesTo('model')
@@ -239,29 +254,26 @@ class SurfaceVisualizerPanel(HasTraits):
         super(SurfaceVisualizerPanel, self).__init__(**kwargs)
         self.model = model
 
-    @on_trait_change('model:_visualize_event')
+    @on_trait_change('scene:activated')
+    def setup(self):
+        if self.model._visualization_ready:
+            self.show_grids_on_surface()
+
     def show_grids_on_surface(self):
+        self.model._visualization_ready = False
+
         from mayavi import mlab
         #mlab.clf(figure = self.scene.mayavi_scene)
 
         #there is a bug in mlab.clf which causes the callbacks to become
         #disconnected in such a way that they cannot be reattached to the
         #scene. I tracked this bug to the VTK picker before giving up.
-        #To avoid it, we write our own clf which does nothing
-        #to the picker. Then, when mayavi reattaches the picker it
-        #overwrites itself, which correctly discards the old one.
-        
-        #As a warning, this code is not safe from memory leaks. However,
-        #it is no less unsafe than mlab.clf. The only truly safe way to
-        #avoid memory leaks is as in CVU, where the Viewport (ie, this
-        #SurfaceVisualizerPanel object) would be garbage collected and
-        #rebuilt whenever the scene is changed.
 
-        #A guy on stackoverflow pointed out the memory leaks of this approach
-        #(using mlab.clf) after creating a loop which creates a complex
-        #scene and takes screenshots thousands of times.
-        #So for typical use, the memory leaks are probably not a big issue.
-    
+        #To avoid this, we use a workaround -- discard the scene every
+        #single time we want to use mlab.clf and replace it with an
+        #entirely new MlabSceneModel instance. This has the added benefit
+        #of (according to my tests) avoiding memory leaks.
+
         from utils import clear_scene
 
         clear_scene(self.scene.mayavi_scene)
@@ -269,6 +281,8 @@ class SurfaceVisualizerPanel(HasTraits):
         from color_utils import set_discrete_lut
 
         import surfer
+        #import pdb
+        #pdb.set_trace()
         brain = self.brain = surfer.Brain( 
             self.subject, subjects_dir=self.subjects_dir,
             surf='pial', curv=False, hemi='both',
@@ -440,8 +454,10 @@ class InteractivePanel(HasPrivateTraits):
         self.model._fit_changes()
 
 class iEEGCoregistrationFrame(HasTraits):
+    model = Instance(ElectrodePositionsModel)
     interactive_panel = Instance(InteractivePanel)
     surface_visualizer_panel = Instance(SurfaceVisualizerPanel)
+    #viz_interface = Instance(IntermediateVizInterface)
 
     traits_view = View(
         Group(
@@ -458,10 +474,16 @@ class iEEGCoregistrationFrame(HasTraits):
 
     def __init__(self, **kwargs):
         super(iEEGCoregistrationFrame, self).__init__(**kwargs)
-        model = ElectrodePositionsModel()
+        model = self.model = ElectrodePositionsModel()
         self.surface_visualizer_panel = SurfaceVisualizerPanel(model)
-        self.interactive_panel = InteractivePanel(model, 
-            self.surface_visualizer_panel)
+        self.interactive_panel = InteractivePanel(model,
+            viz=self.surface_visualizer_panel)
+
+    @on_trait_change('model:_rebuild_vizpanel_event')
+    def _rebuild_vizpanel(self):
+        print 'salishan language'
+        self.surface_visualizer_panel = SurfaceVisualizerPanel(self.model)
+        self.interactive_panel.viz = self.surface_visualizer_panel
 
 crash_if_freesurfer_is_not_sourced()
 iEEGCoregistrationFrame().configure_traits()
