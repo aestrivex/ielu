@@ -8,6 +8,7 @@ from traits.api import (Bool, Button, cached_property, File, HasTraits,
 from traitsui.api import (View, Item, Group, OKCancelButtons, ShellEditor,
     HGroup,VGroup, InstanceEditor, TextEditor, ListEditor, CSVListEditor,
     Handler)
+from traitsui.message import error as error_dialog
 
 from electrode import Electrode
 from utils import virtual_points3d, NameHolder, GeometryNameHolder
@@ -134,11 +135,15 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         #initial sorting
         #self._grids, self._colors = pipe.classify_electrodes(
-        self._colors, self._grid_geom, self._grids, self._color_scheme = (
-            pipe.classify_electrodes(self._electrodes,
-                                     self.electrode_geometry,
-                                     delta = .5
-                                    ))
+        try:
+            self._colors, self._grid_geom, self._grids, self._color_scheme = (
+                pipe.classify_electrodes(self._electrodes,
+                                         self.electrode_geometry,
+                                         delta = .5
+                                        ))
+        except ValueError as e:
+            error_dialog(str(e))
+            raise
 
         # add grid labels to electrodes
         for key in self._grids:
@@ -233,6 +238,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         labeldir = open_file(can_create_dir=True)
 
         if os.path.exists(labeldir) and not os.path.isdir(labeldir):
+            error_dialog('Cannot write labels to a non-directory')
             raise ValueError('Cannot write labels to a non-directory')
 
         try:
