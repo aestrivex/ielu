@@ -235,7 +235,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #then assign 2D indices based on that geometry
 
         from traitsui.file_dialog import open_file
-        labeldir = open_file(can_create_dir=True)
+        labeldir = open_file()
 
         if os.path.exists(labeldir) and not os.path.isdir(labeldir):
             error_dialog('Cannot write labels to a non-directory')
