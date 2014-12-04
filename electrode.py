@@ -1,5 +1,5 @@
 import numpy as np
-from traits.api import HasTraits, List, Float, Tuple, Instance, Bool, Str
+from traits.api import HasTraits, List, Float, Tuple, Instance, Bool, Str, Int
 
 class Electrode(HasTraits):
 #    ct_coords = List(Float)
@@ -14,6 +14,10 @@ class Electrode(HasTraits):
     grid_name = Str('unsorted')
     grid_transition_to = Str('')
     
+    hemi = Str
+    vertno = Int(-1)
+    pial_coords = Instance(np.ndarray)
+
     #def __eq__(self, other):
     #    return np.all(self.snap_coords == other)
 

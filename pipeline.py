@@ -838,4 +838,16 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
     for elec, loc in zip(electrodes, emin):
         elec.snap_coords = loc
 
-    
+    #return the nearest vertex on the pial surface 
+    lh_pia, _ = nib.freesurfer.read_geometry(
+        os.path.join(subjects_dir, subject, 'surf', 'lh.pial'))
+    rh_pia, _ = nib.freesurfer.read_geometry(
+        os.path.join(subjects_dir, subject, 'surf', 'rh.pial'))
+    pia = np.vstack((lh_pia, rh_pia))
+
+    e_pia = np.argmin(cdist(pia, emin), axis=0)
+
+    for elec, soln in zip(electrodes, e_pia):
+        elec.vertno = soln if soln<len(lh_pia) else soln-len(lh_pia)
+        elec.hemi = 'lh' if soln<len(lh_pia) else 'rh'
+        elec.pial_coords = pia[soln]

@@ -96,7 +96,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 if new != 'unsorted':
                     self._grids[new].append(elec)
     
-    def _run_pipeline(self):
+    def run_pipeline(self):
         #setup
         if self.subjects_dir is None or self.subjects_dir=='':
             self.subjects_dir = os.environ['SUBJECTS_DIR']
@@ -191,7 +191,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._visualization_ready = True
         self._rebuild_vizpanel_event = True
 
-    def _add_grid(self):
+    def add_grid(self):
         name = 'usergrid%s'%gensym()
 
         self.interactive_mode = self._grid_named_objects[0]
@@ -215,12 +215,45 @@ class ElectrodePositionsModel(HasPrivateTraits):
         
         self._update_colors_event = True
 
-    def _fit_changes(self):
+    def fit_changes(self):
         #maybe this should be a different call which evaluates a single
         #grid
+
+        #currently we dont use this
         _, _, self._grids = pipe.classify_electrodes(
             self._electrodes, self.electrode_geometry,
             fixed_points=self._grids.values())
+
+    def save_labels(self):
+        #TODO run the grid fitting procedure with the complete fixed
+        #set of electrodes, to determine the resultant geometry
+        #then assign 2D indices based on that geometry
+
+        from traitsui.file_dialog import open_file
+        labeldir = open_file(can_create_dir=True)
+
+        if os.path.exists(labeldir) and not os.path.isdir(labeldir):
+            raise ValueError('Cannot write labels to a non-directory')
+
+        try:
+            os.makedirs(labeldir)
+        except OSError:
+            #potentially handle errno further
+            pass
+
+        from mne.label import Label
+
+        #import pdb
+        #pdb.set_trace()
+
+        for key in self._grids:
+            for j,elec in enumerate(self._grids[key]):
+                label_name = '%s_elec%i'%(key,j)
+                label = Label(vertices=[elec.vertno], 
+                              pos=[elec.pial_coords.tolist()],
+                              subject=self.subject, hemi=elec.hemi,
+                              name=label_name)
+                label.save( os.path.join( labeldir, label_name ))
 
 #class IntermediateVizInterface(Handler):
 #    viz = Instance(SurfaceVisualizerPanel)
@@ -404,6 +437,9 @@ class InteractivePanel(HasPrivateTraits):
     add_grid_button = Button('Add new grid')
     shell = Dict
 
+    save_labels_button = Button('Save labels')
+
+    #we retain a reference to easily reference the visualization in the shell
     viz = Instance(SurfaceVisualizerPanel)
 
     traits_view = View(
@@ -433,6 +469,9 @@ class InteractivePanel(HasPrivateTraits):
             VGroup(
                 Item('add_grid_button', show_label=False),
             ),
+            VGroup(
+                Item('save_labels_button', show_label=False),
+            ),
         ),
 
                 Item('shell', show_label=False, editor=ShellEditor()),
@@ -445,13 +484,16 @@ class InteractivePanel(HasPrivateTraits):
         self.viz = viz
 
     def _run_pipeline_button_fired(self):
-        self.model._run_pipeline()
+        self.model.run_pipeline()
 
     def _add_grid_button_fired(self):
-        self.model._add_grid()
+        self.model.add_grid()
 
     def _find_best_fit_button_fired(self):
-        self.model._fit_changes()
+        self.model.fit_changes()
+
+    def _save_labels_button_fired(self):
+        self.model.save_labels()
 
 class iEEGCoregistrationFrame(HasTraits):
     model = Instance(ElectrodePositionsModel)
@@ -481,7 +523,6 @@ class iEEGCoregistrationFrame(HasTraits):
 
     @on_trait_change('model:_rebuild_vizpanel_event')
     def _rebuild_vizpanel(self):
-        print 'salishan language'
         self.surface_visualizer_panel = SurfaceVisualizerPanel(self.model)
         self.interactive_panel.viz = self.surface_visualizer_panel
 
