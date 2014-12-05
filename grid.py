@@ -60,7 +60,8 @@ class Grid():
     '''
 
     def __init__(self,p0,p1,p2, all_elecs, delta=.35, rho=35,
-            rho_strict=20, rho_loose=50, max_cost=.4, name=''):
+            rho_strict=20, rho_loose=50, max_cost=.4, name='',
+            critical_percentage=.75):
 
         self.name=name 
 
@@ -104,6 +105,8 @@ class Grid():
         #self.rho_strict = 10
         #self.rho_loose = 20
 
+        self.critical_percentage = critical_percentage
+
     def __repr__(self):
         return 'Printing Grid with critdist %.2f ...\n%s' %(self.critdist(),
             repr(self.repr_as_2d_graph()) )
@@ -144,8 +147,11 @@ class Grid():
         return np.mean(self.distances)
 
     def nearest(self, p0):
-        p,_ = find_nearest_pt(p0, self.remaining_points())
-        return p
+        try:
+            p,_ = find_nearest_pt(p0, self.remaining_points())
+            return p
+        except IndexError:
+            return np.array((np.inf, np.inf, np.inf))
 
     def add_point(self, pJ, coord_2d=None):
         if coord_2d is None:
@@ -402,7 +408,7 @@ class Grid():
             print 'started with %i points, now has %i' % (len(points), len(self.points))
 
     def recreate_geometry(self):
-        if len(self.points != 3):
+        if len(self.points) != 3:
             raise ValueError("Should only recreate geometry on blank grid")
 
         #raise ValueError('Noet suppahted')
@@ -616,7 +622,7 @@ class Grid():
                     elif cur_fit == best_fit:
                         best_locs.append(cur_loc)
 
-        if best_fit < M*N*.75:
+        if best_fit < M*N*self.critical_percentage:
             raise StripError("No strip had a sufficiently good fit, best fit was %i"%int(best_fit))
 
         best_loc, points = self.disambiguate_best_fit_strips(best_locs, M, N)

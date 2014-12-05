@@ -312,6 +312,7 @@ def classify_electrodes(electrodes, known_geometry,
         new_elecs = geo.rm_pts(np.reshape(used_points, (-1,3)), 
             np.array(electrode_arr))
 
+        #TODO mindist and maxdist settable parameters
         angles, _, neighbs = gl.find_init_angles(new_elecs, mindist=0, 
             maxdist=28)
 
@@ -369,12 +370,181 @@ def classify_electrodes(electrodes, known_geometry,
     #return found_grids, grid_colors
     return grid_colors, grid_geom, found_grids, colors
 
+def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
+    delta=.35, rho=35, rho_strict=20, rho_loose=50, 
+    epsilon=10, max_cost=.4):
+    '''
+    Sort the electrodes with the given name (in the space of the CT scan) into
+    a grid matching the geometry of the grid with the given name.
+
+    If the geometry is user-defined, prompt the user to provide the geometry
+    before proceeding.
+
+    Parameters
+    ----------
+    name : Str
+        The name of the grid to fit
+    fixed_grids : Dict( Str -> List(Electrode)
+        A dictionary describing which electrodes correspond to each grid.
+        Grids are represented by string name and electrode by Electrode
+        objects. Only the electrodes in the grid at the named key will
+        be used, and they will be forced.
+    known_geometry : Dict( Str -> List(2x1) )
+        A dictionary describing the geometry on each grid. Each grid is
+        associated with the same name as in fixed_grids.
+    colors : Dict( Str -> Color )
+        A dictionary describing colors for each grid.
+    delta : Float
+        A fitting parameter that controls the relative distance between
+        grid points. A grid point cannot be farther than delta*c from its
+        orthogonal neighbors, where c is an estimate of the distance between
+        grid neighbors, assuming a roughly square grid (Later, this should be
+        a rectangular grid). The default value is .35
+    rho : Float
+        A fitting parameter controlling the distance from which successive
+        angles can diverge from 90. The default value is 35
+    rho_strict : Float
+        A fitting parameter similar to rho but used in different geometric
+        circumstances. The default value is 20.
+    rho_loose : Float
+        A fitting parameter similar to rho but used in different geometric
+        circumstances. The default value is 50.
+    epsilon : Float
+        A fitting parameter controlling the acceptable deviation from 90
+        degrees for the starting point of a KxM grid where K>1,M>1. A
+        larger parameter means the algorithm will try a larger range of
+        starting positions before giving up. The default value is 10.
+    '''
+    cur_grid = fixed_grids[name]
+    cur_geom = known_geometry[name]
+    elecs = map((lambda x:getattr(x, 'ct_coords')), cur_grid)
+
+    def getgrid_continuation(geom):
+        angles, _, neighbs = gl.find_init_angles(np.array(elecs), mindist=0,
+            maxdist=28)
+
+        ba = np.squeeze(sorted(zip(*np.where(np.abs(90-angles)<epsilon)),
+                key=lambda v:np.abs(90-angles[v])))
+        
+        if ba.shape==():
+            ba=[ba]
+        elif len(ba)==0:
+            raise ValueError("Could not find any good angles")
+
+        newpog = None
+        for j,k in enumerate(ba):
+            p0,p1,p2 = neighbs[k]
+            pog = gl.Grid(p0, p1, p2, np.array(elecs), delta=delta, rho=rho,
+                rho_strict=rho_strict, rho_loose=rho_loose,
+                critical_percentage=1)
+                
+            try:
+                pog.recreate_geometry( )
+            except gl.StripError as e:
+                print 'Could not recreate geometry with this initialization'
+                continue
+
+            #if all points were included in the grid already just return
+            #the Grid object for subsequent extraction of geometry
+            if len(pog.points) == geom[0]*geom[1]:
+                newpog = pog
+                break
+
+            #allow for a second step of interpolation if not all points are
+            #settled
+            try: 
+                strip = pog.extract_strip(*geom)
+            except gl.StripError as e:
+                print 'Could not interpolate missing points'
+                continue
+
+            try:
+                newpog = gl.Grid(p0, p1, p2, np.array(strip), delta=delta,
+                    rho=rho, rho_strict=rho_strict, rho_loose=rho_loose,
+                    critical_percentage=1)
+                newpog.recreate_geometry()
+            except gl.StripError as e:
+                print "Could not fit geometry with newly interpolated points"
+                continue
+
+            if len(newpog.points) != geom[0]*geom[1]:
+                print "Unknown error in reconstructing geometry"
+                continue
+            else:
+                break
+
+        #if the loop did not find anything, raise an error
+        if newpog is None:
+            raise ValueError("Could not create a grid matching the specified " 
+                "geometry")
+
+        return newpog
+
+    if cur_geom=='user-defined':
+        from utils import GeomGetterWindow, GeometryNameHolder
+        from color_utils import mayavi2traits_color
+        nameholder = GeometryNameHolder(
+            geometry=cur_geom,
+            color=mayavi2traits_color(colors[name]))
+        geomgetterwindow = utils.GeomGetterWindow(holder=nameholder)
+
+        if geomgetterwindow.result:
+            try:
+                pog = getgrid_continuation(geomgetterwindow.geometry)
+            except ValueError:
+                print 'FAIL A'
+                return
+        else:
+            print 'FAIL B (always user initiated)'
+
+    else:
+        try:
+            pog = getgrid_continuation(cur_geom)
+        except ValueError as e:
+            print 'FAIL C'
+            print e
+            raise
+            return
+
+    print 'Finished reconstructing grid geometry'
+    print pog
+
+    #Add the local geometry position to the electrode object
+    elec_dict = {}
+    for elec in cur_grid:
+        elec_dict[elec.ct_coords] = elec
+
+    xmin = 0
+    ymin = 0
+    for point in pog.points:
+        try:
+            x,y = pog.connectivity[gl.GridPoint(point)]
+            if x < xmin:
+                xmin=x
+            if y < ymin:
+                ymin=y
+        except:
+            pass
+
+    for point in pog.points:
+        try:
+            x,y = pog.connectivity[gl.GridPoint(point)]
+            elec_dict[tuple(point)].geom_coords = (x-xmin, y-ymin)
+        except:
+            pass
+
 def classify_with_fixed_points(fixed_grids, known_geometry, 
     delta=.35, rho=35, rho_strict=20, rho_loose=50, 
     epsilon=10, max_cost=.4):
     '''
     Sort the given electrodes (generally in the space of the CT scan) into
     grids and strips matching the specified geometry.
+    
+    This function is not currently used. The idea was to have the user
+    fix some errors of the algorithm and then send it back. But really this
+    step is completely unnecessary because it is not appreciably more work for
+    the user to do the entire job manually. As the software ages this
+    function will be removed.
 
     Parameters
     ----------
@@ -413,7 +583,8 @@ def classify_with_fixed_points(fixed_grids, known_geometry,
     max_cost : Float
         A fitting parameter for classification with fixed points only.
         Represents the maximum value of the cost function for normal
-        iteration.
+        iteration. Im not sure what this was supposed to be anymore now
+        that we are not using this function.
     '''
     electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
     all_elecs = np.array(electrode_arr)

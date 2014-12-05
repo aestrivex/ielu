@@ -165,8 +165,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #quick results so the user can adjust them
         pipe.snap_electrodes_to_surface(
             self._electrodes, subjects_dir=self.subjects_dir,
-            subject=self.subject, max_steps=2500)
-            #subject=self.subject, max_steps=10)
+            #subject=self.subject, max_steps=2500)
+            subject=self.subject, max_steps=10)
 
         # Store the sorted/interpolated points in separate maps for access
         for key in self._grids:
@@ -233,9 +233,14 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #TODO run the grid fitting procedure with the complete fixed
         #set of electrodes, to determine the resultant geometry
         #then assign 2D indices based on that geometry
+        import pipeline as pipe
 
-        from traitsui.file_dialog import open_file
-        labeldir = open_file()
+        for key in self._grids:
+            pipe.classify_single_fixed_grid(key, self._grids, self._grid_geom,
+                self._colors, delta=.5)
+
+        from file_dialog import save_in_directory
+        labeldir = save_in_directory()
 
         if os.path.exists(labeldir) and not os.path.isdir(labeldir):
             error_dialog('Cannot write labels to a non-directory')
@@ -254,7 +259,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         for key in self._grids:
             for j,elec in enumerate(self._grids[key]):
-                label_name = '%s_elec%i'%(key,j)
+                elec_id = elec.geom_coords
+                elec_2dcoord = 'unsorted%i'%j if elec_id is None else elec_id
+                label_name = '%s_elec_%s'%(key, elec_2dcoord)
                 label = Label(vertices=[elec.vertno], 
                               pos=[elec.pial_coords.tolist()],
                               subject=self.subject, hemi=elec.hemi,
@@ -378,6 +385,8 @@ class SurfaceVisualizerPanel(HasTraits):
         if target in ('', 'unsorted'):
             return
 
+        current_key = None
+
         for key,nodes in zip(self.gs_glyphs.keys(), self.gs_glyphs.values()):
             if picker.actor in nodes.actor.actors:
                 pt = int(picker.point_id/nodes.glyph.glyph_source.
@@ -386,6 +395,10 @@ class SurfaceVisualizerPanel(HasTraits):
                 elec = self._all_electrodes[(x,y,z)]
                 current_key = elec.grid_name
                 break
+
+        #if the user did not click on anything interesting, do nothing
+        if current_key is None:
+            return
 
         #import pdb
         #pdb.set_trace()

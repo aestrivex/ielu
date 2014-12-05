@@ -1,5 +1,6 @@
 import numpy as np
-from traits.api import HasTraits, List, Float, Tuple, Instance, Bool, Str, Int
+from traits.api import (HasTraits, List, Float, Tuple, Instance, Bool, Str, 
+    Int, Either)
 
 class Electrode(HasTraits):
 #    ct_coords = List(Float)
@@ -17,6 +18,8 @@ class Electrode(HasTraits):
     hemi = Str
     vertno = Int(-1)
     pial_coords = Instance(np.ndarray)
+
+    geom_coords = Either(None, Tuple)
 
     #def __eq__(self, other):
     #    return np.all(self.snap_coords == other)
