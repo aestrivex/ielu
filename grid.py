@@ -57,11 +57,16 @@ class Grid():
         A fitting parameter for classification with fixed points only.
         Represents the maximum value of the cost function for normal
         iteration.
+    is_line : Bool
+        If true, the starting points are colinear and do not form a right
+        angle but a 180 degree angle (potentially within a higher epsilon
+        tolerance). The connectivity can only be extended in one dimension
+        under this setup. The default is false.
     '''
 
     def __init__(self,p0,p1,p2, all_elecs, delta=.35, rho=35,
             rho_strict=20, rho_loose=50, max_cost=.4, name='',
-            critical_percentage=.75):
+            critical_percentage=.75, is_line=False):
 
         self.name=name 
 
@@ -79,13 +84,23 @@ class Grid():
         #maintain a dictionary mapping 3D locations to 2D locations on a grid.
         #this is used mostly as a sparse mapping of 2D grid points so that local connectivity
         #can be easily examined, 
-        self.connectivity = { GridPoint(p0) : (0,0),
-                              GridPoint(p1) : (0,1), 
-                              GridPoint(p2) : (1,0), }
 
-        self.reverse_connectivity = {(0,0) : p0,
-                                     (0,1) : p1,
-                                     (1,0) : p2}
+        if is_line:
+            self.connectivity = { GridPoint(p0) : (0,0),
+                                  GridPoint(p1) : (0,1), 
+                                  GridPoint(p2) : (0,-1), }
+
+            self.reverse_connectivity = {(0,0) : p0,
+                                         (0,1) : p1,
+                                         (0,-1) : p2}
+        else:
+            self.connectivity = { GridPoint(p0) : (0,0),
+                                  GridPoint(p1) : (0,1), 
+                                  GridPoint(p2) : (1,0), }
+
+            self.reverse_connectivity = {(0,0) : p0,
+                                         (0,1) : p1,
+                                         (1,0) : p2}
 
         self.marked = {}
 
@@ -408,6 +423,11 @@ class Grid():
             print 'started with %i points, now has %i' % (len(points), len(self.points))
 
     def recreate_geometry(self):
+        '''
+        Given a reduced set of points, extend the grid only on that
+        set of points. If line=True, all three starting points are colinear
+        and there is no right angle to start with
+        '''
         if len(self.points) != 3:
             raise ValueError("Should only recreate geometry on blank grid")
 
@@ -417,6 +437,7 @@ class Grid():
         #confirmed points.
 
         #ideally this will later include a cost function
+
         self.extend_grid_arbitrarily() 
 
     def extend_grid_systematically(self):
@@ -595,34 +616,9 @@ class Grid():
         '''
         print 'Extracting an %i by %i strip' % (M,N)
 
-        graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
+        fit_ok, best_locs, best_fit = self.matches_strip_geometry(M,N)
 
-        best_locs = []
-        best_fit = -1
-
-        #If the orientation is 'horiz', then the row dimension corresponds to N.
-        #if is 'vert', the row dimension corresponds to M
-        for orient in ('horiz', 'vert'):
-            for r in xrange(graph.shape[int(orient=='vert')]-N+1):
-                for c in xrange(graph.shape[int(orient=='horiz')]-M+1):
-                    cur_loc = (r, c, orient)
-                    subgraph = graph[r:r+N, c:c+M] if orient=='horiz' else graph[c:c+M, r:r+N]
-
-                    #if the control points are not present, reject this choice of strip immediately
-                    #this causes problems
-                    #if (2 not in subgraph or 3 not in subgraph or 4 not in subgraph):
-                    #    continue
-
-                    #calculate the binary fit of connectivity in this choice of strip
-                    cur_fit = np.sum(binarize(subgraph))
-
-                    if cur_fit > best_fit:
-                        best_fit = cur_fit
-                        best_locs = [cur_loc]
-                    elif cur_fit == best_fit:
-                        best_locs.append(cur_loc)
-
-        if best_fit < M*N*self.critical_percentage:
+        if not fit_ok:
             raise StripError("No strip had a sufficiently good fit, best fit was %i"%int(best_fit))
 
         best_loc, points = self.disambiguate_best_fit_strips(best_locs, M, N)
@@ -781,6 +777,38 @@ class Grid():
                 best_loc = (r,c,orient)
             
         return best_loc, best_points 
+
+    def matches_strip_geometry(self, M, N):
+        graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
+
+        best_locs = []
+        best_fit = -1
+
+        #If the orientation is 'horiz', then the row dimension corresponds to N.
+        #if is 'vert', the row dimension corresponds to M
+        for orient in ('horiz', 'vert'):
+            for r in xrange(graph.shape[int(orient=='vert')]-N+1):
+                for c in xrange(graph.shape[int(orient=='horiz')]-M+1):
+                    cur_loc = (r, c, orient)
+                    subgraph = graph[r:r+N, c:c+M] if orient=='horiz' else graph[c:c+M, r:r+N]
+
+                    #if the control points are not present, reject this choice of strip immediately
+                    #this causes problems
+                    #if (2 not in subgraph or 3 not in subgraph or 4 not in subgraph):
+                    #    continue
+
+                    #calculate the binary fit of connectivity in this choice of strip
+                    cur_fit = np.sum(binarize(subgraph))
+
+                    if cur_fit > best_fit:
+                        best_fit = cur_fit
+                        best_locs = [cur_loc]
+                    elif cur_fit == best_fit:
+                        best_locs.append(cur_loc)
+
+        if best_fit < M*N*self.critical_percentage:
+            return False, None, best_fit
+        return True, best_locs, best_fit
 
 ##########################
 # initialization point API

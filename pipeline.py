@@ -224,7 +224,7 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
 
 def classify_electrodes(electrodes, known_geometry,
     delta=.35, rho=35, rho_strict=20, rho_loose=50, color_scheme=None,
-    epsilon=10):
+    epsilon=10, mindist=0, maxdist=36):
     '''
     Sort the given electrodes (generally in the space of the CT scan) into
     grids and strips matching the specified geometry.
@@ -271,6 +271,14 @@ def classify_electrodes(electrodes, known_geometry,
         degrees for the starting point of a KxM grid where K>1,M>1. A
         larger parameter means the algorithm will try a larger range of
         starting positions before giving up. The default value is 10.
+    mindist : Float
+        A fitting parameter controlling the minimum distance between starting
+        points to fit at a 90 degree angle. The default value is 0.
+    maxdist : Float
+        A fitting parameter controlling the maximum distance between starting
+        points to fit at a 90 degree angle. The scale of this distance is in
+        voxel space of the CT image and therefore a bit arbitrary, so a
+        wide range is used by default: the default value is 36.
 
     Returns
     -------
@@ -313,8 +321,8 @@ def classify_electrodes(electrodes, known_geometry,
             np.array(electrode_arr))
 
         #TODO mindist and maxdist settable parameters
-        angles, _, neighbs = gl.find_init_angles(new_elecs, mindist=0, 
-            maxdist=28)
+        angles, _, neighbs = gl.find_init_angles(new_elecs, mindist=mindist, 
+            maxdist=maxdist)
 
         ba = np.squeeze(sorted(zip(*np.where(np.abs(90-angles)<epsilon)),
                 key=lambda v:np.abs(90-angles[v])))
@@ -372,7 +380,7 @@ def classify_electrodes(electrodes, known_geometry,
 
 def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
     delta=.35, rho=35, rho_strict=20, rho_loose=50, 
-    epsilon=10, max_cost=.4):
+    epsilon=10, max_cost=.4, mindist=0, maxdist=36):
     '''
     Sort the electrodes with the given name (in the space of the CT scan) into
     a grid matching the geometry of the grid with the given name.
@@ -414,29 +422,51 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
         degrees for the starting point of a KxM grid where K>1,M>1. A
         larger parameter means the algorithm will try a larger range of
         starting positions before giving up. The default value is 10.
+    mindist : Float
+        A fitting parameter controlling the minimum distance between starting
+        points to fit at a 90 degree angle. The default value is 0.
+    maxdist : Float
+        A fitting parameter controlling the maximum distance between starting
+        points to fit at a 90 degree angle. The scale of this distance is in
+        voxel space of the CT image and therefore a bit arbitrary, so a
+        wide range is used by default: the default value is 36.
+    max_cost : Float
+        Does not currently do anything
     '''
     cur_grid = fixed_grids[name]
     cur_geom = known_geometry[name]
     elecs = map((lambda x:getattr(x, 'ct_coords')), cur_grid)
 
-    def getgrid_continuation(geom):
-        angles, _, neighbs = gl.find_init_angles(np.array(elecs), mindist=0,
-            maxdist=28)
+    def getgrid_continuation(geom, epsilon=epsilon):
+        if len(geom) != 2:
+            raise ValueError("Specified geometry is not 2-dimensional")
+        if (0 in geom):
+            raise ValueError("Geometry cannot be Nx0")
 
-        ba = np.squeeze(sorted(zip(*np.where(np.abs(90-angles)<epsilon)),
-                key=lambda v:np.abs(90-angles[v])))
+        angles, _, neighbs = gl.find_init_angles(np.array(elecs), 
+            mindist=mindist, maxdist=maxdist)
+
+        if (1 in geom):
+            epsilon *= 2.5
+
+            ba = np.squeeze(sorted(zip(*np.where(np.abs(180-angles)<epsilon)),
+                    key=lambda v:np.abs(180-angles[v])))
+        else:
+            ba = np.squeeze(sorted(zip(*np.where(np.abs(90-angles)<epsilon)),
+                    key=lambda v:np.abs(90-angles[v])))
         
         if ba.shape==():
             ba=[ba]
         elif len(ba)==0:
-            raise ValueError("Could not find any good angles")
+            raise ValueError("Could not find any good angles with epsilon %i "
+                "mindist %i maxdist %i"%(epsilon, mindist, maxdist))
 
         newpog = None
         for j,k in enumerate(ba):
             p0,p1,p2 = neighbs[k]
             pog = gl.Grid(p0, p1, p2, np.array(elecs), delta=delta, rho=rho,
                 rho_strict=rho_strict, rho_loose=rho_loose,
-                critical_percentage=1)
+                critical_percentage=1, is_line=(1 in geom))
                 
             try:
                 pog.recreate_geometry( )
@@ -446,7 +476,9 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
 
             #if all points were included in the grid already just return
             #the Grid object for subsequent extraction of geometry
-            if len(pog.points) == geom[0]*geom[1]:
+            #if len(pog.points) == geom[0]*geom[1]:
+            match, _, _ = pog.matches_strip_geometry(*geom)
+            if match:
                 newpog = pog
                 break
 
@@ -467,15 +499,17 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
                 print "Could not fit geometry with newly interpolated points"
                 continue
 
-            if len(newpog.points) != geom[0]*geom[1]:
-                print "Unknown error in reconstructing geometry"
+            #if len(newpog.points) != geom[0]*geom[1]:
+            match, _, _ = newpog.matches_strip_geometry(*geom)
+            if not match:
+                print "Unknown error in reconstructing interpolated geometry"
                 continue
             else:
                 break
 
         #if the loop did not find anything, raise an error
         if newpog is None:
-            raise ValueError("Could not create a grid matching the specified " 
+            raise ValueError("Could not create a grid matching the specified "
                 "geometry")
 
         return newpog
@@ -486,24 +520,24 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
         nameholder = GeometryNameHolder(
             geometry=cur_geom,
             color=mayavi2traits_color(colors[name]))
-        geomgetterwindow = utils.GeomGetterWindow(holder=nameholder)
+        geomgetterwindow = GeomGetterWindow(holder=nameholder)
 
-        if geomgetterwindow.result:
+        if geomgetterwindow.edit_traits().result:
             try:
                 pog = getgrid_continuation(geomgetterwindow.geometry)
-            except ValueError:
-                print 'FAIL A'
+            except ValueError as e:
+                print 'Geometry reconstruction failed: specific error follows'
+                print e
                 return
         else:
-            print 'FAIL B (always user initiated)'
+            print "User did not specify any geometry, ignoring geometry"
 
     else:
         try:
             pog = getgrid_continuation(cur_geom)
         except ValueError as e:
-            print 'FAIL C'
+            print 'Geometry reconstruction failed: specific error follows'
             print e
-            raise
             return
 
     print 'Finished reconstructing grid geometry'
@@ -602,8 +636,8 @@ def classify_with_fixed_points(fixed_grids, known_geometry,
             found_grids[grid_name] = grid
             continue
 
-        angles, _, neighbs = gl.find_init_angles(elecs, mindist=0,
-            maxdist=28)
+        angles, _, neighbs = gl.find_init_angles(elecs, mindist=mindist,
+            maxdist=maxdist)
 
         ba = np.squeeze(sorted(zip(*np.where(np.abs(90-angles)<epsilon)),
                 key=lambda v:np.abs(90-angles[v])))

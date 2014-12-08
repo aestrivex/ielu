@@ -4,10 +4,10 @@ import numpy as np
 from mayavi.core.ui.api import MayaviScene, SceneEditor, MlabSceneModel
 from traits.api import (Bool, Button, cached_property, File, HasTraits,
     Instance, on_trait_change, Str, Property, Directory, Dict, DelegatesTo,
-    HasPrivateTraits, Any, List, Enum, Int, Event)
+    HasPrivateTraits, Any, List, Enum, Int, Event, Float)
 from traitsui.api import (View, Item, Group, OKCancelButtons, ShellEditor,
-    HGroup,VGroup, InstanceEditor, TextEditor, ListEditor, CSVListEditor,
-    Handler)
+    HGroup, VGroup, InstanceEditor, TextEditor, ListEditor, CSVListEditor,
+    Handler, Label, OKCancelButtons)
 from traitsui.message import error as error_dialog
 
 from electrode import Electrode
@@ -49,6 +49,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
     ct_registration = File
 
+    delta = Float(0.5)
+    epsilon = Float(10.)
+    rho = Float(35.)
+    rho_strict = Float(20.)
+    rho_loose = Float(50.)
+
     @cached_property
     def _get__grid_named_objects(self):
         from color_utils import mayavi2traits_color
@@ -78,9 +84,6 @@ class ElectrodePositionsModel(HasPrivateTraits):
     def _interactive_mode_changed(self):
         self._commit_grid_changes()
 
-        self._points_to_cur_grid = {}
-        self._points_to_unsorted = {}
-
     def _commit_grid_changes(self):
         for p in (self._points_to_cur_grid, self._points_to_unsorted):
             for loc in p:
@@ -92,10 +95,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 elec.grid_name = new
                 elec.grid_transition_to = ''
         
-                if old != 'unsorted':
+                if old not in ('','unsorted'):
                     self._grids[old].remove(elec)
-                if new != 'unsorted':
+                if new not in ('','unsorted'):
                     self._grids[new].append(elec)
+
+        self._points_to_cur_grid = {}
+        self._points_to_unsorted = {}
     
     def run_pipeline(self):
         #setup
@@ -139,7 +145,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self._colors, self._grid_geom, self._grids, self._color_scheme = (
                 pipe.classify_electrodes(self._electrodes,
                                          self.electrode_geometry,
-                                         delta = .5
+                                         delta = self.delta,
+                                         epsilon = self.epsilon,
+                                         rho = self.rho,
+                                         rho_strict = self.rho_strict,
+                                         rho_loose = self.rho_loose
                                         ))
         except ValueError as e:
             error_dialog(str(e))
@@ -230,6 +240,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
             fixed_points=self._grids.values())
 
     def save_labels(self):
+        self._commit_grid_changes()
+
         #TODO run the grid fitting procedure with the complete fixed
         #set of electrodes, to determine the resultant geometry
         #then assign 2D indices based on that geometry
@@ -237,7 +249,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         for key in self._grids:
             pipe.classify_single_fixed_grid(key, self._grids, self._grid_geom,
-                self._colors, delta=.5)
+                self._colors, 
+                delta=self.delta+0.1, 
+                epsilon=self.epsilon,
+                rho=self.rho, 
+                rho_loose=self.rho_loose,
+                rho_strict=self.rho_strict)
 
         from file_dialog import save_in_directory
         labeldir = save_in_directory()
@@ -245,6 +262,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
         if os.path.exists(labeldir) and not os.path.isdir(labeldir):
             error_dialog('Cannot write labels to a non-directory')
             raise ValueError('Cannot write labels to a non-directory')
+
+        # if the empty string is returned, the user cancelled the operation
+        if labeldir == '':
+            return
 
         try:
             os.makedirs(labeldir)
@@ -268,8 +289,38 @@ class ElectrodePositionsModel(HasPrivateTraits):
                               name=label_name)
                 label.save( os.path.join( labeldir, label_name ))
 
-#class IntermediateVizInterface(Handler):
-#    viz = Instance(SurfaceVisualizerPanel)
+class ParamsPanel(HasTraits):
+    model = Instance(ElectrodePositionsModel)
+
+    delta = DelegatesTo('model')
+    epsilon = DelegatesTo('model')
+    rho = DelegatesTo('model')
+    rho_loose = DelegatesTo('model')
+    rho_strict = DelegatesTo('model')
+
+    traits_view = View(
+        Group(
+        VGroup(
+            Label('Delta controls the distance between electrodes. That is,\n'
+                'electrode distances must be between c*(1-d) and c*(1+d),\n'
+                'where c is an estimate of the correct distance.'),
+            Item('delta'),
+            Label('Epsilon controls the tolerance of the initial angle\n'
+                'difference from 90 degrees (or 180 degrees in rare cases).'),
+            Item('epsilon'),
+            Label('Rho controls the maximum allowable discrepancy between\n'
+                'angles relative to their position to already fitted\n'
+                'electrodes mostly as the difference |rho-90|.\n'
+                'Rho_strict and Rho_loose are used in similar cases,\n' 
+                'which demand slightly greater or smaller constraints.'),
+            Item('rho'),
+            Item('rho_strict'),
+            Item('rho_loose'),
+        ),
+        ),
+    title='Edit parameters',
+    buttons=OKCancelButtons,
+    )
 
 class SurfaceVisualizerPanel(HasTraits):
     scene = Instance(MlabSceneModel,())
@@ -458,6 +509,8 @@ class InteractivePanel(HasPrivateTraits):
 
     save_labels_button = Button('Save labels')
 
+    edit_parameters_button = Button('Edit Fitting Parameters')
+
     #we retain a reference to easily reference the visualization in the shell
     viz = Instance(SurfaceVisualizerPanel)
 
@@ -473,6 +526,7 @@ class InteractivePanel(HasPrivateTraits):
             ), 
             VGroup(
                 Item('run_pipeline_button', show_label=False),
+                Item('edit_parameters_button', show_label=False),
             ),
         ),
         HGroup(
@@ -513,6 +567,9 @@ class InteractivePanel(HasPrivateTraits):
 
     def _save_labels_button_fired(self):
         self.model.save_labels()
+
+    def _edit_parameters_button_fired(self):
+        ParamsPanel(model=self.model).edit_traits()
 
 class iEEGCoregistrationFrame(HasTraits):
     model = Instance(ElectrodePositionsModel)

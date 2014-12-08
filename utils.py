@@ -1,8 +1,8 @@
 import numpy as np
 
-from traits.api import HasTraits, Str, Color, List, Instance
+from traits.api import HasTraits, Str, Color, List, Instance, Int
 from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor,
-    InstanceEditor)
+    InstanceEditor, Group, OKCancelButtons)
 
 from mayavi import mlab
 
@@ -84,12 +84,15 @@ class GeometryNameHolder(NameHolder):
 class GeomGetterWindow(Handler):
     #has to do the handler thing
     #for now proof of concept and notimplementederror
-    geometry = List
+    geometry = List(Int)
     holder = Instance(NameHolder)
     
     traits_view = View(
-        Item('grid_representation', editor=InstanceEditor(), style='custom'),
-        Item('geometry', editor=CSVListEditor()),
+        #Item('grid_representation', editor=InstanceEditor(), style='custom'),
+        Item('holder', editor=InstanceEditor(), style='custom', 
+            show_label=False),
+        Item('geometry', editor=CSVListEditor(), label='list geometry'),
         title='Specify geometry',
         kind='livemodal',
+        buttons=OKCancelButtons,
     )
