@@ -305,7 +305,7 @@ class ParamsPanel(HasTraits):
         VGroup(
             Label('The threshold above which electrode clusters will be\n'
                 'extracted from the CT image'),
-            Item('ct_threshold')
+            Item('ct_threshold'),
             Label('Delta controls the distance between electrodes. That is,\n'
                 'electrode distances must be between c*(1-d) and c*(1+d),\n'
                 'where c is an estimate of the correct distance.'),
