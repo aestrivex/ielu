@@ -49,6 +49,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
     ct_registration = File
 
+    ct_threshold = Float(2500.)
     delta = Float(0.5)
     epsilon = Float(10.)
     rho = Float(35.)
@@ -127,7 +128,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
             subjects_dir=self.subjects_dir, subject=self.subject)
 
         self._electrodes = pipe.identify_electrodes_in_ctspace(
-            self.ct_scan, mask=ct_mask) 
+            self.ct_scan, mask=ct_mask, threshold=self.ct_threshold) 
 
         if self.ct_registration not in (None, ''):
             aff = load_affine(self.ct_registration)
@@ -292,6 +293,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
 class ParamsPanel(HasTraits):
     model = Instance(ElectrodePositionsModel)
 
+    ct_threshold = DelegatesTo('model')
     delta = DelegatesTo('model')
     epsilon = DelegatesTo('model')
     rho = DelegatesTo('model')
@@ -301,6 +303,9 @@ class ParamsPanel(HasTraits):
     traits_view = View(
         Group(
         VGroup(
+            Label('The threshold above which electrode clusters will be\n'
+                'extracted from the CT image'),
+            Item('ct_threshold')
             Label('Delta controls the distance between electrodes. That is,\n'
                 'electrode distances must be between c*(1-d) and c*(1+d),\n'
                 'where c is an estimate of the correct distance.'),

@@ -128,6 +128,15 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
         maskd = ctd.copy()
         maskd[:] = 1
 
+    mask_test = ctd[np.where(maskd)]
+    print np.mean(mask_test), 'MASK MEAN'
+    print np.std(mask_test), 'MASK STDEV'
+    print np.mean(ctd), 'CT MEAN'
+    print np.std(ctd), 'CT STDEV'
+
+    #threshold = np.mean(mask_test)+3*np.std(mask_test)
+    print threshold, 'COMPROMISE'
+
     supthresh_locs = np.where(np.logical_and(ctd > threshold, maskd))
 
     ecs = np.zeros(cti.shape)
