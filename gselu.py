@@ -176,8 +176,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #quick results so the user can adjust them
         pipe.snap_electrodes_to_surface(
             self._electrodes, subjects_dir=self.subjects_dir,
-            #subject=self.subject, max_steps=2500)
-            subject=self.subject, max_steps=10)
+            subject=self.subject, max_steps=2500)
+            #subject=self.subject, max_steps=10)
 
         # Store the sorted/interpolated points in separate maps for access
         for key in self._grids:
