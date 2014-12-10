@@ -55,6 +55,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     rho = Float(35.)
     rho_strict = Float(20.)
     rho_loose = Float(50.)
+    visualize_in_ctspace = Bool(False)
+    nr_steps = Int(2500)
 
     @cached_property
     def _get__grid_named_objects(self):
@@ -176,8 +178,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #quick results so the user can adjust them
         pipe.snap_electrodes_to_surface(
             self._electrodes, subjects_dir=self.subjects_dir,
-            subject=self.subject, max_steps=2500)
-            #subject=self.subject, max_steps=10)
+            subject=self.subject, max_steps=self.nr_steps)
 
         # Store the sorted/interpolated points in separate maps for access
         for key in self._grids:
@@ -299,13 +300,26 @@ class ParamsPanel(HasTraits):
     rho = DelegatesTo('model')
     rho_loose = DelegatesTo('model')
     rho_strict = DelegatesTo('model')
+    visualize_in_ctspace = DelegatesTo('model')
+    nr_steps = DelegatesTo('model')
 
     traits_view = View(
         Group(
+        HGroup(
         VGroup(
             Label('The threshold above which electrode clusters will be\n'
                 'extracted from the CT image'),
             Item('ct_threshold'),
+            Label('Do the interactive visualization in CT space instead of\n'
+                'surface space. This can sometimes make it easier to\n'
+                'determine grid identities. Surface space coordinates are\n'
+                'still used under the hood and as output.'),
+            Item('visualize_in_ctspace'),
+            Label('Number of steps before convergence in snap-to-surface\n'
+                'algorithm'),
+            Item('nr_steps'),
+        ),
+        VGroup(
             Label('Delta controls the distance between electrodes. That is,\n'
                 'electrode distances must be between c*(1-d) and c*(1+d),\n'
                 'where c is an estimate of the correct distance.'),
@@ -321,8 +335,7 @@ class ParamsPanel(HasTraits):
             Item('rho'),
             Item('rho_strict'),
             Item('rho_loose'),
-        ),
-        ),
+        ),),),
     title='Edit parameters',
     buttons=OKCancelButtons,
     )
@@ -343,6 +356,13 @@ class SurfaceVisualizerPanel(HasTraits):
 
     _all_electrodes = DelegatesTo('model')
     _unsorted_electrodes = DelegatesTo('model')
+
+    _viz_coordtype = Property(depends_on='model.visualize_in_ctspace')
+    def _get__viz_coordtype(self):
+        if self.model.visualize_in_ctspace:
+            return 'ct_coords'
+        else:
+            return 'snap_coords'
 
     brain = Any
     gs_glyphs = Dict
@@ -385,14 +405,20 @@ class SurfaceVisualizerPanel(HasTraits):
         import surfer
         #import pdb
         #pdb.set_trace()
-        brain = self.brain = surfer.Brain( 
-            self.subject, subjects_dir=self.subjects_dir,
-            surf='pial', curv=False, hemi='both',
-            figure=self.scene.mayavi_scene)
+        if not self.model.visualize_in_ctspace:
+            brain = self.brain = surfer.Brain( 
+                self.subject, subjects_dir=self.subjects_dir,
+                surf='pial', curv=False, hemi='both',
+                figure=self.scene.mayavi_scene)
 
-        brain.toggle_toolbars(True)
+            brain.toggle_toolbars(True)
 
-        unsorted_elecs = map((lambda x:getattr(x, 'snap_coords')),
+            #set the surface unpickable
+            for srf in brain.brains:
+                srf._geo_surf.actor.actor.pickable=False
+                srf._geo_surf.actor.property.opacity = 0.4
+
+        unsorted_elecs = map((lambda x:getattr(x, self._viz_coordtype)),
             self._unsorted_electrodes.values())
         self.gs_glyphs['unsorted'] = glyph = virtual_points3d( 
             unsorted_elecs, scale_factor=0.3, name='unsorted',
@@ -403,7 +429,7 @@ class SurfaceVisualizerPanel(HasTraits):
             np.zeros(len(unsorted_elecs)))
 
         for i,key in enumerate(self._grids):
-            grid_elecs = map((lambda x:getattr(x, 'snap_coords')), 
+            grid_elecs = map((lambda x:getattr(x, self._viz_coordtype)), 
                 self._grids[key])
 
             if len(grid_elecs)==0:
@@ -418,11 +444,6 @@ class SurfaceVisualizerPanel(HasTraits):
 
             glyph.mlab_source.dataset.point_data.scalars=(
                 np.ones(len(self._grids[key])) * scalar_color)
-
-        #set the surface unpickable
-        for srf in brain.brains:
-            srf._geo_surf.actor.actor.pickable=False
-            srf._geo_surf.actor.property.opacity = 0.4
 
         #setup the node selection callback
         picker = self.scene.mayavi_scene.on_mouse_pick( self.selectnode_cb )
@@ -495,7 +516,7 @@ class InteractivePanel(HasPrivateTraits):
 
     ct_scan = DelegatesTo('model')
     t1_scan = DelegatesTo('model')
-    run_pipeline_button = Button('Extract electrodes to surface')
+    run_pipeline_button = Button('Run pipeline')
 
     subjects_dir = DelegatesTo('model')
     subject = DelegatesTo('model')
