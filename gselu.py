@@ -4,7 +4,7 @@ import numpy as np
 from mayavi.core.ui.api import MayaviScene, SceneEditor, MlabSceneModel
 from traits.api import (Bool, Button, cached_property, File, HasTraits,
     Instance, on_trait_change, Str, Property, Directory, Dict, DelegatesTo,
-    HasPrivateTraits, Any, List, Enum, Int, Event, Float)
+    HasPrivateTraits, Any, List, Enum, Int, Event, Float, Tuple)
 from traitsui.api import (View, Item, Group, OKCancelButtons, ShellEditor,
     HGroup, VGroup, InstanceEditor, TextEditor, ListEditor, CSVListEditor,
     Handler, Label, OKCancelButtons)
@@ -36,12 +36,20 @@ class ElectrodePositionsModel(HasPrivateTraits):
         # dictionary from surface coordinates (as hashable) to reused
         # electrode objects
 
+    _surf_to_ct_map = Dict
+    _ct_to_surf_map = Dict
+    
     _points_to_cur_grid = Dict
     _points_to_unsorted = Dict
 
+    _single_glyph_to_recolor = Tuple
+    _new_glyph_color = Any
+
     _rebuild_vizpanel_event = Event
+    _update_glyph_lut_event = Event
+    _update_single_glyph_event = Event
+
     _visualization_ready = Bool(False)
-    _update_colors_event = Event
 
     _colors = Any # OrderedDict(Grid -> Color)
     _color_scheme = Any #Generator returning 3-tuples
@@ -55,7 +63,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     rho = Float(35.)
     rho_strict = Float(20.)
     rho_loose = Float(50.)
-    visualize_in_ctspace = Bool(False)
+    #visualize_in_ctspace = Bool(False)
     nr_steps = Int(2500)
 
     @cached_property
@@ -121,7 +129,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._sorted_electrodes = {}
         self._interpolated_electrodes = {}
 
-        self._visualization_ready = False
+        self._ct_to_surf_map = {}
+        self._surf_to_ct_map = {}
+
+        #self._visualization_ready = False
 
         #pipeline
         import pipeline as pipe
@@ -205,6 +216,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._all_electrodes.update(self._unsorted_electrodes)
         self._all_electrodes.update(self._sorted_electrodes)
     
+        #save mapping from ct to surface coords
+        for elec in self._all_electrodes.values():
+            self._ct_to_surf_map[elec.ct_coords] = elec.astuple()
+            self._surf_to_ct_map[elec.astuple()] = elec.ct_coords
+
         self._visualization_ready = True
         self._rebuild_vizpanel_event = True
 
@@ -230,7 +246,40 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         self._grids[name] = []
         
-        self._update_colors_event = True
+        self._update_glyph_lut_event = True
+
+    def change_single_glyph(self, xyz, elec, target, current_key):
+        print 'CHECKPOINT B'
+    
+        if elec in self._grids[target]:
+            if xyz in self._points_to_unsorted:
+                del self._points_to_unsorted[xyz]
+                #change_single_glyph_color(nodes, pt, 
+                #    self._colors.keys().index(current_key))
+                elec.grid_transition_to = ''
+                self._new_glyph_color = self._colors.keys().index(current_key)
+            else:
+                self._points_to_unsorted[xyz] = elec
+                #change_single_glyph_color(nodes, pt, 
+                #    self._colors.keys().index('unsorted'))
+                elec.grid_transition_to = 'unsorted'
+                self._new_glyph_color = self._colors.keys().index('unsorted')
+        else:
+            if xyz in self._points_to_cur_grid:
+                del self._points_to_cur_grid[xyz]
+                #change_single_glyph_color(nodes, pt, 
+                #    self._colors.keys().index(current_key))
+                elec.grid_transition_to = ''
+                self._new_glyph_color = self._colors.keys().index(current_key)
+            else:
+                self._points_to_cur_grid[xyz] = elec
+                #change_single_glyph_color(nodes, pt, 
+                #    self._colors.keys().index(target))
+                elec.grid_transition_to = target
+                self._new_glyph_color = self._colors.keys().index(target)
+
+        self._single_glyph_to_recolor = xyz
+        self._update_single_glyph_event = True
 
     def fit_changes(self):
         #maybe this should be a different call which evaluates a single
@@ -300,7 +349,7 @@ class ParamsPanel(HasTraits):
     rho = DelegatesTo('model')
     rho_loose = DelegatesTo('model')
     rho_strict = DelegatesTo('model')
-    visualize_in_ctspace = DelegatesTo('model')
+    #visualize_in_ctspace = DelegatesTo('model')
     nr_steps = DelegatesTo('model')
 
     traits_view = View(
@@ -314,7 +363,8 @@ class ParamsPanel(HasTraits):
                 'surface space. This can sometimes make it easier to\n'
                 'determine grid identities. Surface space coordinates are\n'
                 'still used under the hood and as output.'),
-            Item('visualize_in_ctspace'),
+            Label('visualize_in_ctspace Removed for now'),
+            #Item('visualize_in_ctspace'),
             Label('Number of steps before convergence in snap-to-surface\n'
                 'algorithm'),
             Item('nr_steps'),
@@ -356,10 +406,12 @@ class SurfaceVisualizerPanel(HasTraits):
 
     _all_electrodes = DelegatesTo('model')
     _unsorted_electrodes = DelegatesTo('model')
+    _ct_to_surf_map = DelegatesTo('model')
 
-    _viz_coordtype = Property(depends_on='model.visualize_in_ctspace')
+    visualize_in_ctspace = Bool(False)
+    _viz_coordtype = Property(depends_on='visualize_in_ctspace')
     def _get__viz_coordtype(self):
-        if self.model.visualize_in_ctspace:
+        if self.visualize_in_ctspace:
             return 'ct_coords'
         else:
             return 'snap_coords'
@@ -378,11 +430,12 @@ class SurfaceVisualizerPanel(HasTraits):
 
     @on_trait_change('scene:activated')
     def setup(self):
+        #import pdb
+        #pdb.set_trace()
         if self.model._visualization_ready:
             self.show_grids_on_surface()
 
     def show_grids_on_surface(self):
-        self.model._visualization_ready = False
 
         from mayavi import mlab
         #mlab.clf(figure = self.scene.mayavi_scene)
@@ -396,16 +449,13 @@ class SurfaceVisualizerPanel(HasTraits):
         #entirely new MlabSceneModel instance. This has the added benefit
         #of (according to my tests) avoiding memory leaks.
 
-        from utils import clear_scene
-
-        clear_scene(self.scene.mayavi_scene)
+        #from utils import clear_scene
+        #clear_scene(self.scene.mayavi_scene)
 
         from color_utils import set_discrete_lut
 
         import surfer
-        #import pdb
-        #pdb.set_trace()
-        if not self.model.visualize_in_ctspace:
+        if not self.visualize_in_ctspace:
             brain = self.brain = surfer.Brain( 
                 self.subject, subjects_dir=self.subjects_dir,
                 surf='pial', curv=False, hemi='both',
@@ -453,7 +503,9 @@ class SurfaceVisualizerPanel(HasTraits):
         '''
         Callback to move an node into the selected state
         '''
-        from color_utils import change_single_glyph_color
+        print 'CHECKPOINT A'
+        #import pdb
+        #pdb.set_trace()
         from mayavi import mlab
 
         if self.interactive_mode is None:
@@ -469,6 +521,11 @@ class SurfaceVisualizerPanel(HasTraits):
                 pt = int(picker.point_id/nodes.glyph.glyph_source.
                     glyph_source.output.points.to_array().shape[0])
                 x,y,z = nodes.mlab_source.points[pt]
+
+                #translate from CT to surf coords if necessary
+                if self.visualize_in_ctspace:
+                    x,y,z = self._ct_to_surf_map[(x,y,z)]
+
                 elec = self._all_electrodes[(x,y,z)]
                 current_key = elec.grid_name
                 break
@@ -477,36 +534,33 @@ class SurfaceVisualizerPanel(HasTraits):
         if current_key is None:
             return
 
+        self.model.change_single_glyph((x,y,z), elec, target, current_key)
+
+    
+    @on_trait_change('model:_update_single_glyph_event')
+    def update_single_glyph(self):
+        from color_utils import change_single_glyph_color
+        print 'CHECKPOINT C'
         #import pdb
         #pdb.set_trace()
+        xyz = self.model._single_glyph_to_recolor
+        if self.visualize_in_ctspace:
+            xyz = self.model._surf_to_ct_map[xyz]
 
-        if elec in self._grids[target]:
-            if (x,y,z) in self._points_to_unsorted:
-                del self._points_to_unsorted[(x,y,z)]
-                change_single_glyph_color(nodes, pt, 
-                    self._colors.keys().index(current_key))
-                elec.grid_transition_to = ''
-            else:
-                self._points_to_unsorted[(x,y,z)] = elec
-                change_single_glyph_color(nodes, pt, 
-                    self._colors.keys().index('unsorted'))
-                elec.grid_transition_to = 'unsorted'
-        else:
-            if (x,y,z) in self._points_to_cur_grid:
-                del self._points_to_cur_grid[(x,y,z)]
-                change_single_glyph_color(nodes, pt, 
-                    self._colors.keys().index(current_key))
-                elec.grid_transition_to = ''
-            else:
-                self._points_to_cur_grid[(x,y,z)] = elec
-                change_single_glyph_color(nodes, pt, 
-                    self._colors.keys().index(target))
-                elec.grid_transition_to = target
+        for nodes in self.gs_glyphs.values():
+            pt, = np.where( np.all(nodes.mlab_source.points == xyz, axis=1 ))
+            if len(pt) > 0:
+                break
+
+        if len(pt) == 0:
+            raise ValueError('Error in figuring out what point was clicked')
+
+        change_single_glyph_color(nodes, int(pt), self.model._new_glyph_color)
 
         mlab.draw()
 
-    @on_trait_change('model:_update_colors_event')
-    def update_colors(self):
+    @on_trait_change('model:_update_glyph_lut_event')
+    def update_glyph_lut(self):
         from color_utils import set_discrete_lut
         for glyph in self.gs_glyphs.values():
             set_discrete_lut(glyph, self._colors.values())
@@ -536,9 +590,12 @@ class InteractivePanel(HasPrivateTraits):
     save_labels_button = Button('Save labels')
 
     edit_parameters_button = Button('Edit Fitting Parameters')
+    
+    show_ctviz_button = Button('Show CTspace elecs')
 
     #we retain a reference to easily reference the visualization in the shell
     viz = Instance(SurfaceVisualizerPanel)
+    ctviz = Instance(SurfaceVisualizerPanel)
 
     traits_view = View(
         HGroup(
@@ -553,6 +610,7 @@ class InteractivePanel(HasPrivateTraits):
             VGroup(
                 Item('run_pipeline_button', show_label=False),
                 Item('edit_parameters_button', show_label=False),
+                Item('show_ctviz_button', show_label=False),
             ),
         ),
         HGroup(
@@ -577,10 +635,11 @@ class InteractivePanel(HasPrivateTraits):
         height=300, width=500
     )
 
-    def __init__(self, model, viz=None, **kwargs):
+    def __init__(self, model, viz=None, ctviz=None, **kwargs):
         super(InteractivePanel, self).__init__(**kwargs)
         self.model = model
         self.viz = viz
+        self.ctviz = ctviz
 
     def _run_pipeline_button_fired(self):
         self.model.run_pipeline()
@@ -597,36 +656,50 @@ class InteractivePanel(HasPrivateTraits):
     def _edit_parameters_button_fired(self):
         ParamsPanel(model=self.model).edit_traits()
 
+    def _show_ctviz_button_fired(self):
+        pass
+
 class iEEGCoregistrationFrame(HasTraits):
     model = Instance(ElectrodePositionsModel)
     interactive_panel = Instance(InteractivePanel)
     surface_visualizer_panel = Instance(SurfaceVisualizerPanel)
+    ct_visualizer_panel = Instance(SurfaceVisualizerPanel)
     #viz_interface = Instance(IntermediateVizInterface)
 
     traits_view = View(
         Group(
-            Item('surface_visualizer_panel', editor=InstanceEditor(), 
-                style='custom', resizable=True ),
+            HGroup(
+                Item('surface_visualizer_panel', editor=InstanceEditor(), 
+                    style='custom', resizable=True ),
+                Item('ct_visualizer_panel', editor=InstanceEditor(),
+                    style='custom', resizable=True ),
+            show_labels=False),
             Item('interactive_panel', editor=InstanceEditor(), style='custom',
                 resizable=True),
         show_labels=False),
-
         title=('llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch is'
             ' nice this time of year'),
-        height=800, width=700, resizable=True
+        height=800, width=800, resizable=True
     )
 
     def __init__(self, **kwargs):
         super(iEEGCoregistrationFrame, self).__init__(**kwargs)
         model = self.model = ElectrodePositionsModel()
         self.surface_visualizer_panel = SurfaceVisualizerPanel(model)
+        self.ct_visualizer_panel = SurfaceVisualizerPanel(model,
+            visualize_in_ctspace=True)
         self.interactive_panel = InteractivePanel(model,
-            viz=self.surface_visualizer_panel)
+            viz=self.surface_visualizer_panel,
+            ctviz=self.ct_visualizer_panel)
 
     @on_trait_change('model:_rebuild_vizpanel_event')
     def _rebuild_vizpanel(self):
         self.surface_visualizer_panel = SurfaceVisualizerPanel(self.model)
         self.interactive_panel.viz = self.surface_visualizer_panel
+
+        self.ct_visualizer_panel = SurfaceVisualizerPanel(self.model,
+            visualize_in_ctspace=True)
+        self.interactive_panel.ctviz = self.ct_visualizer_panel
 
 crash_if_freesurfer_is_not_sourced()
 iEEGCoregistrationFrame().configure_traits()
