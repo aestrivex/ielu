@@ -249,8 +249,6 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._update_glyph_lut_event = True
 
     def change_single_glyph(self, xyz, elec, target, current_key):
-        print 'CHECKPOINT B'
-    
         if elec in self._grids[target]:
             if xyz in self._points_to_unsorted:
                 del self._points_to_unsorted[xyz]
@@ -503,10 +501,8 @@ class SurfaceVisualizerPanel(HasTraits):
         '''
         Callback to move an node into the selected state
         '''
-        print 'CHECKPOINT A'
         #import pdb
         #pdb.set_trace()
-        from mayavi import mlab
 
         if self.interactive_mode is None:
             return
@@ -540,7 +536,7 @@ class SurfaceVisualizerPanel(HasTraits):
     @on_trait_change('model:_update_single_glyph_event')
     def update_single_glyph(self):
         from color_utils import change_single_glyph_color
-        print 'CHECKPOINT C'
+        from mayavi import mlab
         #import pdb
         #pdb.set_trace()
         xyz = self.model._single_glyph_to_recolor
@@ -552,7 +548,7 @@ class SurfaceVisualizerPanel(HasTraits):
             if len(pt) > 0:
                 break
 
-        if len(pt) == 0:
+        if len(self.gs_glyphs)==0 or len(pt) == 0:
             raise ValueError('Error in figuring out what point was clicked')
 
         change_single_glyph_color(nodes, int(pt), self.model._new_glyph_color)
