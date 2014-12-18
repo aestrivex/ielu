@@ -55,6 +55,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     _color_scheme = Any #Generator returning 3-tuples
     _grid_geom = Dict # Grid -> Gx2 list
 
+    _geom_reconstructed = Bool(False)
+
     ct_registration = File
 
     ct_threshold = Float(2500.)
@@ -63,8 +65,17 @@ class ElectrodePositionsModel(HasPrivateTraits):
     rho = Float(35.)
     rho_strict = Float(20.)
     rho_loose = Float(50.)
-    #visualize_in_ctspace = Bool(False)
+
+    delta_recon = Float(0.65)
+    epsilon_recon = Float(10.)
+    rho_recon = Float(40.)
+    rho_strict_recon = Float(30.)
+    rho_loose_recon = Float(55.)
+
     nr_steps = Int(2500)
+
+    #just for testing
+    mlaw = Any
 
     @cached_property
     def _get__grid_named_objects(self):
@@ -79,7 +90,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #use the canonical order as the order to appear in the list
         if self._colors is not None:
             for key in self._colors.keys():
-                if key=='unsorted':
+                if key in ('unsorted','selection'):
                     continue
                 grid_names.append(GeometryNameHolder(
                     name=key, 
@@ -96,6 +107,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._commit_grid_changes()
 
     def _commit_grid_changes(self):
+        self._geom_reconstructed = False
+
         for p in (self._points_to_cur_grid, self._points_to_unsorted):
             for loc in p:
                 elec = p[loc]
@@ -106,9 +119,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 elec.grid_name = new
                 elec.grid_transition_to = ''
         
-                if old not in ('','unsorted'):
+                if old not in ('','unsorted','selection'):
                     self._grids[old].remove(elec)
-                if new not in ('','unsorted'):
+                if new not in ('','unsorted','selection'):
                     self._grids[new].append(elec)
 
         self._points_to_cur_grid = {}
@@ -122,6 +135,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self.subject = os.environ['SUBJECT']
 
         self.interactive_mode = self._grid_named_objects[0]
+
+        self._grids = {}
 
         self._electrodes = []
         self._all_electrodes = {}
@@ -195,9 +210,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
         for key in self._grids:
             for elec in self._grids[key]:
                 if elec.is_interpolation:
-                    self._interpolated_electrodes[elec.astuple()] = elec
+                    self._interpolated_electrodes[elec.asct()] = elec
                 else:
-                    self._sorted_electrodes[elec.astuple()] = elec
+                    self._sorted_electrodes[elec.asct()] = elec
 
         # store the unsorted points in a separate map for access
         for elec in self._electrodes:
@@ -210,7 +225,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
                         sorted=True
                         break
             if not sorted:
-                self._unsorted_electrodes[elec.astuple()] = elec
+                self._unsorted_electrodes[elec.asct()] = elec
 
         self._all_electrodes.update(self._interpolated_electrodes)
         self._all_electrodes.update(self._unsorted_electrodes)
@@ -218,11 +233,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
     
         #save mapping from ct to surface coords
         for elec in self._all_electrodes.values():
-            self._ct_to_surf_map[elec.ct_coords] = elec.astuple()
-            self._surf_to_ct_map[elec.astuple()] = elec.ct_coords
+            self._ct_to_surf_map[elec.asct()] = elec.astuple()
+            self._surf_to_ct_map[elec.astuple()] = elec.asct()
 
         self._visualization_ready = True
         self._rebuild_vizpanel_event = True
+        self._geom_reconstructed = True
 
     def add_grid(self):
         name = 'usergrid%s'%gensym()
@@ -288,22 +304,49 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self._electrodes, self.electrode_geometry,
             fixed_points=self._grids.values())
 
-    def save_labels(self):
-        self._commit_grid_changes()
+    def assign_manual_labels(self):
+        cur_grid = self.interactive_mode
 
-        #TODO run the grid fitting procedure with the complete fixed
-        #set of electrodes, to determine the resultant geometry
-        #then assign 2D indices based on that geometry
+        if cur_grid is None:
+            error_dialog('Select a grid to assign labels')
+            return
+        if cur_grid.name in ('','unsorted'):
+            error_dialog('Select a grid to assign labels')
+            return
+
+        from utils import ManualLabelAssignmentWindow
+        self.mlaw = ManualLabelAssignmentWindow(
+            model = self,
+            cur_grid = cur_grid.name,
+            electrodes = self._grids[cur_grid.name])
+        self.mlaw.edit_traits()
+
+    def reconstruct_geometry(self):
         import pipeline as pipe
 
         for key in self._grids:
             pipe.classify_single_fixed_grid(key, self._grids, self._grid_geom,
                 self._colors, 
-                delta=self.delta+0.1, 
-                epsilon=self.epsilon,
-                rho=self.rho, 
-                rho_loose=self.rho_loose,
-                rho_strict=self.rho_strict)
+                delta=self.delta_recon, 
+                epsilon=self.epsilon_recon,
+                rho=self.rho_recon, 
+                rho_loose=self.rho_loose_recon,
+                rho_strict=self.rho_strict_recon)
+
+        self._geom_reconstructed = True
+    
+    def save_label_files(self):
+        self._commit_grid_changes()
+
+        #if not self._geom_reconstructed:
+        #    error_dialog('Finish reconstructing geometry first')
+        #    return
+
+        #TODO run the grid fitting procedure with the complete fixed
+        #set of electrodes, to determine the resultant geometry
+        #then assign 2D indices based on that geometry
+
+        #this is the saving part
 
         from file_dialog import save_in_directory
         labeldir = save_in_directory()
@@ -329,9 +372,14 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         for key in self._grids:
             for j,elec in enumerate(self._grids[key]):
-                elec_id = elec.geom_coords
-                elec_2dcoord = 'unsorted%i'%j if elec_id is None else elec_id
-                label_name = '%s_elec_%s'%(key, elec_2dcoord)
+                if elec.name != '':
+                    label_name = elec.name
+                else:
+                    elec_id = elec.geom_coords
+                    elec_2dcoord = 'unsorted%i'%(
+                        j if elec_id is None else elec_id)
+                    label_name = '%s_elec_%s'%(key, elec_2dcoord)
+
                 label = Label(vertices=[elec.vertno], 
                               pos=[elec.pial_coords.tolist()],
                               subject=self.subject, hemi=elec.hemi,
@@ -347,6 +395,11 @@ class ParamsPanel(HasTraits):
     rho = DelegatesTo('model')
     rho_loose = DelegatesTo('model')
     rho_strict = DelegatesTo('model')
+    delta_recon = DelegatesTo('model')
+    epsilon_recon = DelegatesTo('model')
+    rho_recon = DelegatesTo('model')
+    rho_loose_recon = DelegatesTo('model')
+    rho_strict_recon = DelegatesTo('model')
     #visualize_in_ctspace = DelegatesTo('model')
     nr_steps = DelegatesTo('model')
 
@@ -357,12 +410,6 @@ class ParamsPanel(HasTraits):
             Label('The threshold above which electrode clusters will be\n'
                 'extracted from the CT image'),
             Item('ct_threshold'),
-            Label('Do the interactive visualization in CT space instead of\n'
-                'surface space. This can sometimes make it easier to\n'
-                'determine grid identities. Surface space coordinates are\n'
-                'still used under the hood and as output.'),
-            Label('visualize_in_ctspace Removed for now'),
-            #Item('visualize_in_ctspace'),
             Label('Number of steps before convergence in snap-to-surface\n'
                 'algorithm'),
             Item('nr_steps'),
@@ -383,6 +430,16 @@ class ParamsPanel(HasTraits):
             Item('rho'),
             Item('rho_strict'),
             Item('rho_loose'),
+        ),
+        VGroup(
+            Label('The same fitting parameters, except used for more\n'
+                'liberal reconstruction of the geometry from known grid\n' 
+                'points rather than estimation of likely grid points.'),
+            Item('delta_recon'),
+            Item('epsilon_recon'),
+            Item('rho_recon'),
+            Item('rho_strict_recon'),
+            Item('rho_loose_recon'), 
         ),),),
     title='Edit parameters',
     buttons=OKCancelButtons,
@@ -405,6 +462,7 @@ class SurfaceVisualizerPanel(HasTraits):
     _all_electrodes = DelegatesTo('model')
     _unsorted_electrodes = DelegatesTo('model')
     _ct_to_surf_map = DelegatesTo('model')
+    _surf_to_ct_map = DelegatesTo('model')
 
     visualize_in_ctspace = Bool(False)
     _viz_coordtype = Property(depends_on='visualize_in_ctspace')
@@ -466,10 +524,14 @@ class SurfaceVisualizerPanel(HasTraits):
                 srf._geo_surf.actor.actor.pickable=False
                 srf._geo_surf.actor.property.opacity = 0.4
 
+            scale_factor = 3.
+        else:
+            scale_factor = 5.
+    
         unsorted_elecs = map((lambda x:getattr(x, self._viz_coordtype)),
             self._unsorted_electrodes.values())
         self.gs_glyphs['unsorted'] = glyph = virtual_points3d( 
-            unsorted_elecs, scale_factor=0.3, name='unsorted',
+            unsorted_elecs, scale_factor=scale_factor, name='unsorted',
             figure=self.scene.mayavi_scene, color=self._colors['unsorted'])  
 
         set_discrete_lut(glyph, self._colors.values())
@@ -484,7 +546,7 @@ class SurfaceVisualizerPanel(HasTraits):
                 continue
 
             self.gs_glyphs[key] = glyph = virtual_points3d(grid_elecs,
-                scale_factor=0.3, color=self._colors[key], 
+                scale_factor=scale_factor, color=self._colors[key], 
                 name=key, figure=self.scene.mayavi_scene)
 
             set_discrete_lut(glyph, self._colors.values())
@@ -507,7 +569,7 @@ class SurfaceVisualizerPanel(HasTraits):
         if self.interactive_mode is None:
             return
         target = self.interactive_mode.name
-        if target in ('', 'unsorted'):
+        if target in ('', 'unsorted', 'selection'):
             return
 
         current_key = None
@@ -519,10 +581,11 @@ class SurfaceVisualizerPanel(HasTraits):
                 x,y,z = nodes.mlab_source.points[pt]
 
                 #translate from CT to surf coords if necessary
-                if self.visualize_in_ctspace:
-                    x,y,z = self._ct_to_surf_map[(x,y,z)]
+                if not self.visualize_in_ctspace:
+                    x,y,z = self._surf_to_ct_map[(x,y,z)]
 
                 elec = self._all_electrodes[(x,y,z)]
+
                 current_key = elec.grid_name
                 break
 
@@ -535,25 +598,31 @@ class SurfaceVisualizerPanel(HasTraits):
     
     @on_trait_change('model:_update_single_glyph_event')
     def update_single_glyph(self):
+
+        if len(self.gs_glyphs)==0:
+            #this callback is still hooked to the SurfaceVisualizerPanel 
+            #instance which has been disconnected from the scene
+            return
+
         from color_utils import change_single_glyph_color
         from mayavi import mlab
         #import pdb
         #pdb.set_trace()
         xyz = self.model._single_glyph_to_recolor
-        if self.visualize_in_ctspace:
-            xyz = self.model._surf_to_ct_map[xyz]
+        if not self.visualize_in_ctspace:
+            xyz = self._ct_to_surf_map[xyz]
 
         for nodes in self.gs_glyphs.values():
             pt, = np.where( np.all(nodes.mlab_source.points == xyz, axis=1 ))
             if len(pt) > 0:
                 break
 
-        if len(self.gs_glyphs)==0 or len(pt) == 0:
+        if len(pt)==0:
             raise ValueError('Error in figuring out what point was clicked')
 
         change_single_glyph_color(nodes, int(pt), self.model._new_glyph_color)
 
-        mlab.draw()
+        mlab.draw(figure=self.scene.mayavi_scene)
 
     @on_trait_change('model:_update_glyph_lut_event')
     def update_glyph_lut(self):
@@ -583,11 +652,13 @@ class InteractivePanel(HasPrivateTraits):
     add_grid_button = Button('Add new grid')
     shell = Dict
 
-    save_labels_button = Button('Save labels')
+    save_label_files_button = Button('Save freesurfer labels')
 
     edit_parameters_button = Button('Edit Fitting Parameters')
     
-    show_ctviz_button = Button('Show CTspace elecs')
+    reconstruct_geom_button = Button('Reconstruct geometry')
+    assign_manual_labels_button = Button('Label manually')
+    assign_automated_labels_button = Button('Label automatically')
 
     #we retain a reference to easily reference the visualization in the shell
     viz = Instance(SurfaceVisualizerPanel)
@@ -606,7 +677,7 @@ class InteractivePanel(HasPrivateTraits):
             VGroup(
                 Item('run_pipeline_button', show_label=False),
                 Item('edit_parameters_button', show_label=False),
-                Item('show_ctviz_button', show_label=False),
+                Item('save_label_files_button', show_label=False),
             ),
         ),
         HGroup(
@@ -621,9 +692,11 @@ class InteractivePanel(HasPrivateTraits):
             ),
             VGroup(
                 Item('add_grid_button', show_label=False),
+                Item('reconstruct_geom_button', show_label=False),
             ),
             VGroup(
-                Item('save_labels_button', show_label=False),
+                Item('assign_manual_labels_button', show_label=False),
+                Item('assign_automated_labels_button', show_label=False),
             ),
         ),
 
@@ -646,14 +719,20 @@ class InteractivePanel(HasPrivateTraits):
     def _find_best_fit_button_fired(self):
         self.model.fit_changes()
 
-    def _save_labels_button_fired(self):
-        self.model.save_labels()
+    def _save_label_files_button_fired(self):
+        self.model.save_label_files()
 
     def _edit_parameters_button_fired(self):
         ParamsPanel(model=self.model).edit_traits()
 
-    def _show_ctviz_button_fired(self):
+    def _reconstruct_geometry_button_fired(self):
         pass
+
+    def _assign_manual_labels_button_fired(self):
+        self.model.assign_manual_labels()
+
+    def _assign_automated_labels_button_fired(self):
+        error_dialog('does nothing yet')
 
 class iEEGCoregistrationFrame(HasTraits):
     model = Instance(ElectrodePositionsModel)

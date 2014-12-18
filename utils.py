@@ -1,10 +1,13 @@
 import numpy as np
 
-from traits.api import HasTraits, Str, Color, List, Instance, Int
+from traits.api import (HasTraits, Str, Color, List, Instance, Int, Method,
+    on_trait_change, Color, Any)
 from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor,
-    InstanceEditor, Group, OKCancelButtons)
+    InstanceEditor, Group, OKCancelButtons, TableEditor, ObjectColumn, 
+    TextEditor, OKButton)
 
 from mayavi import mlab
+from electrode import Electrode
 
 def virtual_points3d(coords, figure=None, scale_factor=None, color=None, 
     name=None):
@@ -13,7 +16,8 @@ def virtual_points3d(coords, figure=None, scale_factor=None, color=None,
     source = mlab.pipeline.scalar_scatter( c[:,0], c[:,1], c[:,2],
         figure=figure)
 
-    return mlab.pipeline.glyph( source, scale_mode='none', scale_factor=3.0,
+    return mlab.pipeline.glyph( source, scale_mode='none', 
+        scale_factor=scale_factor,
         mode='sphere', figure=figure, color=color, name=name)
 
     #return mlab.points3d( c[:,0], c[:,1], c[:,2],
@@ -96,3 +100,72 @@ class GeomGetterWindow(Handler):
         kind='livemodal',
         buttons=OKCancelButtons,
     )
+
+class ManualLabelAssignmentWindow(Handler):
+    #model = Instance(ElectrodePositionsModel)
+    model = Any
+    #we clumsily hold a reference to the model only to fire its events
+
+    cur_grid = Str
+
+    electrodes = List(Electrode)  
+    cur_sel = Instance(Electrode)
+    selection_callback = Method
+
+    #selection_color = Color('yellow')
+    previous_sel = Instance(Electrode)
+    previous_color = Int
+
+    traits_view = View(
+        Item('electrodes',
+            editor=TableEditor( columns = 
+                [ObjectColumn(label='electrode',
+                              editor=TextEditor(),
+                              style='readonly',
+                              editable=False,
+                              name='strrepr'),
+
+#                 ObjectColumn(label='geometry',
+#                              editor=TextEditor(),
+#                              style='readonly',
+#                              editable=False,
+#                              name='geom_coords'),
+                              
+                 ObjectColumn(label='channel name',
+                              editor=TextEditor(),
+                              name='name'),
+                 ],
+                selected='cur_sel',
+                #on_select='selection_callback'),
+                ),
+            show_label=False, height=350, width=333),
+        resizable=True, kind='panel', title='assign labels',
+        buttons=[OKButton])
+
+    def closed(self, is_ok, info):
+        if self.previous_sel is not None:
+            self.model._new_glyph_color = self.previous_color
+            self.model._single_glyph_to_recolor = self.previous_sel.asct()
+            self.model._update_single_glyph_event = True
+
+    @on_trait_change('cur_sel')
+    def selection_callback(self):
+        #from color_utils import traits2mayavi_color
+
+        if self.cur_sel is None:
+            return
+
+        if self.previous_sel is not None:
+            self.model._new_glyph_color = self.previous_color
+            self.model._single_glyph_to_recolor = self.previous_sel.asct()
+            self.model._update_single_glyph_event = True
+
+        self.previous_sel = self.cur_sel
+        self.previous_color = self.model._colors.keys().index(self.cur_grid)
+
+        selection_color = (
+            self.model._colors.keys().index('selection'))
+
+        self.model._new_glyph_color = selection_color
+        self.model._single_glyph_to_recolor = self.cur_sel.asct()
+        self.model._update_single_glyph_event = True

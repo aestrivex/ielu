@@ -1,6 +1,6 @@
 import numpy as np
 from traits.api import (HasTraits, List, Float, Tuple, Instance, Bool, Str, 
-    Int, Either)
+    Int, Either, Property)
 
 class Electrode(HasTraits):
 #    ct_coords = List(Float)
@@ -21,11 +21,25 @@ class Electrode(HasTraits):
 
     geom_coords = Either(None, Tuple)
 
+    name = Str
+
+    strrepr = Property
+    def _get_strrepr(self):
+        return str(self)
+
     #def __eq__(self, other):
     #    return np.all(self.snap_coords == other)
 
+    def __str__(self):
+        return 'Elec: %s %s'%(self.grid_name, self.ct_coords)
+    def __repr__(self):
+        return self.__str__()
+
     def astuple(self):
         return nparrayastuple(self.snap_coords)
+
+    def asct(self):
+        return tuple(self.ct_coords)
 
 def nparrayastuple(nparray):
     nparray = np.array(nparray)

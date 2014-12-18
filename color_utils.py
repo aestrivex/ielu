@@ -1,3 +1,4 @@
+from __future__ import division
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 
@@ -27,6 +28,15 @@ def mayavi2traits_color(mayavi_color):
     color with integer values [0, 255]
     '''
     return tuple(map(lambda color:int(255*color), mayavi_color))
+
+def traits2mayavi_color(traits_color):
+    '''
+    converts a 4-tuple traits color with integer values [0, 255] to a
+    3-tuple mayavi color with values [0,1]
+    '''
+    rgba_col = map(lambda color:color/255, traits_color)
+    rgb_col = (rgba_col[0], rgba_col[1], rgba_col[2])
+    return rgb_col 
 
 def set_discrete_lut(mayavi_obj, colors, use_vector_lut=False):
     '''

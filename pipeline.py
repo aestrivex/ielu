@@ -322,6 +322,7 @@ def classify_electrodes(electrodes, known_geometry,
     found_grids = {}
     grid_colors = OrderedDict()
     grid_colors['unsorted'] = (1,0,0)
+    grid_colors['selection'] = (1,1,0)
     grid_geom = {}
     used_points = []
 
@@ -441,6 +442,11 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
         wide range is used by default: the default value is 36.
     max_cost : Float
         Does not currently do anything
+
+    Returns
+    -------
+    returns True if the geometry reconstruction was successful, and False
+        if it was unsuccessful
     '''
     cur_grid = fixed_grids[name]
     cur_geom = known_geometry[name]
@@ -496,7 +502,8 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
             try: 
                 strip = pog.extract_strip(*geom)
             except gl.StripError as e:
-                print 'Could not interpolate missing points'
+                print 'Could not interpolate missing points, rejecting'
+                print pog
                 continue
 
             try:
@@ -537,9 +544,10 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
             except ValueError as e:
                 print 'Geometry reconstruction failed: specific error follows'
                 print e
-                return
+                return False
         else:
             print "User did not specify any geometry, ignoring geometry"
+            return False
 
     else:
         try:
@@ -547,7 +555,7 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
         except ValueError as e:
             print 'Geometry reconstruction failed: specific error follows'
             print e
-            return
+            return False
 
     print 'Finished reconstructing grid geometry'
     print pog
@@ -575,6 +583,8 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
             elec_dict[tuple(point)].geom_coords = (x-xmin, y-ymin)
         except:
             pass
+
+    return True
 
 def classify_with_fixed_points(fixed_grids, known_geometry, 
     delta=.35, rho=35, rho_strict=20, rho_loose=50, 
