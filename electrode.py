@@ -38,6 +38,9 @@ class Electrode(HasTraits):
     def astuple(self):
         return nparrayastuple(self.snap_coords)
 
+    def asras(self):
+        return tuple(self.surf_coords)
+
     def asct(self):
         return tuple(self.ct_coords)
 

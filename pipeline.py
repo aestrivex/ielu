@@ -47,7 +47,7 @@ def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None):
     nas_brain = os.path.join(subjects_dir, subject, 'mri', 'brain_nas.nii.gz')
     ct_brain = os.path.join(subjects_dir, subject, 'mri', 'brain_ct.nii.gz')
 
-    if os.path.exists(ct_brain):
+    if os.path.exists(lta):
         print 'brainmask in ct space already exists, using it'
         return ct_brain
 
@@ -500,6 +500,12 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
             #allow for a second step of interpolation if not all points are
             #settled
             try: 
+                # now we want to interpolate
+                pog.critical_percentage = .75
+                import pdb
+                pdb.set_trace()
+                pog.extend_grid_arbitrarily()
+                print pog
                 strip = pog.extract_strip(*geom)
             except gl.StripError as e:
                 print 'Could not interpolate missing points, rejecting'
@@ -544,10 +550,10 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
             except ValueError as e:
                 print 'Geometry reconstruction failed: specific error follows'
                 print e
-                return False
+                return False, None
         else:
             print "User did not specify any geometry, ignoring geometry"
-            return False
+            return False, None
 
     else:
         try:
@@ -555,13 +561,14 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
         except ValueError as e:
             print 'Geometry reconstruction failed: specific error follows'
             print e
-            return False
+            return False, None
 
     print 'Finished reconstructing grid geometry'
     print pog
 
     #Add the local geometry position to the electrode object
     elec_dict = {}
+    interpolates = []
     for elec in cur_grid:
         elec_dict[elec.ct_coords] = elec
 
@@ -581,10 +588,16 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
         try:
             x,y = pog.connectivity[gl.GridPoint(point)]
             elec_dict[tuple(point)].geom_coords = (x-xmin, y-ymin)
-        except:
-            pass
+        except KeyError:
+            new_elec = Electrode(ct_coords=tuple(point),
+                                 geom_coords = (x-xmin, y-ymin))
+            interpolates.append(new_elec)
+            elec_dict[tuple(point)] = new_elec
 
-    return True
+    #this might be dangerous
+    fixed_grids[name] = elec_dict.values()
+
+    return True, interpolates
 
 def classify_with_fixed_points(fixed_grids, known_geometry, 
     delta=.35, rho=35, rho_strict=20, rho_loose=50, 

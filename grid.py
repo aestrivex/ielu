@@ -165,7 +165,8 @@ class Grid():
         try:
             p,_ = find_nearest_pt(p0, self.remaining_points())
             return p
-        except IndexError:
+        except (IndexError, ValueError):
+        #except IndexError:
             return np.array((np.inf, np.inf, np.inf))
 
     def add_point(self, pJ, coord_2d=None):
@@ -646,15 +647,20 @@ class Grid():
         if the strip locations all have the same penalty value, one of them is returned arbitrarily
         (but not pseudorandomly)
         '''
-        print '%i potential %ix%i strip locations to check' % (
-            len(potential_strip_locs), M, N)
-        print potential_strip_locs
+        if len(potential_strip_locs) == 1:
+            print ('Only one strip location possible, possibly the result of '
+                'user intervention, returning it')
+        else:
+            print '%i potential %ix%i strip locations to check' % (
+                len(potential_strip_locs), M, N)
+            print potential_strip_locs
 
         graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
 
         best_penalty = np.inf
         best_points = []
-        best_loc = None
+        #best_loc = None
+        best_loc = potential_strip_locs[0]
 
         origin = v,w = zip(*np.where(graph==2))[0]
 
@@ -665,7 +671,7 @@ class Grid():
 
             cur_penalty = 0
             cur_points = []
-            interpolated_points = [] 
+            interpolated_points = []
             interpolated_gridpoints = []
             #total_points = 0
 
@@ -766,8 +772,13 @@ class Grid():
                     #interpolated_gridpoints.append(GridPoint(pInterp))
                     interpolated_gridpoints.append((i,j))
 
-                    pPenalty, _ = find_nearest_pt(pInterp, rm_pts(cur_points, self.all_elecs))
-                    cur_penalty += np.min((norm(pPenalty-pInterp), 2*self.delta*critdist))
+                    points_left = rm_pts(cur_points, self.all_elecs)
+                    
+                    if len(points_left) > 0:
+                        pPenalty, _ = find_nearest_pt(pInterp, rm_pts(cur_points, self.all_elecs))
+                        cur_penalty += np.min((norm(pPenalty-pInterp), 2*self.delta*critdist))
+                    else:
+                        cur_penalty = np.inf
 
             #update the winner
             if cur_penalty < best_penalty:

@@ -28,6 +28,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     interactive_mode = Instance(NameHolder)
     _grids = Dict # Grid -> List(Electrode)
     _grid_named_objects = Property(depends_on='_grids')
+    #_grid_named_objects = List(NameHolder)
 
     _sorted_electrodes = Dict # Tuple -> Electrode
     _interpolated_electrodes = Dict # Tuple -> Electrode
@@ -46,6 +47,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     _new_glyph_color = Any
 
     _rebuild_vizpanel_event = Event
+    _rebuild_guipanel_event = Event
     _update_glyph_lut_event = Event
     _update_single_glyph_event = Event
 
@@ -54,8 +56,6 @@ class ElectrodePositionsModel(HasPrivateTraits):
     _colors = Any # OrderedDict(Grid -> Color)
     _color_scheme = Any #Generator returning 3-tuples
     _grid_geom = Dict # Grid -> Gx2 list
-
-    _geom_reconstructed = Bool(False)
 
     ct_registration = File
 
@@ -72,11 +72,17 @@ class ElectrodePositionsModel(HasPrivateTraits):
     rho_strict_recon = Float(30.)
     rho_loose_recon = Float(55.)
 
+    snapping_enabled = Bool(True)
     nr_steps = Int(2500)
 
     #just for testing
     mlaw = Any
 
+    #def __grid_named_objects_default(self):
+    #    return self._get__grid_named_objects()
+
+    #grid named objects is broken, does not update on reload and does not
+    #fully update on grid adding
     @cached_property
     def _get__grid_named_objects(self):
         from color_utils import mayavi2traits_color
@@ -107,8 +113,6 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._commit_grid_changes()
 
     def _commit_grid_changes(self):
-        self._geom_reconstructed = False
-
         for p in (self._points_to_cur_grid, self._points_to_unsorted):
             for loc in p:
                 elec = p[loc]
@@ -127,6 +131,17 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._points_to_cur_grid = {}
         self._points_to_unsorted = {}
     
+    def acquire_affine(self):
+        import pipeline as pipe
+        if self.ct_registration not in (None, ''):
+            aff = load_affine(self.ct_registration)
+        else:
+            aff = pipe.register_ct_to_mr_using_mutual_information(
+                self.ct_scan, subjects_dir=self.subjects_dir, 
+                subject=self.subject)
+
+        return aff
+
     def run_pipeline(self):
         #setup
         if self.subjects_dir is None or self.subjects_dir=='':
@@ -134,9 +149,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
         if self.subject is None or self.subject=='':
             self.subject = os.environ['SUBJECT']
 
-        self.interactive_mode = self._grid_named_objects[0]
-
         self._grids = {}
+        #self._grid_named_objects = self._get__grid_named_objects()
+        self.interactive_mode = self._grid_named_objects[0]
+        #manually handle property
+
 
         self._electrodes = []
         self._all_electrodes = {}
@@ -152,18 +169,16 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #pipeline
         import pipeline as pipe
         
+        #adjust the brainmask creation to use the existing affine if provided,
+        #requires us to be "clever" and create an LTA for that
+        #TODO
         ct_mask = pipe.create_brainmask_in_ctspace(self.ct_scan,
             subjects_dir=self.subjects_dir, subject=self.subject)
 
         self._electrodes = pipe.identify_electrodes_in_ctspace(
             self.ct_scan, mask=ct_mask, threshold=self.ct_threshold) 
 
-        if self.ct_registration not in (None, ''):
-            aff = load_affine(self.ct_registration)
-        else:
-            aff = pipe.register_ct_to_mr_using_mutual_information(
-                self.ct_scan, subjects_dir=self.subjects_dir, 
-                subject=self.subject)
+        aff = self.acquire_affine()
 
         pipe.create_dural_surface(subjects_dir=self.subjects_dir, 
             subject=self.subject)
@@ -202,9 +217,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #a very rapid cooling schedule shows pretty good performance
         #additional cooling offers very marginal returns and we prioritize
         #quick results so the user can adjust them
-        pipe.snap_electrodes_to_surface(
-            self._electrodes, subjects_dir=self.subjects_dir,
-            subject=self.subject, max_steps=self.nr_steps)
+        if self.snapping_enabled:
+            pipe.snap_electrodes_to_surface(
+                self._electrodes, subjects_dir=self.subjects_dir,
+                subject=self.subject, max_steps=self.nr_steps)
 
         # Store the sorted/interpolated points in separate maps for access
         for key in self._grids:
@@ -233,17 +249,20 @@ class ElectrodePositionsModel(HasPrivateTraits):
     
         #save mapping from ct to surface coords
         for elec in self._all_electrodes.values():
-            self._ct_to_surf_map[elec.asct()] = elec.astuple()
-            self._surf_to_ct_map[elec.astuple()] = elec.asct()
+            if self.snapping_enabled:
+                surf_coord = elec.astuple()
+            else:
+                surf_coord = elec.asras()
+
+            self._ct_to_surf_map[elec.asct()] = surf_coord
+            self._surf_to_ct_map[surf_coord] = elec.asct()
 
         self._visualization_ready = True
         self._rebuild_vizpanel_event = True
-        self._geom_reconstructed = True
+        self._rebuild_guipanel_event = True
 
     def add_grid(self):
         name = 'usergrid%s'%gensym()
-
-        self.interactive_mode = self._grid_named_objects[0]
 
         #force self._grids to update (GUI depends on cached property)
 #        temp_grids = self._grids
@@ -261,8 +280,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #self._grids = temp_grids
 
         self._grids[name] = []
+        #self._grid_named_objects = self._get__grid_named_objects()
+        self.interactive_mode = self._grid_named_objects[0]
         
         self._update_glyph_lut_event = True
+        self._update_guipanel_event = True
 
     def change_single_glyph(self, xyz, elec, target, current_key):
         if elec in self._grids[target]:
@@ -321,7 +343,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
             electrodes = self._grids[cur_grid.name])
         self.mlaw.edit_traits()
 
-    def reconstruct_geometry(self):
+    def reconstruct_all_geometry(self):
         import pipeline as pipe
 
         for key in self._grids:
@@ -333,7 +355,42 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 rho_loose=self.rho_loose_recon,
                 rho_strict=self.rho_strict_recon)
 
-        self._geom_reconstructed = True
+    def reconstruct_geometry(self):
+        self._commit_grid_changes()
+        key = self.interactive_mode.name
+
+        import pipeline as pipe
+        success, interpolated_points = pipe.classify_single_fixed_grid(key, 
+            self._grids, self._grid_geom, self._colors,
+            delta = self.delta_recon,
+            epsilon = self.epsilon_recon,
+            rho = self.rho_recon,
+            rho_loose = self.rho_loose_recon,
+            rho_strict = self.rho_strict_recon)
+
+        print success, 'nimmo'
+
+        #after geom reconstruction the interpolated points need to
+        #be translated to the surface and *all points* must be
+        #snapped again
+
+        aff = self.acquire_affine() 
+
+        pipe.translate_electrodes_to_surface_space(
+            self._grids[key], aff, subjects_dir=self.subjects_dir,
+            subject=self.subject)
+
+        #at this point its safe to snap only the electrodes that we have
+        #isolated -- that is, just snap this individual grid only
+        
+        #if the individual grid is not snapped alone, we should do that
+        #even if the user doesnt reconstruct the grid
+        if self.snapping_enabled:
+            pipe.snap_electrodes_to_surface(
+                self._grids[key], subjects_dir=self.subjects_dir,
+                subject=self.subject, max_steps=self.nr_steps)
+
+        #do something to update the visualization with the new points
     
     def save_label_files(self):
         self._commit_grid_changes()
@@ -402,6 +459,7 @@ class ParamsPanel(HasTraits):
     rho_strict_recon = DelegatesTo('model')
     #visualize_in_ctspace = DelegatesTo('model')
     nr_steps = DelegatesTo('model')
+    snapping_enabled = DelegatesTo('model')
 
     traits_view = View(
         Group(
@@ -410,9 +468,11 @@ class ParamsPanel(HasTraits):
             Label('The threshold above which electrode clusters will be\n'
                 'extracted from the CT image'),
             Item('ct_threshold'),
+            Label('Snap to surface space (turn off for depth electrodes)'),
+            Item('snapping_enabled'),
             Label('Number of steps before convergence in snap-to-surface\n'
                 'algorithm'),
-            Item('nr_steps'),
+            Item('nr_steps', enabled_when='snapping_enabled'),
         ),
         VGroup(
             Label('Delta controls the distance between electrodes. That is,\n'
@@ -465,12 +525,14 @@ class SurfaceVisualizerPanel(HasTraits):
     _surf_to_ct_map = DelegatesTo('model')
 
     visualize_in_ctspace = Bool(False)
-    _viz_coordtype = Property(depends_on='visualize_in_ctspace')
+    _viz_coordtype = Property#(depends_on='visualize_in_ctspace')
     def _get__viz_coordtype(self):
         if self.visualize_in_ctspace:
             return 'ct_coords'
-        else:
+        elif self.model.snapping_enabled:
             return 'snap_coords'
+        else:
+            return 'surf_coords'
 
     brain = Any
     gs_glyphs = Dict
@@ -594,7 +656,6 @@ class SurfaceVisualizerPanel(HasTraits):
             return
 
         self.model.change_single_glyph((x,y,z), elec, target, current_key)
-
     
     @on_trait_change('model:_update_single_glyph_event')
     def update_single_glyph(self):
@@ -618,6 +679,8 @@ class SurfaceVisualizerPanel(HasTraits):
                 break
 
         if len(pt)==0:
+            #why does this error sometimes get thrown when a correct point
+            #was clicked and the visualization changes
             raise ValueError('Error in figuring out what point was clicked')
 
         change_single_glyph_color(nodes, int(pt), self.model._new_glyph_color)
@@ -688,7 +751,7 @@ class InteractivePanel(HasPrivateTraits):
             VGroup(
                 Item('interactive_mode', 
                     editor=InstanceEditor(name='_grid_named_objects'),
-                    style='custom', label='Add/remove electrodes from'),
+                    style='custom', label='Edit electrodes\nfrom grid'),
             ),
             VGroup(
                 Item('add_grid_button', show_label=False),
@@ -725,8 +788,8 @@ class InteractivePanel(HasPrivateTraits):
     def _edit_parameters_button_fired(self):
         ParamsPanel(model=self.model).edit_traits()
 
-    def _reconstruct_geometry_button_fired(self):
-        pass
+    def _reconstruct_geom_button_fired(self):
+        self.model.reconstruct_geometry()
 
     def _assign_manual_labels_button_fired(self):
         self.model.assign_manual_labels()
@@ -775,6 +838,12 @@ class iEEGCoregistrationFrame(HasTraits):
         self.ct_visualizer_panel = SurfaceVisualizerPanel(self.model,
             visualize_in_ctspace=True)
         self.interactive_panel.ctviz = self.ct_visualizer_panel
+
+    @on_trait_change('model:_rebuild_guipanel_event')
+    def _rebuild_guipanel(self):
+        self.interactive_panel = InteractivePanel(self.model,
+            viz=self.surface_visualizer_panel,
+            ctviz=self.ct_visualizer_panel)
 
 crash_if_freesurfer_is_not_sourced()
 iEEGCoregistrationFrame().configure_traits()

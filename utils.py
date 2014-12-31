@@ -83,7 +83,7 @@ class GeometryNameHolder(NameHolder):
         return 'Grid: %s, col:%s, geom:%s'%(self.name,self.color,
             self.geometry)
     def __repr__(self):
-        return '%s\n'%str(self)
+        return str(self)
 
 class GeomGetterWindow(Handler):
     #has to do the handler thing

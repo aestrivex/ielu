@@ -37,11 +37,22 @@ def d_to_line(p0, v, p1):
     d = norm(v1)*np.sin(theta)
     return d
 
+def find_best_fit_plane(points):
+    #centroid = 
+    pass
+
 #############################
 # compound geometry functions
 #############################
 
 def find_nearest_pt(p0, coords, mode=0, n=1):
+    #if coords is 0 find an implausibly distant point
+    #if np.size(coords) == 0:
+    #    return np.array((np.inf, np.inf, np.inf)), -1
+            #this might cause problems but we will say that any call
+            #should check the return value of the point index -- mostly
+            #i dont think i care about the index anyway
+
     d = np.apply_along_axis(np.subtract, 1, coords, p0)
     d = np.sum(d**2, axis=1)
     if d.min() == 0:
