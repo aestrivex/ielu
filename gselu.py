@@ -530,7 +530,7 @@ class ParamsPanel(HasTraits):
                 'algorithm'),
             Item('nr_steps', enabled_when='snapping_enabled'),
             Label('Weight given to the deformation term in the snapping\n'
-                'algorithm, reduce if snapping error is very high.')
+                'algorithm, reduce if snapping error is very high.'),
             Item('deformation_constant', enabled_when='snapping_enabled'),
         ),
         VGroup(
