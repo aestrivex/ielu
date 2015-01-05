@@ -19,9 +19,12 @@ class Electrode(HasTraits):
     vertno = Int(-1)
     pial_coords = Instance(np.ndarray)
 
-    geom_coords = Either(None, Tuple)
+    plane_coords = Either(None, Tuple)
+    #geom_coords = Either(None, Tuple)
+    geom_coords = List(Int)
 
     name = Str
+    corner = List
 
     strrepr = Property
     def _get_strrepr(self):

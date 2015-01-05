@@ -1,10 +1,11 @@
 import numpy as np
 
 from traits.api import (HasTraits, Str, Color, List, Instance, Int, Method,
-    on_trait_change, Color, Any)
+    on_trait_change, Color, Any, Enum)
 from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor,
     InstanceEditor, Group, OKCancelButtons, TableEditor, ObjectColumn, 
-    TextEditor, OKButton)
+    TextEditor, OKButton, CheckListEditor, OKCancelButtons, Label)
+from traitsui.message import error as error_dialog
 
 from mayavi import mlab
 from electrode import Electrode
@@ -125,11 +126,12 @@ class ManualLabelAssignmentWindow(Handler):
                               editable=False,
                               name='strrepr'),
 
-#                 ObjectColumn(label='geometry',
-#                              editor=TextEditor(),
-#                              style='readonly',
-#                              editable=False,
-#                              name='geom_coords'),
+                 ObjectColumn(label='geometry',
+                              editor=CSVListEditor(),
+                              #editor=TextEditor(),
+                              #style='readonly',
+                              #editable=False,
+                              name='geom_coords'),
                               
                  ObjectColumn(label='channel name',
                               editor=TextEditor(),
@@ -138,7 +140,7 @@ class ManualLabelAssignmentWindow(Handler):
                 selected='cur_sel',
                 #on_select='selection_callback'),
                 ),
-            show_label=False, height=350, width=333),
+            show_label=False, height=350, width=400),
         resizable=True, kind='panel', title='assign labels',
         buttons=[OKButton])
 
@@ -163,9 +165,134 @@ class ManualLabelAssignmentWindow(Handler):
         self.previous_sel = self.cur_sel
         self.previous_color = self.model._colors.keys().index(self.cur_grid)
 
-        selection_color = (
-            self.model._colors.keys().index('selection'))
+        selection_color = (self.model._colors.keys().index('selection'))
 
         self.model._new_glyph_color = selection_color
         self.model._single_glyph_to_recolor = self.cur_sel.asct()
         self.model._update_single_glyph_event = True
+
+class AutomatedAssignmentWindow(Handler):
+    model = Any
+    #we clumsily hold a reference to the model only to fire its events
+
+    cur_grid = Str
+    cur_sel = Instance(Electrode)
+    selection_callback = Method
+    
+    naming_convention = Enum('default', 'line')
+    #first_axis = Enum('corner 1/corner 2','corner 1/corner 3')
+    first_axis = Enum('standard','reverse (short side first)')
+    name_stem = Str
+    
+    electrodes = List(Instance(Electrode))
+    c1, c2, c3 = 3*(Instance(Electrode),)
+
+    previous_sel = Instance(Electrode)
+    previous_color = Int
+
+    traits_view = View(
+        Item('electrodes',
+            editor=TableEditor( columns = 
+                [ObjectColumn(label='electrode',
+                              editor=TextEditor(),
+                              style='readonly',
+                              editable=False,
+                              name='strrepr'),
+
+                 ObjectColumn(label='corner',
+                              editor=CheckListEditor(
+                                values=['corner 1', 'corner 2', 'corner 3']),
+                              #style='custom',
+                              style='simple',
+                              name='corner',),
+                 ],
+                selected='cur_sel'),
+            show_label=False, height=350, width=400,),
+        Label('Note in NxN grid, corner1/corner2 axis is standard'),
+        HGroup(
+            Item('naming_convention',), 
+            Item('first_axis',),
+        ),
+        Item('name_stem', label='stem'),
+
+        resizable=True, kind='panel', title='indicate corner electrodes',
+        buttons=OKCancelButtons)
+
+    def closed(self, is_ok, info):
+        #uncolor last selection
+        if self.previous_sel is not None:
+            self.model._new_glyph_color = self.previous_color
+            self.model._single_glyph_to_recolor = self.previous_sel.asct()
+            self.model._update_single_glyph_event = True
+
+        #if the user clicked cancel, do no processing
+        if not is_ok:
+            return
+
+        #figure out c1, c2, c3
+        c1,c2,c3 = 3*(None,)
+        for e in self.electrodes:
+            if len(e.corner) == 0:
+                continue
+            elif len(e.corner) > 1:
+                error_dialog('Too many corners specified for single electrode')
+                return
+    
+            elif 'corner 1' in e.corner:
+                c1 = e
+            elif 'corner 2' in e.corner:
+                c2 = e
+            elif 'corner 3' in e.corner:
+                c3 = e
+
+        if c1 is None or c2 is None or c3 is None:
+            error_dialog('Not all corners were specified')
+            return
+    
+        import pipeline as pipe
+        if self.naming_convention == 'line':
+            pipe.fit_grid_to_line(self.electrodes, c1.asct(), c2.asct(),
+                c3.asct(),
+                self.model._grid_geom[self.cur_grid])
+            #do actual labeling
+            cur_geom = self.model._grid_geom[self.cur_grid]
+            for elec in self.model._grids[self.cur_grid]:
+                _,y = elec.geom_coords
+                index = y+1
+                elec_name = '%s%i'%(self.name_stem, index)
+
+        else:
+            pipe.fit_grid_to_plane(self.electrodes, c1.asct(), c2.asct(), 
+                c3.asct(), self.model._grid_geom[self.cur_grid])
+
+            #do actual labeling
+            cur_geom = self.model._grid_geom[self.cur_grid]
+            for elec in self.model._grids[self.cur_grid]:
+                x,y = elec.geom_coords
+                if self.first_axis=='standard':
+                    index = y*np.max(cur_geom) + x + 1
+                else:
+                    index = x*np.min(cur_geom) + y + 1
+                
+                elec.name = '%s%i'%(self.name_stem, index)
+
+    @on_trait_change('cur_sel')
+    def selection_callback(self):
+        if self.cur_sel is None:
+            return
+
+        if self.previous_sel is not None:
+            self.model._new_glyph_color = self.previous_color
+            self.model._single_glyph_to_recolor = self.previous_sel.asct()
+            self.model._update_single_glyph_event = True
+
+        self.previous_sel = self.cur_sel
+        self.previous_color = self.model._colors.keys().index(self.cur_grid)
+
+        selection_color = (self.model._colors.keys().index('selection'))
+
+        self.model._new_glyph_color = selection_color
+        self.model._single_glyph_to_recolor = self.cur_sel.asct()
+        self.model._update_single_glyph_event = True
+
+        

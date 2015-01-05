@@ -74,10 +74,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
     snapping_enabled = Bool(True)
     nr_steps = Int(2500)
+    deformation_constant = Float(1.)
 
     #just for testing
     mlaw = Any
-
+    alaw = Any
+    
     #def __grid_named_objects_default(self):
     #    return self._get__grid_named_objects()
 
@@ -343,6 +345,23 @@ class ElectrodePositionsModel(HasPrivateTraits):
             electrodes = self._grids[cur_grid.name])
         self.mlaw.edit_traits()
 
+    def assign_automated_labels(self):
+        cur_grid = self.interactive_mode
+
+        if cur_grid is None:
+            error_dialog('Select a grid to assign labels')
+            return
+        if cur_grid.name in ('','unsorted'):
+            error_dialog('Select a grid to assign labels')
+            return
+
+        from utils import AutomatedAssignmentWindow
+        self.alaw = AutomatedAssignmentWindow(
+            model = self,
+            cur_grid = cur_grid.name,
+            electrodes = self._grids[cur_grid.name])
+        self.alaw.edit_traits()
+
     def reconstruct_all_geometry(self):
         import pipeline as pipe
 
@@ -370,6 +389,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         print success, 'nimmo'
 
+    
         #after geom reconstruction the interpolated points need to
         #be translated to the surface and *all points* must be
         #snapped again
@@ -390,10 +410,30 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 self._grids[key], subjects_dir=self.subjects_dir,
                 subject=self.subject, max_steps=self.nr_steps)
 
+        #add electrode to grid data structures
+        for elec in interpolated_points:
+            self._grids[key].append(elec)
+
+            if self.snapping_enabled:
+                surf_coord = elec.astuple()
+            else:
+                surf_coord = elec.asras()
+            self._ct_to_surf_map[elec.asct()] = surf_coord
+            self._surf_to_ct_map[surf_coord] = elec.asct()
+
         #do something to update the visualization with the new points
-    
+        self._rebuild_vizpanel_event = True
+
     def save_label_files(self):
         self._commit_grid_changes()
+
+        if self.interactive_mode is None:
+            print "select a grid to save labels from"
+            return
+        target = self.interactive_mode.name
+        if target in ('unsorted',):
+            print "select a grid to save labels from"
+            return
 
         #if not self._geom_reconstructed:
         #    error_dialog('Finish reconstructing geometry first')
@@ -427,21 +467,37 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #import pdb
         #pdb.set_trace()
 
-        for key in self._grids:
-            for j,elec in enumerate(self._grids[key]):
-                if elec.name != '':
-                    label_name = elec.name
-                else:
-                    elec_id = elec.geom_coords
-                    elec_2dcoord = 'unsorted%i'%(
-                        j if elec_id is None else elec_id)
-                    label_name = '%s_elec_%s'%(key, elec_2dcoord)
+        #only save label files for the current grid
+        key = self.interactive_mode.name
 
-                label = Label(vertices=[elec.vertno], 
-                              pos=[elec.pial_coords.tolist()],
-                              subject=self.subject, hemi=elec.hemi,
-                              name=label_name)
-                label.save( os.path.join( labeldir, label_name ))
+        if self.snapping_enabled:
+            pipe.snap_electrodes_to_surface(
+                self._grids[key], subjects_dir=self.subjects_dir,
+                subject=self.subject, max_steps=self.nr_steps)
+
+        #for key in self._grids:
+        for j,elec in enumerate(self._grids[key]):
+            if elec.name != '':
+                label_name = elec.name
+            else:
+                elec_id = elec.geom_coords
+                elec_2dcoord = ('unsorted%i'%j if len(elec_id)==0 else
+                    str(elec_id))
+                label_name = '%s_elec_%s'%(key, elec_2dcoord)
+
+            if self.snapping_enabled:
+                pos = [elec.pial_coords.tolist()]
+                vertices = [elec.vertno]
+                hemi = elec.hemi
+            else:
+                pos = [tuple(elec.surf_coords)]
+                vertices = [0]
+                hemi = 'lh'
+
+            label = Label(vertices=vertices, pos=pos, hemi=hemi,
+                          subject=self.subject,
+                          name=label_name)
+            label.save( os.path.join( labeldir, label_name ))
 
 class ParamsPanel(HasTraits):
     model = Instance(ElectrodePositionsModel)
@@ -473,6 +529,9 @@ class ParamsPanel(HasTraits):
             Label('Number of steps before convergence in snap-to-surface\n'
                 'algorithm'),
             Item('nr_steps', enabled_when='snapping_enabled'),
+            Label('Weight given to the deformation term in the snapping\n'
+                'algorithm, reduce if snapping error is very high.')
+            Item('deformation_constant', enabled_when='snapping_enabled'),
         ),
         VGroup(
             Label('Delta controls the distance between electrodes. That is,\n'
@@ -620,6 +679,29 @@ class SurfaceVisualizerPanel(HasTraits):
         #setup the node selection callback
         picker = self.scene.mayavi_scene.on_mouse_pick( self.selectnode_cb )
         picker.tolerance = .02
+
+    def redraw_single_grid(self, key):
+        from mayavi import mlab
+        from color_utils import set_discrete_lut
+
+        #removing glyphs may cause memory leaks
+        self.gs_glyphs[key].remove()
+
+        grid_elecs = map((lambda x:getattr(x, self._viz_coordtype)),
+            self._grids[key])
+
+        if len(grid_elecs)==0:
+            return
+
+        self.gs_glyphs[key] = glyph = virtual_points3d(grid_elecs,
+            scale_factor=scale_factor, color=self._colors[key],
+            name=key, figure=self.scene.mayavi_scene)
+      
+        set_discrete_lut(glyph, self._colors.values())
+        scalar_color = self._colors.keys().index(key)
+
+        glyph.mlab_source.dataset.point_data.scalars=(
+            np.ones(len(self._grids[key])) * scalar_color)
 
     def selectnode_cb(self, picker):
         '''
@@ -795,7 +877,7 @@ class InteractivePanel(HasPrivateTraits):
         self.model.assign_manual_labels()
 
     def _assign_automated_labels_button_fired(self):
-        error_dialog('does nothing yet')
+        self.model.assign_automated_labels()
 
 class iEEGCoregistrationFrame(HasTraits):
     model = Instance(ElectrodePositionsModel)

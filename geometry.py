@@ -37,9 +37,36 @@ def d_to_line(p0, v, p1):
     d = norm(v1)*np.sin(theta)
     return d
 
+def find_plane_from_corners(p0,p1,p2):
+    '''
+    Given 3 points p0, p1, and p2, find the plane ax+by+cz+d=0
+    Returns a,b,c,d
+    '''
+    v1 = np.array(p0) - np.array(p1)    
+    v2 = np.array(p0) - np.array(p2)
+    a,b,c = np.cross(v1,v2)
+    x0,y0,z0 = p0
+    d = - a*x0 - b*y0 - c*z0
+
+    from fractions import gcd
+    #g = reduce(gcd, (a,b,c,d)
+    #return a//g, b//g, c//g, d//g
+
+    return map(lambda x:x//reduce(gcd, (a,b,c,d)), (a,b,c,d))
+
 def find_best_fit_plane(points):
-    #centroid = 
-    pass
+    '''
+    Given a (Nx3) set of points, find the best fit plane ax+by+cz+d=0.
+    Returns a,b,c,d
+    '''
+    points = np.array(points)
+    centroid = x0,y0,z0 = np.mean(points, axis=0)
+    
+    u,_,_ = np.linalg.svd(np.transpose(points))
+    norm = a,b,c = u[:,-1]
+    d = - a*x0 - b*y0 - c*z0
+    
+    return a,b,c,d
 
 #############################
 # compound geometry functions

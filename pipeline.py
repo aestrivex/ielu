@@ -452,152 +452,211 @@ def classify_single_fixed_grid(name, fixed_grids, known_geometry, colors,
     cur_geom = known_geometry[name]
     elecs = map((lambda x:getattr(x, 'ct_coords')), cur_grid)
 
-    def getgrid_continuation(geom, epsilon=epsilon):
-        if len(geom) != 2:
-            raise ValueError("Specified geometry is not 2-dimensional")
-        if (0 in geom):
-            raise ValueError("Geometry cannot be Nx0")
+    if len(cur_geom) != 2:
+        raise ValueError("Specified geometry is not 2-dimensional")
+    if (0 in cur_geom):
+        raise ValueError("Geometry cannot be Nx0")
 
-        angles, _, neighbs = gl.find_init_angles(np.array(elecs), 
-            mindist=mindist, maxdist=maxdist)
+    angles, _, neighbs = gl.find_init_angles(np.array(elecs), 
+        mindist=mindist, maxdist=maxdist)
 
-        if (1 in geom):
-            epsilon *= 2.5
-
-            ba = np.squeeze(sorted(zip(*np.where(np.abs(180-angles)<epsilon)),
-                    key=lambda v:np.abs(180-angles[v])))
-        else:
-            ba = np.squeeze(sorted(zip(*np.where(np.abs(90-angles)<epsilon)),
-                    key=lambda v:np.abs(90-angles[v])))
-        
-        if ba.shape==():
-            ba=[ba]
-        elif len(ba)==0:
-            raise ValueError("Could not find any good angles with epsilon %i "
-                "mindist %i maxdist %i"%(epsilon, mindist, maxdist))
-
-        newpog = None
-        for j,k in enumerate(ba):
-            p0,p1,p2 = neighbs[k]
-            pog = gl.Grid(p0, p1, p2, np.array(elecs), delta=delta, rho=rho,
-                rho_strict=rho_strict, rho_loose=rho_loose,
-                critical_percentage=1, is_line=(1 in geom))
-                
-            try:
-                pog.recreate_geometry( )
-            except gl.StripError as e:
-                print 'Could not recreate geometry with this initialization'
-                continue
-
-            #if all points were included in the grid already just return
-            #the Grid object for subsequent extraction of geometry
-            #if len(pog.points) == geom[0]*geom[1]:
-            match, _, _ = pog.matches_strip_geometry(*geom)
-            if match:
-                newpog = pog
-                break
-
-            #allow for a second step of interpolation if not all points are
-            #settled
-            try: 
-                # now we want to interpolate
-                pog.critical_percentage = .75
-                import pdb
-                pdb.set_trace()
-                pog.extend_grid_arbitrarily()
-                print pog
-                strip = pog.extract_strip(*geom)
-            except gl.StripError as e:
-                print 'Could not interpolate missing points, rejecting'
-                print pog
-                continue
-
-            try:
-                newpog = gl.Grid(p0, p1, p2, np.array(strip), delta=delta,
-                    rho=rho, rho_strict=rho_strict, rho_loose=rho_loose,
-                    critical_percentage=1)
-                newpog.recreate_geometry()
-            except gl.StripError as e:
-                print "Could not fit geometry with newly interpolated points"
-                continue
-
-            #if len(newpog.points) != geom[0]*geom[1]:
-            match, _, _ = newpog.matches_strip_geometry(*geom)
-            if not match:
-                print "Unknown error in reconstructing interpolated geometry"
-                continue
-            else:
-                break
-
-        #if the loop did not find anything, raise an error
-        if newpog is None:
-            raise ValueError("Could not create a grid matching the specified "
-                "geometry")
-
-        return newpog
-
-    if cur_geom=='user-defined':
-        from utils import GeomGetterWindow, GeometryNameHolder
-        from color_utils import mayavi2traits_color
-        nameholder = GeometryNameHolder(
-            geometry=cur_geom,
-            color=mayavi2traits_color(colors[name]))
-        geomgetterwindow = GeomGetterWindow(holder=nameholder)
-
-        if geomgetterwindow.edit_traits().result:
-            try:
-                pog = getgrid_continuation(geomgetterwindow.geometry)
-            except ValueError as e:
-                print 'Geometry reconstruction failed: specific error follows'
-                print e
-                return False, None
-        else:
-            print "User did not specify any geometry, ignoring geometry"
-            return False, None
-
+    epsilon *= 2.5
+    if (1 in cur_geom):
+        ba = np.squeeze(sorted(zip(*np.where(np.abs(180-angles)<epsilon)),
+                key=lambda v:np.abs(180-angles[v])))
     else:
+        ba = np.squeeze(sorted(zip(*np.where(np.abs(90-angles)<epsilon)),
+                key=lambda v:np.abs(90-angles[v])))
+
+    if ba.shape==():
+        ba=[ba]
+    elif len(ba)==0:
+        raise ValueError("Could not find any good angles with epsilon %i "
+            "mindist %i maxdist %i"%(epsilon, mindist, maxdist))
+
+    for j,k in enumerate(ba):
+        p0,p1,p2 = neighbs[k]
+        pog = gl.Grid(p0,p1,p2, np.array(elecs), delta=delta,
+            rho=rho, rho_strict=rho_strict, rho_loose=rho_loose,
+            is_line=(1 in cur_geom))
+        pog.extend_grid_arbitrarily()
+
         try:
-            pog = getgrid_continuation(cur_geom)
-        except ValueError as e:
-            print 'Geometry reconstruction failed: specific error follows'
-            print e
-            return False, None
+            sp = pog.extract_strip(*cur_geom)
+            break
+        except gl.StripError as e:
+            if j==len(ba)-1:
+                raise ValueError('No acceptable interpolation could be '
+                    'reconstructed from the user specified points')
+            continue
 
-    print 'Finished reconstructing grid geometry'
-    print pog
-
-    #Add the local geometry position to the electrode object
+    sp = np.reshape(sp, (-1,3))
+    #keep track of the electrodes newly added
     elec_dict = {}
     interpolates = []
     for elec in cur_grid:
         elec_dict[elec.ct_coords] = elec
 
-    xmin = 0
-    ymin = 0
     for point in pog.points:
-        try:
-            x,y = pog.connectivity[gl.GridPoint(point)]
-            if x < xmin:
-                xmin=x
-            if y < ymin:
-                ymin=y
-        except:
-            pass
-
-    for point in pog.points:
-        try:
-            x,y = pog.connectivity[gl.GridPoint(point)]
-            elec_dict[tuple(point)].geom_coords = (x-xmin, y-ymin)
-        except KeyError:
-            new_elec = Electrode(ct_coords=tuple(point),
-                                 geom_coords = (x-xmin, y-ymin))
+        #try:
+        #    elec_dict[tuple(point)]
+        #except KeyError:
+        if tuple(point) not in elec_dict.keys():
+            new_elec = Electrode(ct_coords=tuple(point), grid_name=name)
             interpolates.append(new_elec)
             elec_dict[tuple(point)] = new_elec
 
     #this might be dangerous
-    fixed_grids[name] = elec_dict.values()
+    #fixed_grids[name] = elec_dict.values()
 
     return True, interpolates
+
+#    def getgrid_continuation(geom, epsilon=epsilon):
+#        if len(geom) != 2:
+#            raise ValueError("Specified geometry is not 2-dimensional")
+#        if (0 in geom):
+#            raise ValueError("Geometry cannot be Nx0")
+#
+#        angles, _, neighbs = gl.find_init_angles(np.array(elecs), 
+#            mindist=mindist, maxdist=maxdist)
+#
+#        if (1 in geom):
+#            epsilon *= 2.5
+#
+#            ba = np.squeeze(sorted(zip(*np.where(np.abs(180-angles)<epsilon)),
+#                    key=lambda v:np.abs(180-angles[v])))
+#        else:
+#            ba = np.squeeze(sorted(zip(*np.where(np.abs(90-angles)<epsilon)),
+#                    key=lambda v:np.abs(90-angles[v])))
+#        
+#        if ba.shape==():
+#            ba=[ba]
+#        elif len(ba)==0:
+#            raise ValueError("Could not find any good angles with epsilon %i "
+#                "mindist %i maxdist %i"%(epsilon, mindist, maxdist))
+#
+#        newpog = None
+#        for j,k in enumerate(ba):
+#            p0,p1,p2 = neighbs[k]
+#            pog = gl.Grid(p0, p1, p2, np.array(elecs), delta=delta, rho=rho,
+#                rho_strict=rho_strict, rho_loose=rho_loose,
+#                critical_percentage=1, is_line=(1 in geom))
+#                
+#            try:
+#                pog.recreate_geometry( )
+#            except gl.StripError as e:
+#                print 'Could not recreate geometry with this initialization'
+#                continue
+#
+#            #if all points were included in the grid already just return
+#            #the Grid object for subsequent extraction of geometry
+#            #if len(pog.points) == geom[0]*geom[1]:
+#            match, _, _ = pog.matches_strip_geometry(*geom)
+#            if match:
+#                newpog = pog
+#                break
+#
+#            #allow for a second step of interpolation if not all points are
+#            #settled
+#            try: 
+#                # now we want to interpolate
+#                pog.critical_percentage = .75
+#                import pdb
+#                pdb.set_trace()
+#                pog.extend_grid_arbitrarily()
+#                print pog
+#                strip = pog.extract_strip(*geom)
+#            except gl.StripError as e:
+#                print 'Could not interpolate missing points, rejecting'
+#                print pog
+#                continue
+#
+#            try:
+#                newpog = gl.Grid(p0, p1, p2, np.array(strip), delta=delta,
+#                    rho=rho, rho_strict=rho_strict, rho_loose=rho_loose,
+#                    critical_percentage=1)
+#                newpog.recreate_geometry()
+#            except gl.StripError as e:
+#                print "Could not fit geometry with newly interpolated points"
+#                continue
+#
+#            #if len(newpog.points) != geom[0]*geom[1]:
+#            match, _, _ = newpog.matches_strip_geometry(*geom)
+#            if not match:
+#                print "Unknown error in reconstructing interpolated geometry"
+#                continue
+#            else:
+#                break
+#
+#        #if the loop did not find anything, raise an error
+#        if newpog is None:
+#            raise ValueError("Could not create a grid matching the specified "
+#                "geometry")
+#
+#        return newpog
+#
+#    if cur_geom=='user-defined':
+#        from utils import GeomGetterWindow, GeometryNameHolder
+#        from color_utils import mayavi2traits_color
+#        nameholder = GeometryNameHolder(
+#            geometry=cur_geom,
+#            color=mayavi2traits_color(colors[name]))
+#        geomgetterwindow = GeomGetterWindow(holder=nameholder)
+#
+#        if geomgetterwindow.edit_traits().result:
+#            try:
+#                pog = getgrid_continuation(geomgetterwindow.geometry)
+#            except ValueError as e:
+#                print 'Geometry reconstruction failed: specific error follows'
+#                print e
+#                return False, None
+#        else:
+#            print "User did not specify any geometry, ignoring geometry"
+#            return False, None
+#
+#    else:
+#        try:
+#            pog = getgrid_continuation(cur_geom)
+#        except ValueError as e:
+#            print 'Geometry reconstruction failed: specific error follows'
+#            print e
+#            return False, None
+#
+#    print 'Finished reconstructing grid geometry'
+#    print pog
+#
+#    #Add the local geometry position to the electrode object
+#    elec_dict = {}
+#    interpolates = []
+#    for elec in cur_grid:
+#        elec_dict[elec.ct_coords] = elec
+#
+#    xmin = 0
+#    ymin = 0
+#    for point in pog.points:
+#        try:
+#            x,y = pog.connectivity[gl.GridPoint(point)]
+#            if x < xmin:
+#                xmin=x
+#            if y < ymin:
+#                ymin=y
+#        except:
+#            pass
+#
+#    for point in pog.points:
+#        try:
+#            x,y = pog.connectivity[gl.GridPoint(point)]
+#            elec_dict[tuple(point)].geom_coords = list((x-xmin, y-ymin))
+#        except KeyError:
+#            new_elec = Electrode(ct_coords=tuple(point),
+#                                 geom_coords = list((x-xmin, y-ymin)))
+#            interpolates.append(new_elec)
+#            elec_dict[tuple(point)] = new_elec
+#
+#    #this might be dangerous
+#    fixed_grids[name] = elec_dict.values()
+#
+#    return True, interpolates
 
 def classify_with_fixed_points(fixed_grids, known_geometry, 
     delta=.35, rho=35, rho_strict=20, rho_loose=50, 
@@ -879,7 +938,8 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
         elec.surf_coords = loc
 
 def snap_electrodes_to_surface(electrodes, subjects_dir=None, 
-    subject=None, max_steps=40000, giveup_steps=10000):
+    subject=None, max_steps=40000, giveup_steps=10000, 
+    deformation_constant=1.):
     '''
     Transforms electrodes from surface space to positions on the surface
     using a simulated annealing "snapping" algorithm which minimizes an
@@ -906,6 +966,11 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
         The number of steps after which, with no change of objective function,
         the algorithm gives up. A higher value may cause the algorithm to
         take longer. The default value is 10000.
+    deformation_constant : Float
+        A constant to weight the deformation term of the energy cost. When 1,
+        the deformation and displacement are weighted equally. When less than
+        1, there is assumed to be considerable deformation and the spring
+        condition is weighted more highly than the deformation condition.
 
     There is no return value. The 'snap_coords' attribute will be used to
     store the snapped locations of the electrodes
@@ -988,7 +1053,7 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
         H=0
 
         for i in xrange(n):
-            H += float(cdist( [e_new[i]], [e_old[i]] ))
+            H += deformation_constant*float(cdist( [e_new[i]], [e_old[i]] ))
 
             for j in xrange(i):
                 H += alpha[i,j] * (dist_new[i,j] - dist_old[i,j])**2
@@ -1088,3 +1153,158 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
         elec.vertno = soln if soln<len(lh_pia) else soln-len(lh_pia)
         elec.hemi = 'lh' if soln<len(lh_pia) else 'rh'
         elec.pial_coords = pia[soln]
+
+def fit_grid_to_line(electrodes, c1, c2, geom, mindist=0, maxdist=36,
+    epsilon=30, delta=.5, rho=35, rho_strict=20, rho_loose=50):
+    '''
+    Given a list of electrodes and two endpoints of a line, fit the electrodes
+    onto the Nx1 or 1xN line using a greedy fitting procedure. Set the
+    geom_coords attribute of the fitted electrodes.
+
+    Parameters
+    ----------
+    electrodes : List(Electrodes)
+        List of electrodes in the specified strip
+    c1, c2, c3 : Tuple
+        Tuple containing coordinates (in CT space) of the endpoint electrodes
+        the user selected. It is assumed that the user selected endpoints
+        such that the line looks like (c1,c2,c3,....).
+    geom : 2-Tuple
+        The known geometry of this grid, which must be either Nx1 or 1xN
+
+    No return value
+    '''
+    c1 = np.array(c1)
+    c2 = np.array(c2)
+    c3 = np.array(c3)
+
+    pog = gl.Grid(c2, c1, c3, np.array(elecs), delta=delta,
+        rho=rho, rho_strict=rho_strict, rho_loose=rho_loose, is_line=True)
+    pog.extend_grid_arbitrarily()
+
+    try:
+        sp = pog.extract_strip(*geom)
+    except gl.StripError as e:
+        raise ValueError('No acceptable interpolated line could be found')
+
+
+    for elec in electrodes:
+        conn = pog.connectivity(gl.GridPoint(elec.ct_coords))
+        elec.geom_coords = (0, conn[1]+1)
+
+def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
+    '''
+    Given a list of electrodes and three corners of a plane, fit the
+    electrodes onto the plane using a snapping algorithm minimizing a global
+    cost function. Use a relatively rapid cooling schedule. Set the
+    geom_coords attribute of the fitted electrodes.
+
+    Parameters
+    ----------
+    electrodes : List(Electrode)
+        List of electrodes in the specified grid
+    c1, c2, c3 : Tuple
+        Tuple containing coordinates (in CT space) of the corner electrodes
+        the user selected
+    geom : 2-Tuple
+        The known geometry of this grid 
+
+    No return value
+    '''
+    #a,b,c,d = geo.find_plane_from_corners(c1, c2, c3)
+    from scipy.spatial.distance import cdist, pdist
+
+    c1 = np.array(c1)
+    c2 = np.array(c2)
+    c3 = np.array(c3)
+
+    v1 = c2-c1
+    v2 = c3-c1
+
+    #import pdb
+    #pdb.set_trace()
+
+    c4 = c2+c3-c1
+
+    plane = {}
+    xg = max(geom)-1
+    ng = min(geom)-1
+    for i in xrange(max(geom)):
+        for j in xrange(min(geom)):
+            if np.sum(v1**2) >= np.sum(v2**2):
+                #longer side in direction of c2 
+                s1 = c2*i/xg + c1*(xg-i)/xg
+                s2 = c3*j/ng + c1*(ng-j)/ng
+                pN = s1+s2-c1
+            else:
+                #longer side in direction of c3
+                s1 = c3*i/xg + c1*(xg-i)/xg
+                s2 = c2*j/ng + c1*(ng-j)/ng
+                pN = s1+s2-c1
+            plane[tuple(pN)]=(i,j)
+
+    plane_points = np.array(plane.keys())
+
+    #assign the electrodes to the nearest plane point greedily
+    pp = {}
+    for elec in electrodes:
+        e_greedy = np.argmin(cdist([elec.asct()], plane_points))
+        pp[elec.ct_coords] = plane_points[e_greedy]
+        plane_points = np.delete(plane_points, e_greedy, axis=0)
+
+    pp_min = pp.copy()
+
+    def globalcost(pp):
+        c=0
+        for e in pp:
+            pe = pp[e]
+            c += pdist((pe,e))**2
+        return c
+
+    # H determines maximal number of steps
+    H = 20000
+    #Texp determines the steepness of temperateure gradient
+    Texp=1-1/H
+    #T0 sets the initial temperature and scales the energy term
+    T0 = 1e-5
+    #Hbrk sets a break point for the annealing
+    Hbrk = 20000
+    
+    h=0; hcnt=0
+    lowcost = mincost = 1e16
+
+    while h<H:
+        h+=1; hcnt+=1
+
+        T=T0*(Texp**h)
+
+        e1 = np.random.randint(len(pp))
+        cand_pt = np.argmin(cdist([electrodes[e1].asct()], pp.values()))
+
+        if cand_pt==e1:
+            continue
+        eg = plane[tuple(pp[electrodes[e1].asct()])]
+        cg = plane[tuple(pp[electrodes[cand_pt].asct()])]
+        if np.abs(eg[0]-cg[0]) > 1 or np.abs(eg[1]-cg[1]) > 1:
+            continue
+
+        pp_tmp = pp.copy()
+        old_e1 = pp_tmp[electrodes[e1].asct()]
+        old_cp = pp_tmp[electrodes[cand_pt].asct()]
+
+        pp_tmp[electrodes[cand_pt].asct()]=old_e1
+        pp_tmp[electrodes[e1].asct()]=old_cp
+
+        cost = globalcost(pp_tmp)
+        if cost < lowcost or np.random.random()<np.exp(-(cost-lowcost)/T):
+            pp = pp_tmp
+            lowcost = cost
+ 
+            if cost < mincost:
+                pp_min = pp
+                mincost = cost
+                print 'step %i in plane fitting, cost %f' %(h, mincost)
+                
+    for elec in electrodes:
+        #elec.plane_coords = plane[pp[elec.ct_coords]]
+        elec.geom_coords = list(plane[tuple(pp[elec.ct_coords])])
