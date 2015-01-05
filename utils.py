@@ -249,6 +249,20 @@ class AutomatedAssignmentWindow(Handler):
             error_dialog('Not all corners were specified')
             return
     
+        cur_geom = self.model._grid_geom[self.cur_grid]
+        if cur_geom=='user-defined':
+            from color_utils import mayavi2traits_color
+            nameholder = GeometryNameHOlder(
+                geometry=cur_geom,
+                color=mayavi2traits_color(self.model._colors[self.cur_grid]))
+            geomgetterwindow = GeomGetterWindow(holder=nameholder)
+
+        if geomgetterwindow.edit_traits().result:
+            cur_geom = geomgetterwindow.geometry
+        else:
+            error_dialog("User did not specify any geometry")
+            return
+
         import pipeline as pipe
         if self.naming_convention == 'line':
             pipe.fit_grid_to_line(self.electrodes, c1.asct(), c2.asct(),

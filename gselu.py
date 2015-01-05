@@ -393,6 +393,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #after geom reconstruction the interpolated points need to
         #be translated to the surface and *all points* must be
         #snapped again
+        for elec in interpolated_points:
+            self._grids[key].append(elec)
 
         aff = self.acquire_affine() 
 
@@ -412,8 +414,6 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         #add electrode to grid data structures
         for elec in interpolated_points:
-            self._grids[key].append(elec)
-
             if self.snapping_enabled:
                 surf_coord = elec.astuple()
             else:
@@ -516,6 +516,7 @@ class ParamsPanel(HasTraits):
     #visualize_in_ctspace = DelegatesTo('model')
     nr_steps = DelegatesTo('model')
     snapping_enabled = DelegatesTo('model')
+    deformation_constant = DelegatesTo('model')
 
     traits_view = View(
         Group(
