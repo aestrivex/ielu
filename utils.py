@@ -252,7 +252,7 @@ class AutomatedAssignmentWindow(Handler):
         cur_geom = self.model._grid_geom[self.cur_grid]
         if cur_geom=='user-defined':
             from color_utils import mayavi2traits_color
-            nameholder = GeometryNameHOlder(
+            nameholder = GeometryNameHolder(
                 geometry=cur_geom,
                 color=mayavi2traits_color(self.model._colors[self.cur_grid]))
             geomgetterwindow = GeomGetterWindow(holder=nameholder)
@@ -266,10 +266,8 @@ class AutomatedAssignmentWindow(Handler):
         import pipeline as pipe
         if self.naming_convention == 'line':
             pipe.fit_grid_to_line(self.electrodes, c1.asct(), c2.asct(),
-                c3.asct(),
-                self.model._grid_geom[self.cur_grid])
+                c3.asct(), cur_geom)
             #do actual labeling
-            cur_geom = self.model._grid_geom[self.cur_grid]
             for elec in self.model._grids[self.cur_grid]:
                 _,y = elec.geom_coords
                 index = y+1
@@ -277,10 +275,9 @@ class AutomatedAssignmentWindow(Handler):
 
         else:
             pipe.fit_grid_to_plane(self.electrodes, c1.asct(), c2.asct(), 
-                c3.asct(), self.model._grid_geom[self.cur_grid])
+                c3.asct(), cur_geom)
 
             #do actual labeling
-            cur_geom = self.model._grid_geom[self.cur_grid]
             for elec in self.model._grids[self.cur_grid]:
                 x,y = elec.geom_coords
                 if self.first_axis=='standard':

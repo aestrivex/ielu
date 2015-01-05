@@ -1154,7 +1154,7 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
         elec.hemi = 'lh' if soln<len(lh_pia) else 'rh'
         elec.pial_coords = pia[soln]
 
-def fit_grid_to_line(electrodes, c1, c2, geom, mindist=0, maxdist=36,
+def fit_grid_to_line(electrodes, c1, c2, c3, geom, mindist=0, maxdist=36,
     epsilon=30, delta=.5, rho=35, rho_strict=20, rho_loose=50):
     '''
     Given a list of electrodes and two endpoints of a line, fit the electrodes
@@ -1178,7 +1178,7 @@ def fit_grid_to_line(electrodes, c1, c2, geom, mindist=0, maxdist=36,
     c2 = np.array(c2)
     c3 = np.array(c3)
 
-    pog = gl.Grid(c2, c1, c3, np.array(elecs), delta=delta,
+    pog = gl.Grid(c2, c1, c3, np.array(electrodes), delta=delta,
         rho=rho, rho_strict=rho_strict, rho_loose=rho_loose, is_line=True)
     pog.extend_grid_arbitrarily()
 
