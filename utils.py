@@ -218,7 +218,7 @@ class AutomatedAssignmentWindow(Handler):
         resizable=True, kind='panel', title='indicate corner electrodes',
         buttons=OKCancelButtons)
 
-    def closed(self, is_ok, info):
+    def closed(self, info, is_ok):
         #uncolor last selection
         if self.previous_sel is not None:
             self.model._new_glyph_color = self.previous_color
