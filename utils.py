@@ -271,7 +271,7 @@ class AutomatedAssignmentWindow(Handler):
             for elec in self.model._grids[self.cur_grid]:
                 _,y = elec.geom_coords
                 index = y+1
-                elec_name = '%s%i'%(self.name_stem, index)
+                elec.name = '%s%i'%(self.name_stem, index)
 
         else:
             pipe.fit_grid_to_plane(self.electrodes, c1.asct(), c2.asct(), 

@@ -1178,19 +1178,28 @@ def fit_grid_to_line(electrodes, c1, c2, c3, geom, mindist=0, maxdist=36,
     c2 = np.array(c2)
     c3 = np.array(c3)
 
-    pog = gl.Grid(c2, c1, c3, np.array(electrodes), delta=delta,
+    electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
+
+    pog = gl.Grid(c2, c3, c1, np.array(electrode_arr), delta=delta,
         rho=rho, rho_strict=rho_strict, rho_loose=rho_loose, is_line=True)
+    #import pdb
+    #pdb.set_trace()
     pog.extend_grid_arbitrarily()
 
-    try:
-        sp = pog.extract_strip(*geom)
-    except gl.StripError as e:
-        raise ValueError('No acceptable interpolated line could be found')
+    #try:
+    #    sp = pog.extract_strip(*geom)
+    #except gl.StripError as e:
+    #    raise ValueError('No acceptable interpolated line could be found')
 
+    miny=-1
+    for elec in electrodes:
+        y = pog.connectivity[gl.GridPoint(elec.ct_coords)][1]
+        if y<miny:
+            miny=y
 
     for elec in electrodes:
-        conn = pog.connectivity(gl.GridPoint(elec.ct_coords))
-        elec.geom_coords = (0, conn[1]+1)
+        conn = pog.connectivity[gl.GridPoint(elec.ct_coords)]
+        elec.geom_coords = [0, conn[1]-miny]
 
 def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
     '''

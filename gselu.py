@@ -329,6 +329,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
             fixed_points=self._grids.values())
 
     def assign_manual_labels(self):
+        self._commit_grid_changes()
         cur_grid = self.interactive_mode
 
         if cur_grid is None:
@@ -346,6 +347,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self.mlaw.edit_traits()
 
     def assign_automated_labels(self):
+        self._commit_grid_changes()
         cur_grid = self.interactive_mode
 
         if cur_grid is None:
