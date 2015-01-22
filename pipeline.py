@@ -123,7 +123,8 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
     if mask is not None and type(mask)==str:
         maski = nib.load(mask)
         maskd = maski.get_data()
-        maskd = ndimage.binary_dilation(maskd, iterations=15)
+        maskd = np.around(maskd)    #eliminate noise in registration
+        maskd = ndimage.binary_dilation(maskd, iterations=10)
     else:
         maskd = ctd.copy()
         maskd[:] = 1

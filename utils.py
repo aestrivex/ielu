@@ -1,10 +1,10 @@
 import numpy as np
 
 from traits.api import (HasTraits, Str, Color, List, Instance, Int, Method,
-    on_trait_change, Color, Any, Enum)
+    on_trait_change, Color, Any, Enum, Button, Float)
 from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor,
     InstanceEditor, Group, OKCancelButtons, TableEditor, ObjectColumn, 
-    TextEditor, OKButton, CheckListEditor, OKCancelButtons, Label)
+    TextEditor, OKButton, CheckListEditor, OKCancelButtons, Label, Action)
 from traitsui.message import error as error_dialog
 
 from mayavi import mlab
@@ -112,10 +112,16 @@ class ManualLabelAssignmentWindow(Handler):
     electrodes = List(Electrode)  
     cur_sel = Instance(Electrode)
     selection_callback = Method
+    #selected_ixes = List(Int)
+    #selected_ixes = List
+    selected_ixes = Any
+    swap_action = Action(name='Swap', action='do_swap')
 
     #selection_color = Color('yellow')
     previous_sel = Instance(Electrode)
     previous_color = Int
+
+    distinct_prev_sel = Instance(Electrode)
 
     traits_view = View(
         Item('electrodes',
@@ -138,11 +144,16 @@ class ManualLabelAssignmentWindow(Handler):
                               name='name'),
                  ],
                 selected='cur_sel',
+                #selected_indices='selected_ixes',
+                #selection_mode='rows',
+                #selected_rows='selected_ixes',
+                #selected_items='selected_ixes',
+
                 #on_select='selection_callback'),
                 ),
-            show_label=False, height=350, width=400),
+            show_label=False, height=350, width=450),
         resizable=True, kind='panel', title='assign labels',
-        buttons=[OKButton])
+        buttons=[swap_action, OKButton])
 
     def closed(self, is_ok, info):
         if self.previous_sel is not None:
@@ -162,6 +173,9 @@ class ManualLabelAssignmentWindow(Handler):
             self.model._single_glyph_to_recolor = self.previous_sel.asct()
             self.model._update_single_glyph_event = True
 
+        if self.distinct_prev_sel != self.previous_sel:
+            self.distinct_prev_sel = self.previous_sel
+
         self.previous_sel = self.cur_sel
         self.previous_color = self.model._colors.keys().index(self.cur_grid)
 
@@ -170,6 +184,33 @@ class ManualLabelAssignmentWindow(Handler):
         self.model._new_glyph_color = selection_color
         self.model._single_glyph_to_recolor = self.cur_sel.asct()
         self.model._update_single_glyph_event = True
+
+    @on_trait_change('selected_ixes')
+    def ngablemmnenngl(self):
+        print 'ngablemnenngl'
+    
+    def do_swap(self, info):
+        #if not len(self.selected_ixes) == 2:
+        #    return
+        if self.distinct_prev_sel == self.cur_sel:
+            return
+        elif None in (self.distinct_prev_sel, self.cur_sel):
+            return
+
+        #i,j = self.selected_ixes
+        #e1 = self.electrodes[i]
+        #e2 = self.electrodes[j]
+        e1 = self.cur_sel
+        e2 = self.distinct_prev_sel
+
+        geom_swap = e1.geom_coords
+        name_swap = e1.name
+
+        e1.geom_coords = e2.geom_coords
+        e1.name = e2.name
+
+        e2.geom_coords = geom_swap
+        e2.name = name_swap
 
 class AutomatedAssignmentWindow(Handler):
     model = Any
@@ -201,7 +242,8 @@ class AutomatedAssignmentWindow(Handler):
 
                  ObjectColumn(label='corner',
                               editor=CheckListEditor(
-                                values=['corner 1', 'corner 2', 'corner 3']),
+                                values=['','corner 1', 'corner 2', 
+                                    'corner 3']),
                               #style='custom',
                               style='simple',
                               name='corner',),
@@ -229,63 +271,72 @@ class AutomatedAssignmentWindow(Handler):
         if not is_ok:
             return
 
-        #figure out c1, c2, c3
-        c1,c2,c3 = 3*(None,)
-        for e in self.electrodes:
-            if len(e.corner) == 0:
-                continue
-            elif len(e.corner) > 1:
-                error_dialog('Too many corners specified for single electrode')
+        try:
+
+            #figure out c1, c2, c3
+            c1,c2,c3 = 3*(None,)
+            for e in self.electrodes:
+                if len(e.corner) == 0:
+                    continue
+                elif len(e.corner) > 1:
+                    error_dialog('Too many corners specified for single'
+                        'electrode')
+                    return
+        
+                elif 'corner 1' in e.corner:
+                    c1 = e
+                elif 'corner 2' in e.corner:
+                    c2 = e
+                elif 'corner 3' in e.corner:
+                    c3 = e
+
+            if c1 is None or c2 is None or c3 is None:
+                error_dialog('Not all corners were specified')
                 return
-    
-            elif 'corner 1' in e.corner:
-                c1 = e
-            elif 'corner 2' in e.corner:
-                c2 = e
-            elif 'corner 3' in e.corner:
-                c3 = e
+        
+            cur_geom = self.model._grid_geom[self.cur_grid]
+            if cur_geom=='user-defined':
+                from color_utils import mayavi2traits_color
+                nameholder = GeometryNameHolder(
+                    geometry=cur_geom,
+                    color=mayavi2traits_color(
+                        self.model._colors[self.cur_grid]))
+                geomgetterwindow = GeomGetterWindow(holder=nameholder)
 
-        if c1 is None or c2 is None or c3 is None:
-            error_dialog('Not all corners were specified')
-            return
-    
-        cur_geom = self.model._grid_geom[self.cur_grid]
-        if cur_geom=='user-defined':
-            from color_utils import mayavi2traits_color
-            nameholder = GeometryNameHolder(
-                geometry=cur_geom,
-                color=mayavi2traits_color(self.model._colors[self.cur_grid]))
-            geomgetterwindow = GeomGetterWindow(holder=nameholder)
-
-        if geomgetterwindow.edit_traits().result:
-            cur_geom = geomgetterwindow.geometry
-        else:
-            error_dialog("User did not specify any geometry")
-            return
-
-        import pipeline as pipe
-        if self.naming_convention == 'line':
-            pipe.fit_grid_to_line(self.electrodes, c1.asct(), c2.asct(),
-                c3.asct(), cur_geom)
-            #do actual labeling
-            for elec in self.model._grids[self.cur_grid]:
-                _,y = elec.geom_coords
-                index = y+1
-                elec.name = '%s%i'%(self.name_stem, index)
-
-        else:
-            pipe.fit_grid_to_plane(self.electrodes, c1.asct(), c2.asct(), 
-                c3.asct(), cur_geom)
-
-            #do actual labeling
-            for elec in self.model._grids[self.cur_grid]:
-                x,y = elec.geom_coords
-                if self.first_axis=='standard':
-                    index = y*np.max(cur_geom) + x + 1
+                if geomgetterwindow.edit_traits().result:
+                    cur_geom = geomgetterwindow.geometry
                 else:
-                    index = x*np.min(cur_geom) + y + 1
-                
-                elec.name = '%s%i'%(self.name_stem, index)
+                    error_dialog("User did not specify any geometry")
+                    return
+
+            import pipeline as pipe
+            if self.naming_convention == 'line':
+                pipe.fit_grid_to_line(self.electrodes, c1.asct(), c2.asct(),
+                    c3.asct(), cur_geom)
+                #do actual labeling
+                for elec in self.model._grids[self.cur_grid]:
+                    _,y = elec.geom_coords
+                    index = y+1
+                    elec.name = '%s%i'%(self.name_stem, index)
+
+            else:
+                pipe.fit_grid_to_plane(self.electrodes, c1.asct(), c2.asct(), 
+                    c3.asct(), cur_geom)
+
+                #do actual labeling
+                for elec in self.model._grids[self.cur_grid]:
+                    x,y = elec.geom_coords
+                    if self.first_axis=='standard':
+                        #index = y*np.max(cur_geom) + x + 1
+                        index = x*np.min(cur_geom) + y + 1
+                    else:
+                        #index = x*np.min(cur_geom) + y + 1
+                        index = y*np.max(cur_geom) + x + 1
+                    
+                    elec.name = '%s%i'%(self.name_stem, index)
+        except Exception as e:
+            print str(e)
+            return
 
     @on_trait_change('cur_sel')
     def selection_callback(self):
@@ -306,4 +357,143 @@ class AutomatedAssignmentWindow(Handler):
         self.model._single_glyph_to_recolor = self.cur_sel.asct()
         self.model._update_single_glyph_event = True
 
-        
+class RegistrationAdjustmentWindow(Handler):
+    model = Any
+    #we clumsily hold a reference to the model only to fire its events
+
+    cur_grid = Str
+
+    x_d = Button('-x')
+    x_i = Button('+x')
+    xval = Float(0.)
+    y_d = Button('-y')
+    y_i = Button('+y')
+    yval = Float(0.)
+    z_d = Button('-z')
+    z_i = Button('+z')
+    zval = Float(0.)
+
+    pitch_d = Button('pitch-')
+    pitch_i = Button('pitch+')
+    pitchval = Float(0.)
+    roll_d = Button('roll-')
+    roll_i = Button('roll+')
+    rollval = Float(0.)
+    yaw_d = Button('yaw-')
+    yaw_i = Button('yaw+')
+    yawval = Float(0.)
+
+    reset_button = Button('Reset')
+
+    cos5 = Float(np.cos(np.pi/36))
+    sin5 = Float(np.sin(np.pi/36))
+
+    traits_view = View(
+        Group(
+        HGroup(
+            Item('x_d'),
+            Item('xval'),
+            Item('x_i'),
+        show_labels=False),
+        HGroup(
+            Item('y_d'),
+            Item('yval'),
+            Item('y_i'),
+        show_labels=False),
+        HGroup(
+            Item('z_d'),
+            Item('zval'),
+            Item('z_i'),
+        show_labels=False),
+        HGroup(
+            Item('pitch_d'),
+            Item('pitchval'),
+            Item('pitch_i'),
+        show_labels=False),
+        HGroup(
+            Item('roll_d'),
+            Item('rollval'),
+            Item('roll_i'),
+        show_labels=False),
+        HGroup(
+            Item('yaw_d'),
+            Item('yawval'),
+            Item('yaw_i'),
+        show_labels=False),
+        Item('reset_button', show_label=False)
+        ), 
+    )
+
+    def _rot_matrix(self, axis, neg=False, deg=2):
+        cval = np.cos( deg*np.pi/180 )
+        sval = -np.sin( deg*np.pi/180 ) if neg else np.sin( deg*np.pi/180 )
+
+        if axis == 'x':
+            mat = np.array(( (1, 0, 0, 0),
+                             (0, cval, -sval, 0),
+                             (0, sval, cval, 0),
+                             (0, 0, 0, 1), ))
+        elif axis == 'y':
+            mat = np.array(( (cval, 0, sval, 0),
+                             (0, 1, 0, 0),
+                             (-sval, 0, cval, 0),
+                             (0, 0, 0, 1), ))
+        elif axis == 'z':
+            mat = np.array(( (cval, -sval, 0, 0),
+                             (sval, cval, 0, 0),
+                             (0, 0, 1, 0),
+                             (0, 0, 0, 1), ))
+        else:
+            return np.eye(4)
+
+        return mat
+
+    def _trans_matrix(self, axis, neg=False, dist=.5):
+        mat = np.eye(4)
+
+        if neg:
+            dist *= -1
+
+        if axis=='x': mat[0,3]=dist
+        elif axis=='y': mat[1,3]=dist
+        elif axis=='z': mat[2,3]=dist
+
+        return mat
+
+    def _x_d_fired(self):
+        self.model.reorient_glyph(self.cur_grid, 
+            self._trans_matrix('x', neg=True))
+    def _x_i_fired(self):
+        self.model.reorient_glyph(self.cur_grid, 
+            self._trans_matrix('x', neg=False))
+    def _y_d_fired(self):
+        self.model.reorient_glyph(self.cur_grid, 
+            self._trans_matrix('y', neg=True))
+    def _y_i_fired(self):
+        self.model.reorient_glyph(self.cur_grid, 
+            self._trans_matrix('y', neg=False))
+    def _z_d_fired(self):
+        self.model.reorient_glyph(self.cur_grid, 
+            self._trans_matrix('z', neg=True))
+    def _z_i_fired(self):
+        self.model.reorient_glyph(self.cur_grid, 
+            self._trans_matrix('z', neg=False))
+
+    def _roll_d_fired(self):
+        self.model.reorient_glyph(self.cur_grid, 
+            self._rot_matrix('x', neg=True) )
+    def _roll_i_fired(self):
+        self.model.reorient_glyph(self.cur_grid, 
+            self._rot_matrix('x', neg=False) )
+    def _pitch_d_fired(self):
+        self.model.reorient_glyph(self.cur_grid, 
+            self._rot_matrix('y', neg=True) )
+    def _pitch_i_fired(self):
+        self.model.reorient_glyph(self.cur_grid, 
+            self._rot_matrix('y', neg=False) )
+    def _yaw_d_fired(self):
+        self.model.reorient_glyph(self.cur_grid, 
+            self._rot_matrix('z', neg=True) )
+    def _yaw_i_fired(self):
+        self.model.reorient_glyph(self.cur_grid, 
+            self._rot_matrix('z', neg=False) )

@@ -22,11 +22,14 @@ class ElectrodePositionsModel(HasPrivateTraits):
     subject = Str
     fsdir_writable = Bool
 
+    use_ct_mask = Bool(True)
+    disable_erosion = Bool(False)
+
     electrode_geometry = List(List(Int), [[8,8]]) # Gx2 list
 
     _electrodes = List(Electrode)
     interactive_mode = Instance(NameHolder)
-    _grids = Dict # Grid -> List(Electrode)
+    _grids = Dict # Str -> List(Electrode)
     _grid_named_objects = Property(depends_on='_grids')
     #_grid_named_objects = List(NameHolder)
 
@@ -39,17 +42,23 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
     _surf_to_ct_map = Dict
     _ct_to_surf_map = Dict
+
+    _ct_to_grid_ident_map = Dict # Tuple -> Str
     
     _points_to_cur_grid = Dict
     _points_to_unsorted = Dict
 
     _single_glyph_to_recolor = Tuple
     _new_glyph_color = Any
+    _new_ras_positions = Dict
+
+    _interactive_mode_snapshot = Str
 
     _rebuild_vizpanel_event = Event
     _rebuild_guipanel_event = Event
     _update_glyph_lut_event = Event
     _update_single_glyph_event = Event
+    _reorient_glyph_event = Event
 
     _visualization_ready = Bool(False)
 
@@ -76,9 +85,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
     nr_steps = Int(2500)
     deformation_constant = Float(1.)
 
-    #just for testing
-    mlaw = Any
-    alaw = Any
+    #state-storing interactive labeling windows
+    mlaw = Instance(HasTraits)
+    alaw = Instance(HasTraits)
+    raw = Instance(HasTraits)
     
     #def __grid_named_objects_default(self):
     #    return self._get__grid_named_objects()
@@ -127,8 +137,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
         
                 if old not in ('','unsorted','selection'):
                     self._grids[old].remove(elec)
+                    self._ct_to_grid_ident_map[elec.asct()] = 'unsorted'
                 if new not in ('','unsorted','selection'):
                     self._grids[new].append(elec)
+                    self._ct_to_grid_ident_map[elec.asct()] = new
 
         self._points_to_cur_grid = {}
         self._points_to_unsorted = {}
@@ -174,11 +186,15 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #adjust the brainmask creation to use the existing affine if provided,
         #requires us to be "clever" and create an LTA for that
         #TODO
-        ct_mask = pipe.create_brainmask_in_ctspace(self.ct_scan,
-            subjects_dir=self.subjects_dir, subject=self.subject)
+        if self.use_ct_mask:
+            ct_mask = pipe.create_brainmask_in_ctspace(self.ct_scan,
+                subjects_dir=self.subjects_dir, subject=self.subject)
+        else:
+            ct_mask = None
 
         self._electrodes = pipe.identify_electrodes_in_ctspace(
-            self.ct_scan, mask=ct_mask, threshold=self.ct_threshold) 
+            self.ct_scan, mask=ct_mask, threshold=self.ct_threshold,
+            use_erosion=(not self.disable_erosion)) 
 
         aff = self.acquire_affine()
 
@@ -232,6 +248,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 else:
                     self._sorted_electrodes[elec.asct()] = elec
 
+                #save each electrode's grid identity
+                self._ct_to_grid_ident_map[elec.asct()] = key
+
         # store the unsorted points in a separate map for access
         for elec in self._electrodes:
             sorted = False
@@ -244,6 +263,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
                         break
             if not sorted:
                 self._unsorted_electrodes[elec.asct()] = elec
+
+                self._ct_to_grid_ident_map[elec.asct()] = 'unsorted'
 
         self._all_electrodes.update(self._interpolated_electrodes)
         self._all_electrodes.update(self._unsorted_electrodes)
@@ -292,32 +313,74 @@ class ElectrodePositionsModel(HasPrivateTraits):
         if elec in self._grids[target]:
             if xyz in self._points_to_unsorted:
                 del self._points_to_unsorted[xyz]
-                #change_single_glyph_color(nodes, pt, 
-                #    self._colors.keys().index(current_key))
                 elec.grid_transition_to = ''
                 self._new_glyph_color = self._colors.keys().index(current_key)
             else:
                 self._points_to_unsorted[xyz] = elec
-                #change_single_glyph_color(nodes, pt, 
-                #    self._colors.keys().index('unsorted'))
                 elec.grid_transition_to = 'unsorted'
                 self._new_glyph_color = self._colors.keys().index('unsorted')
         else:
             if xyz in self._points_to_cur_grid:
                 del self._points_to_cur_grid[xyz]
-                #change_single_glyph_color(nodes, pt, 
-                #    self._colors.keys().index(current_key))
                 elec.grid_transition_to = ''
                 self._new_glyph_color = self._colors.keys().index(current_key)
             else:
                 self._points_to_cur_grid[xyz] = elec
-                #change_single_glyph_color(nodes, pt, 
-                #    self._colors.keys().index(target))
                 elec.grid_transition_to = target
                 self._new_glyph_color = self._colors.keys().index(target)
 
         self._single_glyph_to_recolor = xyz
         self._update_single_glyph_event = True
+
+    def open_registration_window(self):
+        cur_grid = self.interactive_mode
+        #TODO WHY IS REGISTRATION DONE BY GRIDS? Shouldnt we adjust the
+        #entire image registration?
+        if cur_grid is None:
+            error_dialog('Registration is done gridwise')
+            return
+        if cur_grid.name in ('', 'unsorted'):
+            error_dialog('Regsitration is done gridwise')
+            return
+
+        from utils import RegistrationAdjustmentWindow
+        self.raw = RegistrationAdjustmentWindow(
+            model = self,
+            cur_grid = cur_grid.name)
+        self.raw.edit_traits()
+
+    def reorient_glyph(self, target, matrix):
+        self._commit_grid_changes()
+
+        old_locs = map(lambda x:x.asras(), self._grids[target])
+
+        from geometry import apply_affine
+        new_locs = apply_affine(old_locs, matrix)
+
+        for oloc, nloc in zip(old_locs, new_locs):
+            self._new_ras_positions[tuple(oloc)] = tuple(nloc)
+
+        self._interactive_mode_snapshot = target
+
+        #draw the changes, no underlying state has yet been altered
+        self._reorient_glyph_event = True
+
+        #for unknown reason the operation causes the LUT to be destroyed
+        #we can recreate it easily
+        self._update_glyph_lut_event = True
+
+        #import pdb
+        #pdb.set_trace()
+
+        for oloc,nloc,elec in zip(old_locs, new_locs, self._grids[target]):
+
+            if tuple(oloc) == tuple(nloc):
+                continue
+
+            elec.surf_coords = tuple(nloc)
+            self._ct_to_surf_map[elec.asct()] = tuple(nloc)
+            del self._surf_to_ct_map[tuple(oloc)]
+            self._surf_to_ct_map[tuple(nloc)] = elec.asct()
 
     def fit_changes(self):
         #maybe this should be a different call which evaluates a single
@@ -370,11 +433,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
         for key in self._grids:
             pipe.classify_single_fixed_grid(key, self._grids, self._grid_geom,
                 self._colors, 
-                delta=self.delta_recon, 
-                epsilon=self.epsilon_recon,
-                rho=self.rho_recon, 
-                rho_loose=self.rho_loose_recon,
-                rho_strict=self.rho_strict_recon)
+                delta=self.delta, 
+                epsilon=self.epsilon,
+                rho=self.rho, 
+                rho_loose=self.rho_loose,
+                rho_strict=self.rho_strict)
 
     def reconstruct_geometry(self):
         self._commit_grid_changes()
@@ -383,11 +446,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
         import pipeline as pipe
         success, interpolated_points = pipe.classify_single_fixed_grid(key, 
             self._grids, self._grid_geom, self._colors,
-            delta = self.delta_recon,
-            epsilon = self.epsilon_recon,
-            rho = self.rho_recon,
-            rho_loose = self.rho_loose_recon,
-            rho_strict = self.rho_strict_recon)
+            delta = self.delta,
+            epsilon = self.epsilon,
+            rho = self.rho,
+            rho_loose = self.rho_loose,
+            rho_strict = self.rho_strict)
 
         print success, 'nimmo'
 
@@ -441,10 +504,6 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #    error_dialog('Finish reconstructing geometry first')
         #    return
 
-        #TODO run the grid fitting procedure with the complete fixed
-        #set of electrodes, to determine the resultant geometry
-        #then assign 2D indices based on that geometry
-
         #this is the saving part
 
         from file_dialog import save_in_directory
@@ -473,6 +532,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         key = self.interactive_mode.name
 
         if self.snapping_enabled:
+            import pipeline as pipe
             pipe.snap_electrodes_to_surface(
                 self._grids[key], subjects_dir=self.subjects_dir,
                 subject=self.subject, max_steps=self.nr_steps)
@@ -519,6 +579,8 @@ class ParamsPanel(HasTraits):
     nr_steps = DelegatesTo('model')
     snapping_enabled = DelegatesTo('model')
     deformation_constant = DelegatesTo('model')
+    use_ct_mask = DelegatesTo('model')
+    disable_erosion = DelegatesTo('model')
 
     traits_view = View(
         Group(
@@ -535,6 +597,11 @@ class ParamsPanel(HasTraits):
             Label('Weight given to the deformation term in the snapping\n'
                 'algorithm, reduce if snapping error is very high.'),
             Item('deformation_constant', enabled_when='snapping_enabled'),
+            Label('Try to extract the brain from the CT image and mask\n'
+                'extracranial noise -- takes several minutes'),
+            Item('use_ct_mask'),
+            Label('Disable binary erosion procedure to reduce CT noise'),
+            Item('disable_erosion'),
         ),
         VGroup(
             Label('Delta controls the distance between electrodes. That is,\n'
@@ -553,16 +620,7 @@ class ParamsPanel(HasTraits):
             Item('rho_strict'),
             Item('rho_loose'),
         ),
-        VGroup(
-            Label('The same fitting parameters, except used for more\n'
-                'liberal reconstruction of the geometry from known grid\n' 
-                'points rather than estimation of likely grid points.'),
-            Item('delta_recon'),
-            Item('epsilon_recon'),
-            Item('rho_recon'),
-            Item('rho_strict_recon'),
-            Item('rho_loose_recon'), 
-        ),),),
+        ),),
     title='Edit parameters',
     buttons=OKCancelButtons,
     )
@@ -684,6 +742,9 @@ class SurfaceVisualizerPanel(HasTraits):
         picker.tolerance = .02
 
     def redraw_single_grid(self, key):
+        #this function is never called
+        #it is always easier to redraw everything, and avoids memory leaks
+
         from mayavi import mlab
         from color_utils import set_discrete_lut
 
@@ -777,6 +838,47 @@ class SurfaceVisualizerPanel(HasTraits):
         from color_utils import set_discrete_lut
         for glyph in self.gs_glyphs.values():
             set_discrete_lut(glyph, self._colors.values())
+
+    @on_trait_change('model:_reorient_glyph_event')
+    def update_orientation(self):
+        #only do this for surface viz, do not adjust CT electrode positions
+        if self.visualize_in_ctspace:
+            return
+
+        target = self.model._interactive_mode_snapshot
+
+        for glyph in self.gs_glyphs.values():
+            points = np.array(glyph.mlab_source.dataset.points)
+
+            for i,point in enumerate(points):
+                surf_point = tuple(self.model._surf_to_ct_map[tuple(point)])
+                if self.model._ct_to_grid_ident_map[surf_point] == target:
+                    points[i] = self.model._new_ras_positions[tuple(point)] 
+
+            glyph.mlab_source.dataset.points = points
+
+        #glyph = self.gs_glyphs[self._model._interactive_mode_snapshot]
+
+        #not all of the desired points will be in this glyph.
+        #it is necessary to either
+            #1. redraw the scene (we are not doing this)
+            #2. determine the electrode identities, by iterating through
+            #   each glyphs and somehow figuring out the electrode
+            #   identity, perhaps by maintaining a table in the model
+
+            #   and then storing and updating the locations of
+            #   *all* glyphs
+
+            #   note, all the electrodes we want are in one Grid
+            #   but not necessarily one glyph.
+        
+            #   so it does not make sense to calculate all the electrode
+            #   locations and leave them unordered, because we will need to 
+            #   replace the positions array for each glyph individually
+            #   after we figure out the membership of each electrode
+
+            #   so it is probably best to just to access each electrode
+            #   directly from the model to get its updated coordinates
                 
 class InteractivePanel(HasPrivateTraits):
     model = Instance(ElectrodePositionsModel)
@@ -807,6 +909,7 @@ class InteractivePanel(HasPrivateTraits):
     reconstruct_geom_button = Button('Reconstruct geometry')
     assign_manual_labels_button = Button('Label manually')
     assign_automated_labels_button = Button('Label automatically')
+    adjust_registration_button = Button('Adjust registration')
 
     #we retain a reference to easily reference the visualization in the shell
     viz = Instance(SurfaceVisualizerPanel)
@@ -816,7 +919,8 @@ class InteractivePanel(HasPrivateTraits):
         HGroup(
             VGroup(
                 Item('ct_scan'),
-                Item('ct_registration', label='reg matrix\n(optional)')
+                #Item('ct_registration', label='reg matrix\n(optional)')
+                Item('adjust_registration_button', show_label=False),
             ),
             VGroup(
                 Item('electrode_geometry', editor=ListEditor(
@@ -881,6 +985,9 @@ class InteractivePanel(HasPrivateTraits):
 
     def _assign_automated_labels_button_fired(self):
         self.model.assign_automated_labels()
+
+    def _adjust_registration_button_fired(self):
+        self.model.open_registration_window()
 
 class iEEGCoregistrationFrame(HasTraits):
     model = Instance(ElectrodePositionsModel)
