@@ -8,8 +8,13 @@ from numpy.linalg import norm
 
 def angle(v1, v2):
     x = np.dot(v1, v2)/(norm(v1)*norm(v2))
-    if x > 1: # numeric error
+
+    #handle numeric floating point errors
+    if x > 1:
         x = 1
+    if x < -1:
+        x = -1
+
     theta = 180*np.arccos(x)/np.pi   
     
     return theta

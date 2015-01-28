@@ -163,7 +163,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
         if self.subject is None or self.subject=='':
             self.subject = os.environ['SUBJECT']
 
+        #get rid of any existing grid changes
+        self._commit_grid_changes()
         self._grids = {}
+        
         #self._grid_named_objects = self._get__grid_named_objects()
         self.interactive_mode = self._grid_named_objects[0]
         #manually handle property
@@ -280,6 +283,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self._ct_to_surf_map[elec.asct()] = surf_coord
             self._surf_to_ct_map[surf_coord] = elec.asct()
 
+        #manually trigger a change to grid_named_objects property
+        self._grids['test rice-a-roni'] = []
+        del self._grids['test rice-a-roni']
+    
+        #fire visualization events
         self._visualization_ready = True
         self._rebuild_vizpanel_event = True
         self._rebuild_guipanel_event = True

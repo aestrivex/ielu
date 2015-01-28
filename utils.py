@@ -185,10 +185,6 @@ class ManualLabelAssignmentWindow(Handler):
         self.model._single_glyph_to_recolor = self.cur_sel.asct()
         self.model._update_single_glyph_event = True
 
-    @on_trait_change('selected_ixes')
-    def ngablemmnenngl(self):
-        print 'ngablemnenngl'
-    
     def do_swap(self, info):
         #if not len(self.selected_ixes) == 2:
         #    return
@@ -295,7 +291,7 @@ class AutomatedAssignmentWindow(Handler):
                 return
         
             cur_geom = self.model._grid_geom[self.cur_grid]
-            if cur_geom=='user-defined':
+            if cur_geom=='user-defined' and self.naming_convention != 'line':
                 from color_utils import mayavi2traits_color
                 nameholder = GeometryNameHolder(
                     geometry=cur_geom,
@@ -312,7 +308,8 @@ class AutomatedAssignmentWindow(Handler):
             import pipeline as pipe
             if self.naming_convention == 'line':
                 pipe.fit_grid_to_line(self.electrodes, c1.asct(), c2.asct(),
-                    c3.asct(), cur_geom)
+                    c3.asct(), cur_geom, delta=self.model.delta,
+                    rho_loose=self.model.rho_loose)
                 #do actual labeling
                 for elec in self.model._grids[self.cur_grid]:
                     _,y = elec.geom_coords

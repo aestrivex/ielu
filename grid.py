@@ -93,6 +93,9 @@ class Grid():
             self.reverse_connectivity = {(0,0) : p0,
                                          (0,1) : p1,
                                          (0,-1) : p2}
+
+            self.is_line = True
+
         else:
             self.connectivity = { GridPoint(p0) : (0,0),
                                   GridPoint(p1) : (0,1), 
@@ -101,6 +104,8 @@ class Grid():
             self.reverse_connectivity = {(0,0) : p0,
                                          (0,1) : p1,
                                          (1,0) : p2}
+
+            self.is_line = False
 
         self.marked = {}
 
@@ -146,7 +151,11 @@ class Grid():
             graph[x-min_x, y-min_y]=1
         graph[-min_x,-min_y]=2
         graph[-min_x,-min_y+1]=3
-        graph[-min_x+1,-min_y]=4
+
+        if self.is_line:
+            graph[-min_x,-min_y-1]=4
+        else:
+            graph[-min_x+1,-min_y]=4
 
         if pad_zeros:
             new_graph = np.zeros((max_x-min_x+1+2*pad_zeros, max_y-min_y+1+2*pad_zeros), dtype=int)
@@ -363,6 +372,9 @@ class Grid():
         '''
         if GridPoint(pJ) in self.connectivity:
             return False
+
+        #import pdb
+        #pdb.set_trace()
 
         c = self.critdist()
         distance_cond = within_distance(c, p0, pJ, self.delta)

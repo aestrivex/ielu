@@ -1155,7 +1155,7 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
         elec.hemi = 'lh' if soln<len(lh_pia) else 'rh'
         elec.pial_coords = pia[soln]
 
-def fit_grid_to_line(electrodes, c1, c2, c3, geom, mindist=0, maxdist=36,
+def fit_grid_to_line(electrodes, c1, c2, c3, geom=None, mindist=0, maxdist=36,
     epsilon=30, delta=.5, rho=35, rho_strict=20, rho_loose=50):
     '''
     Given a list of electrodes and two endpoints of a line, fit the electrodes
@@ -1172,6 +1172,7 @@ def fit_grid_to_line(electrodes, c1, c2, c3, geom, mindist=0, maxdist=36,
         such that the line looks like (c1,c2,c3,....).
     geom : 2-Tuple
         The known geometry of this grid, which must be either Nx1 or 1xN
+        This is not used at all and can be None
 
     No return value
     '''
