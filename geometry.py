@@ -206,7 +206,9 @@ def apply_affine(locs, affine):
     new_locs = []
     for loc in locs:
         new_loc = np.dot( affine, (loc[0], loc[1], loc[2], 1))
-        new_locs.append( [round(new_loc[i]) for i in xrange(3)] )
+        #new_locs.append( [round(new_loc[i]) for i in xrange(3)] )
+        new_locs.append( [np.around(new_loc[i], decimals=4) 
+            for i in xrange(3)] )
     return new_locs
 
 def concat_affines(aff1, aff2):

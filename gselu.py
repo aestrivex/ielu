@@ -284,6 +284,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self._surf_to_ct_map[surf_coord] = elec.asct()
 
         #manually trigger a change to grid_named_objects property
+        #use an unlikely grid name
         self._grids['test rice-a-roni'] = []
         del self._grids['test rice-a-roni']
     
@@ -496,6 +497,58 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         #do something to update the visualization with the new points
         self._rebuild_vizpanel_event = True
+
+    def save_montage_file(self):
+        self._commit_grid_changes()
+        if self.interactive_mode is None:
+            print "select a grid to save labels from"
+            return
+        target = self.interactive_mode.name
+        if target in ('unsorted',):
+            print "select a grid to save labels from"
+            return
+
+        #from traitsui.file_dialog import save_file
+        from pyface.api import FileDialog, OK
+        
+        dialog = FileDialog(action='save as')
+        dialog.open()
+        if dialog.return_code != OK:
+            return
+
+        savefile = os.path.join( dialog.directory, dialog.filename )
+
+        #for now only save label files for the current grid, may change
+        #in principle this is not what we want
+
+        key = self.interactive_mode.name
+
+        # snapping might be done at this step at some point
+        # probably not thuogh, it should make more sense to do
+        # snapping as an online interactive procedure in the megawindow
+        
+        # write the montage file
+        with open( savefile, 'w' ) as fd:
+            for j, elec in enumerate(self._grids[key]):
+                if elec.name != '':
+                    label_name = elec.name
+                else:
+                    elec_id = elec.geom_coords
+                    elec_2dcoord = ('unsorted%i'%j if len(elec_id)==0 else
+                        str(elec_id))
+                    label_name = '%s_elec_%s'%(key, elec_2dcoord)
+
+                if self.snapping_enabled:
+                    pos = elec.pial_coords.tolist()
+                else:
+                    pos = tuple(elec.surf_coords)
+
+                x,y,z = pos
+
+                line = '%s\t%s\t%s\t%s\n' % (label_name, x, y, z)
+
+                fd.write(line)
+            
 
     def save_label_files(self):
         self._commit_grid_changes()
@@ -980,7 +1033,8 @@ class InteractivePanel(HasPrivateTraits):
         self.model.fit_changes()
 
     def _save_label_files_button_fired(self):
-        self.model.save_label_files()
+        #self.model.save_label_files()
+        self.model.save_montage_file()
 
     def _edit_parameters_button_fired(self):
         ParamsPanel(model=self.model).edit_traits()
