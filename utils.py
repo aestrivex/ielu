@@ -59,7 +59,7 @@ def crash_if_freesurfer_is_not_sourced():
     with open(os.devnull) as nil:
         p = subprocess.call(['which', 'mri_info'], stdout=nil, stderr=nil)
     if p!=0:
-        print 'Freesurfer is not sourced'
+        print 'Freesurfer is not sourced or not in the subshell path'
         import sys
         sys.exit(1)
 
