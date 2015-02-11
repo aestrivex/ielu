@@ -429,8 +429,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
             error_dialog('Select a grid to assign labels')
             return
 
-        from utils import AutomatedAssignmentWindow
-        self.alaw = AutomatedAssignmentWindow(
+        #from utils import AutomatedAssignmentWindow
+        from electrode import ElectrodeWindow
+        #self.alaw = AutomatedAssignmentWindow(
+        self.alaw = ElectrodeWindow(
             model = self,
             cur_grid = cur_grid.name,
             electrodes = self._grids[cur_grid.name])

@@ -57,8 +57,7 @@ def gensym():
 def crash_if_freesurfer_is_not_sourced():
     import os, subprocess
     with open(os.devnull, 'w') as nil:
-        p = subprocess.call(['which', 'mri_info'], stdout=nil, stderr=nil,     
-            shell=True)
+        p = subprocess.call(['which', 'mri_info'], stdout=nil)
     if p!=0:
         print 'Freesurfer is not sourced or not in the subshell path'
         import sys
@@ -156,6 +155,7 @@ class ManualLabelAssignmentWindow(Handler):
                 #on_select='selection_callback'),
                 ),
             show_label=False, height=350, width=450),
+
         resizable=True, kind='panel', title='assign labels',
         buttons=[swap_action, OKButton])
 
