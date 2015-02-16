@@ -1,3 +1,7 @@
+#
+# The code in identify_roi_from_aparc originally comes from Gio Piantoni
+#
+
 from __future__ import division
 import os
 import numpy as np
@@ -1319,3 +1323,134 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
     for elec in electrodes:
         #elec.plane_coords = plane[pp[elec.ct_coords]]
         elec.geom_coords = list(plane[tuple(pp[elec.ct_coords])])
+
+def identify_roi_from_atlas( pos, approx=4, atlas=None )
+    '''
+    Find the surface labels contacted by an electrode at this position
+    in RAS space.
+
+    Parameters
+    ----------
+
+    pos : np.ndarray
+        1x3 matrix holding position of the electrode to identify
+    approx : int
+        Number of millimeters error radius
+    atlas : str or None
+        The string containing the name of the surface parcellation,
+        does not apply to subcortical structures. If None, aparc is used.
+    '''
+
+    if atlas is None:
+        return identify_roi_from_aparc(pos, approx=approx, 
+            subjects_dir=subjects_dir, subject=subject)
+
+    # conceptually, we should grow the closest vertex around this electrode
+    # probably following snapping but the code for this function is not
+    # altered either way
+
+    # load the surfaces and annotation
+
+    # find closest vertex
+
+    # grow the area of surface surrounding the vertex
+
+def identify_roi_from_aparc( pos, approx=4, subjects_dir=None, subject=None):
+    '''
+    Find the volumetric labels contacted by an electrode at this position
+    in RAS space.
+
+    Parameters
+    ----------
+
+    pos : np.ndarray
+        1x3 matrix holding position of the electrode to identify
+    approx : int
+        Number of millimeters error radius
+    '''
+    if subjects_dir is None or subjects_dir=='':
+        subjects_dir = os.environ['SUBJECTS_DIR']
+    if subject is None or subject=='':
+        subject = os.environ['SUBJECT']
+
+    def find_neighboring_regions(pos, mri_dat, region, approx, excludes):
+        spot_sz = approx * 2 + 1
+        x, y, z = np.meshgrid(range(spot_sz), range(spot_sz), range(spot_sz))
+
+        # approx is in units of millimeters as long as we use the RAS space
+        # segmentation
+        neighb = np.vstack((reshape(x, (1, spot_sz ** 3)),
+            reshape(y, (1, spot_size ** 3)),
+            reshape(z, (1, spot_size ** 3)))).T - approx
+
+        regions = []
+    
+        for p in range(neighb.shape[0]):
+            d_type = mri_dat[pos[0] + neighb[p, 0], pos[1] + neighb[p, 1],
+                pos[2] + neighb[p, 2]]
+            label_index = region['index'].index(d_type)
+            regions.append(region['label'][label_index])
+
+        if exclude_regions:
+            from re import compile
+            excluded = compile('|'.join(exclude_regions))
+            regions = [x for x in regions if not excluded.search(x)]
+
+        return regions
+
+    def import_freesurfer_LUT(fs_lut=None):
+        """
+        Import Look-up Table with colors and labels for anatomical regions.
+        It's necessary that Freesurfer is installed and that the environmental
+        variable 'FREESURFER_HOME' is present.
+        
+        Parameters
+        ----------
+        fs_lut : str
+            path to file called FreeSurferColorLUT.txt
+
+        Returns
+        -------
+        idx : list of int
+            indices of regions
+        label : list of str
+            names of the brain regions
+        rgba : numpy.ndarray
+            one row is a brain region and the columns are the RGBA colors
+        """
+        if fs_lut is None:
+            try:
+                fs_home = os.environ['FREESURFER_HOME']
+            except KeyError:
+                raise OSError('FREESURFER_HOME not found')
+            else:
+                fs_lut = join(fs_home, 'FreeSurferColorLUT.txt')
+
+        idx = []
+        label = []
+        rgba = np.empty((0, 4))
+
+        with open(fs_lut, 'r') as f:
+            for l in f:
+                if len(l) <= 1 or l[0] == '#' or l[0] == '\r':
+                    continue
+                (t0, t1, t2, t3, t4, t5) = [t(s) for t, s in
+                        zip((int, str, int, int, int, int), l.split())]
+
+                idx.append(t0)
+                label.append(t1)
+                rgba = vstack((rgba, array([t2, t3, t4, t5])))
+
+        return idx, label, rgba
+
+    # get the segmentation file
+    asegf = os.path.join( subjects_dir, subject, 'mri', 'aparc+aseg.mgz' )
+    aseg = nib.load(asegf)
+    asegd = aseg.get_data()
+
+    # get the aseg LUT file
+    lut = import_freesurfer_lut()
+    
+    excludes = ('white', 'WM', 'Unknown')
+
+    return find_neighboring_regions(pos, asegd, lut, approx, excludes)

@@ -500,15 +500,16 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #do something to update the visualization with the new points
         self._rebuild_vizpanel_event = True
 
-    def save_montage_file(self):
-        self._commit_grid_changes()
-        if self.interactive_mode is None:
-            print "select a grid to save labels from"
-            return
-        target = self.interactive_mode.name
-        if target in ('unsorted',):
-            print "select a grid to save labels from"
-            return
+    def save_montage_file(self, target=None, electrodes=None):
+        if target is None:
+            self._commit_grid_changes()
+            if self.interactive_mode is None:
+                print "select a grid to save labels from"
+                return
+            target = self.interactive_mode.name
+            if target in ('unsorted',):
+                print "select a grid to save labels from"
+                return
 
         #from traitsui.file_dialog import save_file
         from pyface.api import FileDialog, OK
@@ -523,15 +524,20 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #for now only save label files for the current grid, may change
         #in principle this is not what we want
 
-        key = self.interactive_mode.name
+        # get electrodes from current state if not passed as argument
+        key = target
+        if electrodes is None:
+            key = self.interactive_mode.name
+            electrodes = self._grids[key]
 
         # snapping might be done at this step at some point
         # probably not thuogh, it should make more sense to do
         # snapping as an online interactive procedure in the megawindow
+
         
         # write the montage file
         with open( savefile, 'w' ) as fd:
-            for j, elec in enumerate(self._grids[key]):
+            for j, elec in enumerate(electrodes):
                 if elec.name != '':
                     label_name = elec.name
                 else:

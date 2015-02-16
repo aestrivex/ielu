@@ -93,13 +93,14 @@ class ElectrodeWindow(Handler):
         action='do_linear_interpolation')
 
     naming_convention = Enum('grid', 'reverse_grid', 'line')
-    label_auto_action = Action(name='Label Automatically',
+    label_auto_action = Action(name='Sort Automatically',
         action='do_label_automatically')
 
     name_stem = Str
     c1, c2, c3 = 3*(Instance(Electrode),)
 
     parcellation = Str
+    find_rois_action = Action(name='Estimate ROI contacts', action='do_rois')
 
     #electrode_factory = Method
 
@@ -141,13 +142,13 @@ class ElectrodeWindow(Handler):
                 ),
             show_label=False, height=350, width=700),
 
-        VGroup(
-            HGroup( 
+        HGroup(
+            VGroup( 
                 Label( 'Automatic labeling parameters' ),
                 Item( 'name_stem' ),
                 Item( 'naming_convention' ),
             ),
-            HGroup(
+            VGroup(
                 Label( 'Atlas for ROI identification (optional)' ),
                 Item('parcellation'),
             ),
@@ -384,4 +385,8 @@ class ElectrodeWindow(Handler):
         return new_e
 
     def do_montage(self, info):
-        pass
+        self.model.save_montage_file(target=self.cur_grid,
+            electrodes=self.electrodes)
+
+    def do_rois(self, info):
+        
