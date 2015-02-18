@@ -100,6 +100,7 @@ class ElectrodeWindow(Handler):
     c1, c2, c3 = 3*(Instance(Electrode),)
 
     parcellation = Str
+    error_radius = Float(4)
     find_rois_action = Action(name='Estimate ROI contacts', action='do_rois')
 
     #electrode_factory = Method
@@ -149,14 +150,15 @@ class ElectrodeWindow(Handler):
                 Item( 'naming_convention' ),
             ),
             VGroup(
-                Label( 'Atlas for ROI identification (optional)' ),
+                Label( 'ROI identification parameters' ),
                 Item('parcellation'),
+                Item('error_radius'),
             ),
         ),
 
         resizable=True, kind='panel', title='modify electrodes',
         buttons=[OKButton, swap_action, label_auto_action,
-            interpolate_action, save_montage_action]) 
+            interpolate_action, save_montage_action, find_rois_action]) 
 
     @on_trait_change('cur_sel')
     def selection_callback(self):
@@ -389,4 +391,18 @@ class ElectrodeWindow(Handler):
             electrodes=self.electrodes)
 
     def do_rois(self, info):
-        
+        if self.cur_sel.snap_coords is not None:
+            pos = self.cur_sel.snap_coords
+        else:
+            pos = self.cur_sel.surf_coords
+
+        import pipeline as pipe
+        roi_hits = pipe.identify_roi_from_aparc( pos,
+            approx = self.error_radius,
+            subjects_dir = self.model.subjects_dir,
+            subject = self.model.subject)
+
+        if len(roi_hits) == 0:
+            roi_hits = ['None']
+
+        self.cur_sel.roi_list = roi_hits

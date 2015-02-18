@@ -1324,7 +1324,7 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
         #elec.plane_coords = plane[pp[elec.ct_coords]]
         elec.geom_coords = list(plane[tuple(pp[elec.ct_coords])])
 
-def identify_roi_from_atlas( pos, approx=4, atlas=None )
+def identify_roi_from_atlas( pos, approx=4, atlas=None ):
     '''
     Find the surface labels contacted by an electrode at this position
     in RAS space.
@@ -1374,31 +1374,35 @@ def identify_roi_from_aparc( pos, approx=4, subjects_dir=None, subject=None):
         subject = os.environ['SUBJECT']
 
     def find_neighboring_regions(pos, mri_dat, region, approx, excludes):
-        spot_sz = approx * 2 + 1
+        spot_sz = int(np.around(approx * 2 + 1))
         x, y, z = np.meshgrid(range(spot_sz), range(spot_sz), range(spot_sz))
 
         # approx is in units of millimeters as long as we use the RAS space
         # segmentation
-        neighb = np.vstack((reshape(x, (1, spot_sz ** 3)),
-            reshape(y, (1, spot_size ** 3)),
-            reshape(z, (1, spot_size ** 3)))).T - approx
+        neighb = np.vstack((np.reshape(x, (1, spot_sz ** 3)),
+            np.reshape(y, (1, spot_sz ** 3)),
+            np.reshape(z, (1, spot_sz ** 3)))).T - approx
 
         regions = []
     
-        for p in range(neighb.shape[0]):
-            d_type = mri_dat[pos[0] + neighb[p, 0], pos[1] + neighb[p, 1],
-                pos[2] + neighb[p, 2]]
+        #import pdb
+        #pdb.set_trace()
+
+        for p in xrange(neighb.shape[0]):
+            cx, cy, cz = (pos[0]+neighb[p,0], pos[1]+neighb[p,1],
+                pos[2]+neighb[p,2])
+            d_type = mri_dat[cx, cy, cz]
             label_index = region['index'].index(d_type)
             regions.append(region['label'][label_index])
 
-        if exclude_regions:
+        if excludes:
             from re import compile
-            excluded = compile('|'.join(exclude_regions))
+            excluded = compile('|'.join(excludes))
             regions = [x for x in regions if not excluded.search(x)]
 
-        return regions
+        return np.unique(regions).tolist()
 
-    def import_freesurfer_LUT(fs_lut=None):
+    def import_freesurfer_lut(fs_lut=None):
         """
         Import Look-up Table with colors and labels for anatomical regions.
         It's necessary that Freesurfer is installed and that the environmental
@@ -1424,7 +1428,7 @@ def identify_roi_from_aparc( pos, approx=4, subjects_dir=None, subject=None):
             except KeyError:
                 raise OSError('FREESURFER_HOME not found')
             else:
-                fs_lut = join(fs_home, 'FreeSurferColorLUT.txt')
+                fs_lut = os.path.join(fs_home, 'FreeSurferColorLUT.txt')
 
         idx = []
         label = []
@@ -1439,7 +1443,7 @@ def identify_roi_from_aparc( pos, approx=4, subjects_dir=None, subject=None):
 
                 idx.append(t0)
                 label.append(t1)
-                rgba = vstack((rgba, array([t2, t3, t4, t5])))
+                rgba = np.vstack((rgba, np.array([t2, t3, t4, t5])))
 
         return idx, label, rgba
 
@@ -1450,7 +1454,15 @@ def identify_roi_from_aparc( pos, approx=4, subjects_dir=None, subject=None):
 
     # get the aseg LUT file
     lut = import_freesurfer_lut()
+    lut = {'index':lut[0], 'label':lut[1], 'RGBA':lut[2]}
     
-    excludes = ('white', 'WM', 'Unknown')
+    excludes = ('white', 'WM', 'Unknown', 'White', 'unknown')
 
-    return find_neighboring_regions(pos, asegd, lut, approx, excludes)
+
+    RAS_AFF = np.array([[-1, 0, 0, 128],
+        [0, 0, -1, 128],
+        [0, 1, 0, 128],
+        [0, 0, 0, 1]])
+    ras_pos = np.around(np.dot(RAS_AFF, np.append(pos, 1)))[:3]
+
+    return find_neighboring_regions(ras_pos, asegd, lut, approx, excludes)
