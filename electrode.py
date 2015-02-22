@@ -101,7 +101,8 @@ class ElectrodeWindow(Handler):
 
     parcellation = Str
     error_radius = Float(4)
-    find_rois_action = Action(name='Estimate ROI contacts', action='do_rois')
+    find_rois_action = Action(name='Estimate ROI contacts',
+        action='do_rois')
 
     #electrode_factory = Method
 
@@ -326,8 +327,8 @@ class ElectrodeWindow(Handler):
                 loc = 2*np.array(x_hi.surf_coords) - np.array(
                     x_higher.surf_coords)
 
-        import pdb
-        pdb.set_trace()
+        #import pdb
+        #pdb.set_trace()
 
         if y_low is not None and loc is None:
             y_lower = self._find_closest_neighbor(y_low, 'y', '-')
@@ -397,7 +398,9 @@ class ElectrodeWindow(Handler):
             pos = self.cur_sel.surf_coords
 
         import pipeline as pipe
-        roi_hits = pipe.identify_roi_from_aparc( pos,
+        #TODO incorporate subcortical structures into non-aparc
+        roi_hits = pipe.identify_roi_from_atlas( pos,
+            atlas = self.parcellation,
             approx = self.error_radius,
             subjects_dir = self.model.subjects_dir,
             subject = self.model.subject)

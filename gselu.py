@@ -1107,6 +1107,11 @@ class iEEGCoregistrationFrame(HasTraits):
             viz=self.surface_visualizer_panel,
             ctviz=self.ct_visualizer_panel)
 
-crash_if_freesurfer_is_not_sourced()
-iEEGCoregistrationFrame().configure_traits()
+if __name__ == '__main__':
+    #force Qt to relay ctrl+C
+    import signal
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+    crash_if_freesurfer_is_not_sourced()
+    iEEGCoregistrationFrame().configure_traits()
 
