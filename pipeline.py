@@ -1473,7 +1473,8 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
         #elec.plane_coords = plane[pp[elec.ct_coords]]
         elec.geom_coords = list(plane[tuple(pp[elec.ct_coords])])
 
-def identify_roi_from_atlas( pos, approx=4, atlas=None ):
+def identify_roi_from_atlas( pos, approx=4, atlas=None, subjects_dir=None,
+    subject=None ):
     '''
     Find the surface labels contacted by an electrode at this position
     in RAS space.
@@ -1489,22 +1490,68 @@ def identify_roi_from_atlas( pos, approx=4, atlas=None ):
         The string containing the name of the surface parcellation,
         does not apply to subcortical structures. If None, aparc is used.
     '''
+    if subjects_dir is None or subjects_dir=='':
+        subjects_dir = os.environ['SUBJECTS_DIR']
+    if subject is None or subject=='':
+        subject = os.environ['SUBJECT']
 
-    if atlas is None:
+    if atlas is None or atlas in ('', 'aparc'):
         return identify_roi_from_aparc(pos, approx=approx, 
             subjects_dir=subjects_dir, subject=subject)
 
+    from scipy.spatial.distance import cdist
     # conceptually, we should grow the closest vertex around this electrode
     # probably following snapping but the code for this function is not
     # altered either way
 
     # load the surfaces and annotation
+    # uses the pial surface, this change is pushed to MNE python
+
+    lh_pia, _ = nib.freesurfer.read_geometry(
+        os.path.join(subjects_dir, subject, 'surf', 'lh.pial'))
+
+    rh_pia, _ = nib.freesurfer.read_geometry(
+        os.path.join(subjects_dir, subject, 'surf', 'rh.pial'))
+
+    pia = np.vstack((lh_pia, rh_pia))
 
     # find closest vertex
+    import pdb
+    pdb.set_trace()
+    closest_vert = np.argmin(cdist(pia, [pos]))
 
     # grow the area of surface surrounding the vertex
+    import mne
 
-def identify_roi_from_aparc( pos, approx=4, subjects_dir=None, subject=None):
+    # we force the label to only contact one hemisphere even if it is
+    # beyond the extent of the medial surface
+    hemi_str = 'lh' if closest_vert<len(lh_pia) else 'rh'
+    hemi_code = 0 if hemi_str=='lh' else 1
+
+    if hemi_str == 'rh':
+        closest_vert -= len(lh_pia)
+
+    radius_label, = mne.grow_labels(subject, closest_vert, approx, hemi_code,
+        subjects_dir=subjects_dir, surface='pial')
+
+    parcels = mne.read_labels_from_annot(subject, parc=atlas, hemi=hemi_str,
+        subjects_dir=subjects_dir, surf_name='pial')
+
+    regions = []
+    for parcel in parcels:
+        if len(np.intersect1d(parcel.vertices, radius_label.vertices))>0:
+            #force convert from unicode
+            regions.append(str(parcel.name))
+       
+    subcortical_regions = identify_roi_from_aparc(pos, approx=approx,
+        subjects_dir=subjects_dir, subject=subject, subcortical_only=True)
+
+    regions.extend(subcortical_regions)
+
+    return regions
+
+def identify_roi_from_aparc( pos, approx=4, subjects_dir=None, subject=None,
+    subcortical_only = False):
     '''
     Find the volumetric labels contacted by an electrode at this position
     in RAS space.
@@ -1516,6 +1563,8 @@ def identify_roi_from_aparc( pos, approx=4, subjects_dir=None, subject=None):
         1x3 matrix holding position of the electrode to identify
     approx : int
         Number of millimeters error radius
+    subcortical_only : bool
+        if True, exclude cortical labels
     '''
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
@@ -1605,7 +1654,9 @@ def identify_roi_from_aparc( pos, approx=4, subjects_dir=None, subject=None):
     lut = import_freesurfer_lut()
     lut = {'index':lut[0], 'label':lut[1], 'RGBA':lut[2]}
     
-    excludes = ('white', 'WM', 'Unknown', 'White', 'unknown')
+    excludes = ['white', 'WM', 'Unknown', 'White', 'unknown']
+    if subcortical_only:
+        excludes.append('ctx')
 
 
     RAS_AFF = np.array([[-1, 0, 0, 128],
