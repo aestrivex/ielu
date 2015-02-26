@@ -844,6 +844,155 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
 
     return affine
 
+def register_hires_ct_using_hacky_tricks(ct, subjects_dir=None, subject=None,
+    cm_dist=5, overwrite=False):
+    '''
+    Performs a sophisticated and somewhat specific hack to register a
+    high resolution CT image with an awkward slice thickness and skewed
+    shape to the structural MRI.
+
+    This hack expects a high resolution CT image with equal X,Y dimensions,
+    and some arbitrary slice thickness. An example size is 512x512x319.
+
+    Such images have skewed shape which prevents the mutual information
+    criterion from getting a good registration. Instead, we resample the
+    image in the Z dimension only to have a more uniform shape.
+
+    The algorithm to figure out the extent to which to resample the image
+    is as follows: pick 2 arbitrary axial slices. We use the immediate
+    midpoint of the image, and a slice 5 cm away from this slice.
+    Freesurfer is good at registering the MRI to these slices.
+
+    Measure the translation difference between these slices, from which
+    we can determine the true ratio between the distance shown in the CT
+    image, and the actual distance in millimeters. We then build a newly
+    resampled CT image using this sampling, with approximately isotropic 
+    voxels instead of subsampled voxels (as freesurfer tries to do).
+
+    Clearly, this hack is pretty specific to the type of CT image we are
+    collecting at our center. But maybe it can be of more general use.
+    '''
+    print 'registering CT to MR with manual resampling and hacky tricks'
+
+    if subjects_dir is None or subjects_dir=='':
+        subjects_dir = os.environ['SUBJECTS_DIR']
+    if subject is None or subject=='':
+        subject = os.environ['SUBJECT']
+
+    xfms_dir = os.path.join(subjects_dir, subject, 'mri', 'transforms')
+    if not os.path.exists(xfms_dir):
+        os.mkdir(xfms_dir)
+    lta = os.path.join(xfms_dir,'ct2mr.lta')
+
+    if os.path.exists(lta) and not overwrite:
+        print 'using existing CT to MR transformation'
+        return geo.get_lta(lta)
+
+    ct_register_dir = os.path.join( subjects_dir, subject, 'mri', 'ct_reg' )
+    if not os.path.exists(ct_register_dir):
+        os.mkdir(ct_register_dir)
+
+    # pick 2 slices an arbitrary distance apart
+    cti = nib.load(ct)
+    z = cti.shape[2]
+    
+    center_z = z//2
+    hdr = cti.get_header()
+
+    vox_sz = hdr.get_zooms()
+    iso_sz = vox_sz[0]
+    slice_thickness = vox_sz[2]
+    hdr.set_zooms((iso_sz,)*3)
+
+    ct_slices = cm_dist * 10 / slice_thickness
+    upper_z = center_z - ct_slices
+
+    import pdb
+    pdb.set_trace()
+
+    print 'loading CT data'
+    ctd = cti.get_data()
+
+    center_slice = np.zeros(cti.shape)
+    center_slice[:,:,center_z] = ctd[:,:,center_z]
+    upper_slice = np.zeros(cti.shape)
+    upper_slice[:,:,upper_z] = ctd[:,:,upper_z] 
+
+    center_img = nib.Nifti1Image(center_slice, affine=cti.get_affine(),
+        header=hdr)
+    upper_img = nib.Nifti1Image(upper_slice, affine=cti.get_affine(),
+        header=hdr)
+
+    center_fname = os.path.join( ct_register_dir, 'center_ct_slice.nii.gz')
+    upper_fname = os.path.join( ct_register_dir, 'upper_ct_slice.nii.gz')
+
+    print 'saving CT slices'
+    nib.save(center_img, center_fname)
+    nib.save(upper_img, upper_fname)
+
+    #register orig independently to these two slices
+    import tempfile
+    import subprocess
+
+    orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
+
+    center_reg_orig = os.path.join( ct_register_dir, 'center_orig.nii.gz')
+    upper_reg_orig = os.path.join( ct_register_dir, 'upper_orig.nii.gz')
+
+    _,gbg = tempfile.mkstemp()
+    print 'registering orig to slices'
+
+    mri_robustreg_cslice_cmd = ['mri_robust_register', '--mov', orig, '--dst',
+        center_fname, '--lta', gbg, '--satit', '--cost', 'nmi', '--nosym',
+        '--mapmovhdr', center_reg_orig]
+    p = subprocess.call(mri_robustreg_cslice_cmd)
+        
+    mri_robustreg_uslice_cmd = ['mri_robust_register', '--mov', orig, '--dst',
+        upper_fname, '--lta', gbg, '--satit', '--cost', 'nmi', '--nosym',
+        '--mapmovhdr', upper_reg_orig]
+    q = subprocess.call(mri_robustreg_uslice_cmd) 
+
+    os.unlink(gbg)
+
+    #register the two translated origs to each other
+    print 'registering slices to each other'
+    translate_lta = os.path.join( ct_register_dir, 'u2c_translation.lta')
+    
+    mri_robustreg_trans_cmd = ['mri_robust_register', '--mov', upper_reg_orig,
+        '--dst', center_reg_orig, '--lta', translate_lta, '--satit', '--nosym',
+        '--cost', 'nmi', '--vox2vox']
+    r = subprocess.call(mri_robustreg_trans_cmd)
+
+    #calculate the desired zoom factor
+    import pdb
+    pdb.set_trace()
+    translate_affine = geo.get_lta(translate_lta)
+    n = np.abs( translate_affine[2,3] )
+
+    x = iso_sz * cm_dist * 10
+
+    zoom_factor = (x+n)/x
+
+    #resample the ct image and do the final registration
+
+    from scipy.ndimage.interpolation import zoom
+    print 'resampling image with zoom_factor %.2f'%zoom_factor
+    ct_zoom = zoom( ctd, (1,1,zoom_factor))
+
+    resampled_ct = os.path.join(ct_register_dir, 'ct_resampled_zf.nii.gz')
+
+    resamp_img = nib.Nifti1Image(ct_zoom, affine=cti.get_affine(), header=hdr)
+    nib.save(resamp_img, resampled_ct)
+
+    ct_final = os.path.join(ct_register_dir, 'ct_final_resamp_reg.nii.gz')
+
+    mri_robustreg_resampled_cmd = ['mri_robust_register', '--mov', 
+        resampled_ct, '--dst', orig, '--lta', lta, '--satit', '--cost', 'nmi', 
+        '--vox2vox', '--mapmov', ct_final]
+    s = subprocess.call(mri_robustreg_resampled_cmd)
+
+    return geo.get_lta(lta)
+
 def create_dural_surface(subjects_dir=None, subject=None):
     '''
     Creates the dural surface in the specified subjects_dir. This is done

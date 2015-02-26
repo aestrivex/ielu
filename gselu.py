@@ -65,6 +65,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     _colors = Any # OrderedDict(Grid -> Color)
     _color_scheme = Any #Generator returning 3-tuples
     _grid_geom = Dict # Grid -> Gx2 list
+    _grid_types = Dict # Grid -> Str
 
     ct_registration = File
 
@@ -81,7 +82,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     rho_strict_recon = Float(30.)
     rho_loose_recon = Float(55.)
 
-    snapping_enabled = Bool(True)
+    _snapping_completed = Bool(False)
     nr_steps = Int(2500)
     deformation_constant = Float(1.)
 
@@ -181,6 +182,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._ct_to_surf_map = {}
         self._surf_to_ct_map = {}
 
+        self._snapping_completed = False
         #self._visualization_ready = False
 
         #pipeline
@@ -199,6 +201,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self.ct_scan, mask=ct_mask, threshold=self.ct_threshold,
             use_erosion=(not self.disable_erosion)) 
 
+        #I considered allowing the user to manually specify a different
+        #registration but we don't currently do this
         aff = self.acquire_affine()
 
         pipe.create_dural_surface(subjects_dir=self.subjects_dir, 
@@ -235,13 +239,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self._electrodes, aff, subjects_dir=self.subjects_dir,
             subject=self.subject)
 
-        #a very rapid cooling schedule shows pretty good performance
-        #additional cooling offers very marginal returns and we prioritize
-        #quick results so the user can adjust them
-        if self.snapping_enabled:
-            pipe.snap_electrodes_to_surface(
-                self._electrodes, subjects_dir=self.subjects_dir,
-                subject=self.subject, max_steps=self.nr_steps)
+        # previously we snapped here
 
         # Store the sorted/interpolated points in separate maps for access
         for key in self._grids:
@@ -253,6 +251,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
                 #save each electrode's grid identity
                 self._ct_to_grid_ident_map[elec.asct()] = key
+
+        #set the grid type to be depth
+        for key in self._grids:
+            self._grid_types[key] = 'depth'
 
         # store the unsorted points in a separate map for access
         for elec in self._electrodes:
@@ -275,16 +277,14 @@ class ElectrodePositionsModel(HasPrivateTraits):
     
         #save mapping from ct to surface coords
         for elec in self._all_electrodes.values():
-            if self.snapping_enabled:
-                surf_coord = elec.astuple()
-            else:
-                surf_coord = elec.asras()
+            #snapping is never completed by this point anymore
+            surf_coord = elec.asras()
 
             self._ct_to_surf_map[elec.asct()] = surf_coord
             self._surf_to_ct_map[surf_coord] = elec.asct()
 
         #manually trigger a change to grid_named_objects property
-        #use an unlikely grid name
+        #using an unlikely grid name
         self._grids['test rice-a-roni'] = []
         del self._grids['test rice-a-roni']
     
@@ -305,6 +305,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #grids is updated the GUI does not error out looking for this info
         self._grid_geom[name] = 'user-defined'
         self._colors[name] = self._color_scheme.next()
+        self._grid_types[name] = 'depth'
 
         #testing GUI update bug
         #temp_grids = self._grids.copy()
@@ -317,6 +318,15 @@ class ElectrodePositionsModel(HasPrivateTraits):
         
         self._update_glyph_lut_event = True
         self._update_guipanel_event = True
+
+    def add_electrode_to_grid(self, elec, target):
+        self._grids[target].append(elec)
+
+        self._ct_to_surf_map[elec.asct()] = elec.asras()
+        self._surf_to_ct_map[elec.asras()] = elec.asct()
+
+        self._ct_to_grid_ident_map[elec.asct()] = target
+        self._interpolated_electrodes[elec.asct()] = elec
 
     def change_single_glyph(self, xyz, elec, target, current_key):
         if elec in self._grids[target]:
@@ -358,6 +368,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
             cur_grid = cur_grid.name)
         self.raw.edit_traits()
 
+    # this an operation for the manual registration window
     def reorient_glyph(self, target, matrix):
         self._commit_grid_changes()
 
@@ -400,25 +411,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self._electrodes, self.electrode_geometry,
             fixed_points=self._grids.values())
 
-    def assign_manual_labels(self):
-        self._commit_grid_changes()
-        cur_grid = self.interactive_mode
-
-        if cur_grid is None:
-            error_dialog('Select a grid to assign labels')
-            return
-        if cur_grid.name in ('','unsorted'):
-            error_dialog('Select a grid to assign labels')
-            return
-
-        from utils import ManualLabelAssignmentWindow
-        self.mlaw = ManualLabelAssignmentWindow(
-            model = self,
-            cur_grid = cur_grid.name,
-            electrodes = self._grids[cur_grid.name])
-        self.mlaw.edit_traits()
-
-    def assign_automated_labels(self):
+    def examine_electrodes(self):
         self._commit_grid_changes()
         cur_grid = self.interactive_mode
 
@@ -451,55 +444,71 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 rho_strict=self.rho_strict)
 
     def reconstruct_geometry(self):
+#        self._commit_grid_changes()
+#        key = self.interactive_mode.name
+#
+#        import pipeline as pipe
+#        success, interpolated_points = pipe.classify_single_fixed_grid(key, 
+#            self._grids, self._grid_geom, self._colors,
+#            delta = self.delta,
+#            epsilon = self.epsilon,
+#            rho = self.rho,
+#            rho_loose = self.rho_loose,
+#            rho_strict = self.rho_strict)
+#
+#        print success, 'nimmo'
+#
+#    
+#        #after geom reconstruction the interpolated points need to
+#        #be translated to the surface and *all points* must be
+#        #snapped again
+#        for elec in interpolated_points:
+#            self._grids[key].append(elec)
+#
+#        aff = self.acquire_affine() 
+#
+#        pipe.translate_electrodes_to_surface_space(
+#            self._grids[key], aff, subjects_dir=self.subjects_dir,
+#            subject=self.subject)
+#
+#        # we snapped the grid at this point previously
+#
+#        #at this point its safe to snap only the electrodes that we have
+#        #isolated -- that is, just snap this individual grid only
+#        
+#        #if the individual grid is not snapped alone, we should do that
+#        #even if the user doesnt reconstruct the grid
+#
+#        #add electrode to grid data structures
+#        for elec in interpolated_points:
+#            if self._snapping_completed:
+#                surf_coord = elec.astuple()
+#            else:
+#                surf_coord = elec.asras()
+#            self._ct_to_surf_map[elec.asct()] = surf_coord
+#            self._surf_to_ct_map[surf_coord] = elec.asct()
+#
+#        #do something to update the visualization with the new points
+        self._rebuild_vizpanel_event = True
+
+    def snap_all(self):
         self._commit_grid_changes()
-        key = self.interactive_mode.name
 
         import pipeline as pipe
-        success, interpolated_points = pipe.classify_single_fixed_grid(key, 
-            self._grids, self._grid_geom, self._colors,
-            delta = self.delta,
-            epsilon = self.epsilon,
-            rho = self.rho,
-            rho_loose = self.rho_loose,
-            rho_strict = self.rho_strict)
 
-        print success, 'nimmo'
+        for key in self._grids.keys():
+            if self._grid_types[key] != 'subdural':
+                continue
 
-    
-        #after geom reconstruction the interpolated points need to
-        #be translated to the surface and *all points* must be
-        #snapped again
-        for elec in interpolated_points:
-            self._grids[key].append(elec)
-
-        aff = self.acquire_affine() 
-
-        pipe.translate_electrodes_to_surface_space(
-            self._grids[key], aff, subjects_dir=self.subjects_dir,
-            subject=self.subject)
-
-        #at this point its safe to snap only the electrodes that we have
-        #isolated -- that is, just snap this individual grid only
-        
-        #if the individual grid is not snapped alone, we should do that
-        #even if the user doesnt reconstruct the grid
-        if self.snapping_enabled:
             pipe.snap_electrodes_to_surface(
                 self._grids[key], subjects_dir=self.subjects_dir,
                 subject=self.subject, max_steps=self.nr_steps)
 
-        #add electrode to grid data structures
-        for elec in interpolated_points:
-            if self.snapping_enabled:
-                surf_coord = elec.astuple()
-            else:
-                surf_coord = elec.asras()
-            self._ct_to_surf_map[elec.asct()] = surf_coord
-            self._surf_to_ct_map[surf_coord] = elec.asct()
+        self._snapping_completed = True
 
-        #do something to update the visualization with the new points
+        # we can update the visualization now
         self._rebuild_vizpanel_event = True
-
+    
     def save_montage_file(self, target=None, electrodes=None):
         if target is None:
             self._commit_grid_changes()
@@ -546,7 +555,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
                         str(elec_id))
                     label_name = '%s_elec_%s'%(key, elec_2dcoord)
 
-                if self.snapping_enabled:
+                #not perfect because the user might have changed the grid type
+                #after snapping. but good enough, they can just snap again
+                if (self._snapping_completed and 
+                        self._grid_types[key]=='subdural'):
                     pos = elec.pial_coords.tolist()
                 else:
                     pos = tuple(elec.surf_coords)
@@ -556,79 +568,72 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 line = '%s\t%s\t%s\t%s\n' % (label_name, x, y, z)
 
                 fd.write(line)
-            
 
     def save_label_files(self):
         self._commit_grid_changes()
 
-        if self.interactive_mode is None:
-            print "select a grid to save labels from"
-            return
-        target = self.interactive_mode.name
-        if target in ('unsorted',):
-            print "select a grid to save labels from"
-            return
-
-        #if not self._geom_reconstructed:
-        #    error_dialog('Finish reconstructing geometry first')
-        #    return
-
-        #this is the saving part
-
-        from file_dialog import save_in_directory
-        labeldir = save_in_directory()
-
-        if os.path.exists(labeldir) and not os.path.isdir(labeldir):
-            error_dialog('Cannot write labels to a non-directory')
-            raise ValueError('Cannot write labels to a non-directory')
-
-        # if the empty string is returned, the user cancelled the operation
-        if labeldir == '':
-            return
-
-        try:
-            os.makedirs(labeldir)
-        except OSError:
-            #potentially handle errno further
-            pass
-
-        from mne.label import Label
-
-        #import pdb
-        #pdb.set_trace()
-
-        #only save label files for the current grid
-        key = self.interactive_mode.name
-
-        if self.snapping_enabled:
-            import pipeline as pipe
-            pipe.snap_electrodes_to_surface(
-                self._grids[key], subjects_dir=self.subjects_dir,
-                subject=self.subject, max_steps=self.nr_steps)
-
-        #for key in self._grids:
-        for j,elec in enumerate(self._grids[key]):
-            if elec.name != '':
-                label_name = elec.name
-            else:
-                elec_id = elec.geom_coords
-                elec_2dcoord = ('unsorted%i'%j if len(elec_id)==0 else
-                    str(elec_id))
-                label_name = '%s_elec_%s'%(key, elec_2dcoord)
-
-            if self.snapping_enabled:
-                pos = [elec.pial_coords.tolist()]
-                vertices = [elec.vertno]
-                hemi = elec.hemi
-            else:
-                pos = [tuple(elec.surf_coords)]
-                vertices = [0]
-                hemi = 'lh'
-
-            label = Label(vertices=vertices, pos=pos, hemi=hemi,
-                          subject=self.subject,
-                          name=label_name)
-            label.save( os.path.join( labeldir, label_name ))
+#        if self.interactive_mode is None:
+#            print "select a grid to save labels from"
+#            return
+#        target = self.interactive_mode.name
+#        if target in ('unsorted',):
+#            print "select a grid to save labels from"
+#            return
+#
+#        #if not self._geom_reconstructed:
+#        #    error_dialog('Finish reconstructing geometry first')
+#        #    return
+#
+#        #this is the saving part
+#
+#        from file_dialog import save_in_directory
+#        labeldir = save_in_directory()
+#
+#        if os.path.exists(labeldir) and not os.path.isdir(labeldir):
+#            error_dialog('Cannot write labels to a non-directory')
+#            raise ValueError('Cannot write labels to a non-directory')
+#
+#        # if the empty string is returned, the user cancelled the operation
+#        if labeldir == '':
+#            return
+#
+#        try:
+#            os.makedirs(labeldir)
+#        except OSError:
+#            #potentially handle errno further
+#            pass
+#
+#        from mne.label import Label
+#
+#        #import pdb
+#        #pdb.set_trace()
+#
+#        #only save label files for the current grid
+#        key = self.interactive_mode.name
+#
+#        #for key in self._grids:
+#        for j,elec in enumerate(self._grids[key]):
+#            if elec.name != '':
+#                label_name = elec.name
+#            else:
+#                elec_id = elec.geom_coords
+#                elec_2dcoord = ('unsorted%i'%j if len(elec_id)==0 else
+#                    str(elec_id))
+#                label_name = '%s_elec_%s'%(key, elec_2dcoord)
+#
+#            if self._snapping_completed:
+#                pos = [elec.pial_coords.tolist()]
+#                vertices = [elec.vertno]
+#                hemi = elec.hemi
+#            else:
+#                pos = [tuple(elec.surf_coords)]
+#                vertices = [0]
+#                hemi = 'lh'
+#
+#            label = Label(vertices=vertices, pos=pos, hemi=hemi,
+#                          subject=self.subject,
+#                          name=label_name)
+#            label.save( os.path.join( labeldir, label_name ))
 
 class ParamsPanel(HasTraits):
     model = Instance(ElectrodePositionsModel)
@@ -646,7 +651,6 @@ class ParamsPanel(HasTraits):
     rho_strict_recon = DelegatesTo('model')
     #visualize_in_ctspace = DelegatesTo('model')
     nr_steps = DelegatesTo('model')
-    snapping_enabled = DelegatesTo('model')
     deformation_constant = DelegatesTo('model')
     use_ct_mask = DelegatesTo('model')
     disable_erosion = DelegatesTo('model')
@@ -658,16 +662,14 @@ class ParamsPanel(HasTraits):
             Label('The threshold above which electrode clusters will be\n'
                 'extracted from the CT image'),
             Item('ct_threshold'),
-            Label('Snap to surface space (turn off for depth electrodes)'),
-            Item('snapping_enabled'),
             Label('Number of steps before convergence in snap-to-surface\n'
                 'algorithm'),
-            Item('nr_steps', enabled_when='snapping_enabled'),
+            Item('nr_steps'),
             Label('Weight given to the deformation term in the snapping\n'
                 'algorithm, reduce if snapping error is very high.'),
-            Item('deformation_constant', enabled_when='snapping_enabled'),
+            Item('deformation_constant'),
             Label('Try to extract the brain from the CT image and mask\n'
-                'extracranial noise -- takes several minutes'),
+                'extracranial noise -- can take several minutes'),
             Item('use_ct_mask'),
             Label('Disable binary erosion procedure to reduce CT noise'),
             Item('disable_erosion'),
@@ -712,13 +714,14 @@ class SurfaceVisualizerPanel(HasTraits):
     _unsorted_electrodes = DelegatesTo('model')
     _ct_to_surf_map = DelegatesTo('model')
     _surf_to_ct_map = DelegatesTo('model')
+    _grid_types = DelegatesTo('model')
 
     visualize_in_ctspace = Bool(False)
     _viz_coordtype = Property#(depends_on='visualize_in_ctspace')
     def _get__viz_coordtype(self):
         if self.visualize_in_ctspace:
             return 'ct_coords'
-        elif self.model.snapping_enabled:
+        elif self.model._snapping_completed:
             return 'snap_coords'
         else:
             return 'surf_coords'
@@ -778,8 +781,13 @@ class SurfaceVisualizerPanel(HasTraits):
             scale_factor = 3.
         else:
             scale_factor = 5.
+
+        # we used to snap everything but now we only snap grids
+        # if the user wants to make further changes, they need to snap again
+        unsorted_coordtype = (self._viz_coordtype if 
+            self._viz_coordtype!='snap_coords' else 'surf_coords')
     
-        unsorted_elecs = map((lambda x:getattr(x, self._viz_coordtype)),
+        unsorted_elecs = map((lambda x:getattr(x, unsorted_coordtype)),
             self._unsorted_electrodes.values())
         self.gs_glyphs['unsorted'] = glyph = virtual_points3d( 
             unsorted_elecs, scale_factor=scale_factor, name='unsorted',
@@ -790,7 +798,12 @@ class SurfaceVisualizerPanel(HasTraits):
             np.zeros(len(unsorted_elecs)))
 
         for i,key in enumerate(self._grids):
-            grid_elecs = map((lambda x:getattr(x, self._viz_coordtype)), 
+            grid_coordtype = (self._viz_coordtype if
+                (self._viz_coordtype!='snap_coords' or
+                 self._grid_types[key]=='subdural') else 
+                'surf_coords')
+
+            grid_elecs = map((lambda x:getattr(x, grid_coordtype)), 
                 self._grids[key])
 
             if len(grid_elecs)==0:
@@ -971,13 +984,13 @@ class InteractivePanel(HasPrivateTraits):
     add_grid_button = Button('Add new grid')
     shell = Dict
 
-    save_label_files_button = Button('Save freesurfer labels')
+    save_montage_button = Button('Save montage file')
 
     edit_parameters_button = Button('Edit Fitting Parameters')
     
     reconstruct_geom_button = Button('Reconstruct geometry')
-    assign_manual_labels_button = Button('Label manually')
-    assign_automated_labels_button = Button('Label automatically')
+    examine_electrodes_button = Button('Examine electrodes')
+    snap_electrodes_button = Button('Snap electrodes')
     adjust_registration_button = Button('Adjust registration')
 
     #we retain a reference to easily reference the visualization in the shell
@@ -998,7 +1011,7 @@ class InteractivePanel(HasPrivateTraits):
             VGroup(
                 Item('run_pipeline_button', show_label=False),
                 Item('edit_parameters_button', show_label=False),
-                Item('save_label_files_button', show_label=False),
+                Item('save_montage_button', show_label=False),
             ),
         ),
         HGroup(
@@ -1013,11 +1026,11 @@ class InteractivePanel(HasPrivateTraits):
             ),
             VGroup(
                 Item('add_grid_button', show_label=False),
-                Item('reconstruct_geom_button', show_label=False),
+                #Item('reconstruct_geom_button', show_label=False),
             ),
             VGroup(
-                Item('assign_manual_labels_button', show_label=False),
-                Item('assign_automated_labels_button', show_label=False),
+                Item('examine_electrodes_button', show_label=False),
+                Item('snap_electrodes_button', show_label=False),
             ),
         ),
 
@@ -1040,7 +1053,7 @@ class InteractivePanel(HasPrivateTraits):
     def _find_best_fit_button_fired(self):
         self.model.fit_changes()
 
-    def _save_label_files_button_fired(self):
+    def _save_montage_button_fired(self):
         #self.model.save_label_files()
         self.model.save_montage_file()
 
@@ -1050,11 +1063,11 @@ class InteractivePanel(HasPrivateTraits):
     def _reconstruct_geom_button_fired(self):
         self.model.reconstruct_geometry()
 
-    def _assign_manual_labels_button_fired(self):
-        self.model.assign_manual_labels()
+    def _snap_electrodes_button_fired(self):
+        self.model.snap_all()
 
-    def _assign_automated_labels_button_fired(self):
-        self.model.assign_automated_labels()
+    def _examine_electrodes_button_fired(self):
+        self.model.examine_electrodes()
 
     def _adjust_registration_button_fired(self):
         self.model.open_registration_window()

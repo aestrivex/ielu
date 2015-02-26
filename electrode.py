@@ -93,6 +93,7 @@ class ElectrodeWindow(Handler):
         action='do_linear_interpolation')
 
     naming_convention = Enum('grid', 'reverse_grid', 'line')
+    grid_type = Enum('depth', 'subdural')
     label_auto_action = Action(name='Sort Automatically',
         action='do_label_automatically')
 
@@ -147,7 +148,10 @@ class ElectrodeWindow(Handler):
             VGroup( 
                 Label( 'Automatic labeling parameters' ),
                 Item( 'name_stem' ),
-                Item( 'naming_convention' ),
+                HGroup(
+                    Item( 'naming_convention' ),
+                    Item( 'grid_type' ),
+                ),
             ),
             VGroup(
                 Label( 'ROI identification parameters' ),
@@ -165,10 +169,16 @@ class ElectrodeWindow(Handler):
         if self.cur_sel is None:
             return
 
+        #import pdb
+        #pdb.set_trace()
+
         if self.previous_sel is not None:
             self.model._new_glyph_color = self.previous_color
             self.model._single_glyph_to_recolor = self.previous_sel.asct()
             self.model._update_single_glyph_event = True
+
+        if self.distinct_prev_sel != self.previous_sel:
+            self.distinct_prev_sel = self.previous_sel
 
         self.previous_sel = self.cur_sel
         self.previous_color = self.model._colors.keys().index(self.cur_grid)
@@ -184,6 +194,10 @@ class ElectrodeWindow(Handler):
             self.model._new_glyph_color = self.previous_color
             self.model._single_glyph_to_recolor = self.previous_sel.asct()
             self.model._update_single_glyph_event = True
+
+    @on_trait_change('grid_type')
+    def change_grid_type(self):
+        self.model._grid_types[self.cur_grid] = self.grid_type
 
     def do_swap(self, info):
         #if not len(self.selected_ixes) == 2:
@@ -215,8 +229,7 @@ class ElectrodeWindow(Handler):
             if len(e.corner) == 0:
                 continue
             elif len(e.corner) > 1:
-                error_dialog('Too many corners specified for single'
-                    'electrode')
+                error_dialog('Wrong corners specified, check again')
                 return
     
             elif 'corner 1' in e.corner:
@@ -264,16 +277,19 @@ class ElectrodeWindow(Handler):
             #do actual labeling
             for elec in self.model._grids[self.cur_grid]:
                 x,y = elec.geom_coords
-                if self.first_axis=='standard':
+                if self.naming_convention=='grid':
                     #index = y*np.max(cur_geom) + x + 1
                     index = x*np.min(cur_geom) + y + 1
-                else:
+                else: #reverse_grid
                     #index = x*np.min(cur_geom) + y + 1
                     index = y*np.max(cur_geom) + x + 1
                 
                 elec.name = '%s%i'%(self.name_stem, index)
 
     def do_linear_interpolation(self, info):
+        #TODO does not feed back coordinates to model, 
+        #which is important for snapping
+
         if self.cur_sel is None:
             return
         elif self.cur_sel.special_name == '':
@@ -298,16 +314,16 @@ class ElectrodeWindow(Handler):
             xh = x_hi.geom_coords[0]
             ratio = (x - xl) / (xh - xl)
         
-            loc = np.array(x_low.surf_coords) + (np.array(x_hi.surf_coords)-
-                np.array(x_low.surf_coords))*ratio
+            loc = np.array(x_low.ct_coords) + (np.array(x_hi.surf_coords)-
+                np.array(x_low.ct_coords))*ratio
 
         elif y_low is not None and y_hi is not None:
             yl = y_low.geom_coords[1]
             yh = y_hi.geom_coords[1]
             ratio = (y - yl) / (yh - yl)
         
-            loc = np.array(y_low.surf_coords) + (np.array(y_hi.surf_coords)-
-                np.array(y_low.surf_coords))*ratio
+            loc = np.array(y_low.ct_coords) + (np.array(y_hi.surf_coords)-
+                np.array(y_low.ct_coords))*ratio
 
         #handle poorer case of electrode on end of line
         if x_low is not None and loc is None:
@@ -315,43 +331,53 @@ class ElectrodeWindow(Handler):
             xl = x_low.geom_coords[0]
             xll = x_lower.geom_coords[0]
             if xl == xll+1:
-                loc = 2*np.array(x_low.surf_coords) - np.array(
-                    x_lower.surf_coords)
+                loc = 2*np.array(x_low.ct_coords) - np.array(
+                    x_lower.ct_coords)
 
         if x_hi is not None and loc is None:
             x_higher = self._find_closest_neighbor(x_hi, 'x', '+')
             xh = x_hi.geom_coords[0]
             xhh = x_higher.geom_coords[0]
             if xh == xhh-1:
-                loc = 2*np.array(x_hi.surf_coords) - np.array(
-                    x_higher.surf_coords)
+                loc = 2*np.array(x_hi.ct_coords) - np.array(
+                    x_higher.ct_coords)
 
-        import pdb
-        pdb.set_trace()
+        #import pdb
+        #pdb.set_trace()
 
         if y_low is not None and loc is None:
             y_lower = self._find_closest_neighbor(y_low, 'y', '-')
             yl = y_low.geom_coords[1]
             yll = y_lower.geom_coords[1]
             if yl == yll+1:
-                loc = 2*np.array(y_low.surf_coords) - np.array(
-                    y_lower.surf_coords)
+                loc = 2*np.array(y_low.ct_coords) - np.array(
+                    y_lower.ct_coords)
         
         if y_hi is not None and loc is None:
             y_higher = self._find_closest_neighbor(y_hi, 'y', '+')
             yh = y_hi.geom_coords[0]
             yhh = y_higher.geom_coords[0]
             if yh == yhh-1:
-                loc = 2*np.array(y_hi.surf_coords) - np.array(
-                    y_higher.surf_coords)
+                loc = 2*np.array(y_hi.ct_coords) - np.array(
+                    y_higher.ct_coords)
     
         if loc is not None:
-            self.cur_sel.surf_coords = tuple(loc)
+            self.cur_sel.ct_coords = tuple(loc)
             self.cur_sel.special_name = 'Linearly interpolated electrode'
         else:
             error_dialog('No line for simple linear interpolation\n'
                 'Better algorithm needed')
-            
+
+        # translate the electrode into RAS space
+        import pipeline as pipe
+        
+        aff = self.model.acquire_affine()
+        pipe.translate_electrodes_to_surface_space( [self.cur_sel], aff,
+            subjects_dir=self.model.subjects_dir, subject=self.model.subject)
+
+        # add this electrode to the grid model so that it can be visualized
+        self.model.add_electrode(self.cur_sel, self.cur_grid)
+
     def _find_closest_neighbor(self, cur_elec, axis, direction): 
         x,y = cur_elec.geom_coords
 
