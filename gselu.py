@@ -139,9 +139,14 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 if old not in ('','unsorted','selection'):
                     self._grids[old].remove(elec)
                     self._ct_to_grid_ident_map[elec.asct()] = 'unsorted'
+                elif old=='unsorted':
+                    del self._unsorted_electrodes[elec.asct()]
+
                 if new not in ('','unsorted','selection'):
                     self._grids[new].append(elec)
                     self._ct_to_grid_ident_map[elec.asct()] = new
+                elif new=='unsorted':
+                    self._unsorted_electrodes[elec.asct()] = elec
 
         self._points_to_cur_grid = {}
         self._points_to_unsorted = {}
@@ -327,6 +332,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         self._ct_to_grid_ident_map[elec.asct()] = target
         self._interpolated_electrodes[elec.asct()] = elec
+        self._all_electrodes[elec.asct()] = elec
+
+        self._rebuild_vizpanel_event = True
+        elec.special_name = ''
 
     def change_single_glyph(self, xyz, elec, target, current_key):
         if elec in self._grids[target]:
@@ -496,15 +505,37 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         import pipeline as pipe
 
+        snappable_electrodes = []
+
         for key in self._grids.keys():
             if self._grid_types[key] != 'subdural':
                 continue
 
-            pipe.snap_electrodes_to_surface(
-                self._grids[key], subjects_dir=self.subjects_dir,
-                subject=self.subject, max_steps=self.nr_steps)
+            snappable_electrodes.extend(self._grids[key])
+
+        pipe.snap_electrodes_to_surface(
+            snappable_electrodes, subjects_dir=self.subjects_dir,
+            subject=self.subject, max_steps=self.nr_steps)
 
         self._snapping_completed = True
+
+        #update CT to surf mappings for clickability
+        for key in self._grids.keys():
+            if self._grid_types[key] == 'subdural':
+                for elec in self._grids[key]: 
+                    
+                    surf_coord = elec.asras()
+                    snap_coord = elec.astuple()
+
+                    self._ct_to_surf_map[elec.asct()] = snap_coord
+                    self._surf_to_ct_map[snap_coord] = elec.asct()
+                    #TODO manage collisions in ct_to_surf mapping
+                    
+                    # could have been snapped before
+                    try:
+                        del self._surf_to_ct_map[surf_coord]
+                    except KeyError:
+                        pass
 
         # we can update the visualization now
         self._rebuild_vizpanel_event = True
@@ -989,6 +1020,7 @@ class InteractivePanel(HasPrivateTraits):
     edit_parameters_button = Button('Edit Fitting Parameters')
     
     reconstruct_geom_button = Button('Reconstruct geometry')
+    reconstruct_vizpanel_button = Button('Rebuild viz')
     examine_electrodes_button = Button('Examine electrodes')
     snap_electrodes_button = Button('Snap electrodes')
     adjust_registration_button = Button('Adjust registration')
@@ -1027,6 +1059,7 @@ class InteractivePanel(HasPrivateTraits):
             VGroup(
                 Item('add_grid_button', show_label=False),
                 #Item('reconstruct_geom_button', show_label=False),
+                Item('reconstruct_vizpanel_button', show_label=False),
             ),
             VGroup(
                 Item('examine_electrodes_button', show_label=False),
@@ -1062,6 +1095,9 @@ class InteractivePanel(HasPrivateTraits):
 
     def _reconstruct_geom_button_fired(self):
         self.model.reconstruct_geometry()
+    
+    def _reconstruct_vizpanel_button_fired(self):
+        self.model._reconstruct_vizpanel_event = True
 
     def _snap_electrodes_button_fired(self):
         self.model.snap_all()
@@ -1107,6 +1143,12 @@ class iEEGCoregistrationFrame(HasTraits):
 
     @on_trait_change('model:_rebuild_vizpanel_event')
     def _rebuild_vizpanel(self):
+
+        #throw away old vizpanel listeners to remove annoying error messages
+        self.surface_visualizer_panel.model = None
+        self.ct_visualizer_panel.model = None
+
+        #create new panels
         self.surface_visualizer_panel = SurfaceVisualizerPanel(self.model)
         self.interactive_panel.viz = self.surface_visualizer_panel
 

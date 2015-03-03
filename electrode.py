@@ -5,7 +5,8 @@ from traits.api import (HasTraits, List, Float, Tuple, Instance, Bool, Str,
     Int, Either, Property, Method, on_trait_change, Any, Enum, Button)
 from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor, VGroup,
     InstanceEditor, Group, OKCancelButtons, TableEditor, ObjectColumn,
-    TextEditor, OKButton, CheckListEditor, Label, Action, ListStrEditor)
+    TextEditor, OKButton, CheckListEditor, Label, Action, ListStrEditor,
+    MenuBar, Menu)
 from traitsui.message import error as error_dialog
 
 class Electrode(HasTraits):
@@ -78,23 +79,22 @@ class ElectrodeWindow(Handler):
     selection_callback = Method
    
     selected_ixes = Any
-    swap_action = Action(name='Swap', action='do_swap')
+    swap_action = Action(name='Swap two electrodes', action='do_swap')
+    add_blank_action = Action(name='Add blank electrode', action='do_add_blank')
 
     previous_sel = Instance(Electrode)
     previous_color = Int
 
     distinct_prev_sel = Instance(Electrode)
     
-    identify_action = Action(name='Identify ROIs', action='do_identify') 
-
-    save_montage_action = Action(name='Save montage', action='do_montage')
+    save_montage_action = Action(name='Save montage file', action='do_montage')
 
     interpolate_action = Action(name='Linear interpolation',
         action='do_linear_interpolation')
 
     naming_convention = Enum('grid', 'reverse_grid', 'line')
     grid_type = Enum('depth', 'subdural')
-    label_auto_action = Action(name='Sort Automatically',
+    label_auto_action = Action(name='Automatic labeling',
         action='do_label_automatically')
 
     name_stem = Str
@@ -162,12 +162,26 @@ class ElectrodeWindow(Handler):
         ),
 
         resizable=True, kind='panel', title='modify electrodes',
-        buttons=[OKButton, swap_action, label_auto_action,
-            interpolate_action, save_montage_action, find_rois_action]) 
+        #buttons=[OKButton, swap_action, label_auto_action,
+        #    interpolate_action, save_montage_action, find_rois_action]) 
+
+        buttons = [OKButton],
+        menubar = MenuBar(
+            Menu( add_blank_action, swap_action, label_auto_action,
+                interpolate_action, save_montage_action, find_rois_action,
+                name='Operations',
+            )
+        )
+    )
 
     @on_trait_change('cur_sel')
     def selection_callback(self):
         if self.cur_sel is None:
+            return
+
+        # if this electrode has just been created and not interpolated yet
+        # it has no change of being in the image yet so just pass
+        if self.cur_sel.special_name == 'Electrode for linear interpolation':
             return
 
         #import pdb
@@ -199,6 +213,9 @@ class ElectrodeWindow(Handler):
     @on_trait_change('grid_type')
     def change_grid_type(self):
         self.model._grid_types[self.cur_grid] = self.grid_type
+
+    def do_add_blank(self, info):
+        self.electrodes.append(electrode_factory())
 
     def do_swap(self, info):
         #if not len(self.selected_ixes) == 2:
@@ -315,7 +332,7 @@ class ElectrodeWindow(Handler):
             xh = x_hi.geom_coords[0]
             ratio = (x - xl) / (xh - xl)
         
-            loc = np.array(x_low.ct_coords) + (np.array(x_hi.surf_coords)-
+            loc = np.array(x_low.ct_coords) + (np.array(x_hi.ct_coords)-
                 np.array(x_low.ct_coords))*ratio
 
         elif y_low is not None and y_hi is not None:
@@ -323,7 +340,7 @@ class ElectrodeWindow(Handler):
             yh = y_hi.geom_coords[1]
             ratio = (y - yl) / (yh - yl)
         
-            loc = np.array(y_low.ct_coords) + (np.array(y_hi.surf_coords)-
+            loc = np.array(y_low.ct_coords) + (np.array(y_hi.ct_coords)-
                 np.array(y_low.ct_coords))*ratio
 
         #handle poorer case of electrode on end of line
@@ -377,7 +394,7 @@ class ElectrodeWindow(Handler):
             subjects_dir=self.model.subjects_dir, subject=self.model.subject)
 
         # add this electrode to the grid model so that it can be visualized
-        self.model.add_electrode(self.cur_sel, self.cur_grid)
+        self.model.add_electrode_to_grid(self.cur_sel, self.cur_grid)
 
     def _find_closest_neighbor(self, cur_elec, axis, direction): 
         x,y = cur_elec.geom_coords

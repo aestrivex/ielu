@@ -939,17 +939,20 @@ def register_hires_ct_using_hacky_tricks(ct, subjects_dir=None, subject=None,
     center_reg_orig = os.path.join( ct_register_dir, 'center_orig.nii.gz')
     upper_reg_orig = os.path.join( ct_register_dir, 'upper_orig.nii.gz')
 
+    center_to_orig_lta = os.path.join( ct_register_dir, 'c2o.lta')
+
     _,gbg = tempfile.mkstemp()
     print 'registering orig to slices'
 
     mri_robustreg_cslice_cmd = ['mri_robust_register', '--mov', orig, '--dst',
-        center_fname, '--lta', gbg, '--satit', '--cost', 'nmi', '--nosym',
-        '--mapmovhdr', center_reg_orig]
+        center_fname, '--lta', center_to_orig_lta, '--satit', '--cost', 'mi',
+         '--nosym', '--mapmovhdr', center_reg_orig]
     p = subprocess.call(mri_robustreg_cslice_cmd)
         
     mri_robustreg_uslice_cmd = ['mri_robust_register', '--mov', orig, '--dst',
-        upper_fname, '--lta', gbg, '--satit', '--cost', 'nmi', '--nosym',
-        '--mapmovhdr', upper_reg_orig]
+        upper_fname, '--lta', gbg, '--satit', '--cost', 'mi', '--nosym',
+        '--mapmovhdr', upper_reg_orig, '--ixform', center_to_orig_lta,
+        '--maxsize', '128']
     q = subprocess.call(mri_robustreg_uslice_cmd) 
 
     os.unlink(gbg)
