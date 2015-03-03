@@ -165,9 +165,9 @@ class ElectrodeWindow(Handler):
         #buttons=[OKButton, swap_action, label_auto_action,
         #    interpolate_action, save_montage_action, find_rois_action]) 
 
-        buttons = [OKButton],
+        buttons = [swap_action, OKButton],
         menubar = MenuBar(
-            Menu( add_blank_action, swap_action, label_auto_action,
+            Menu( add_blank_action, label_auto_action,
                 interpolate_action, save_montage_action, find_rois_action,
                 name='Operations',
             )

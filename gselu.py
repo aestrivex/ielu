@@ -24,6 +24,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
     use_ct_mask = Bool(True)
     disable_erosion = Bool(False)
+    overwrite_xfms = Bool(False)
+    registration_procedure = Enum('experimental shape correction',
+        'uncorrected MI registration', 'no registration')
 
     electrode_geometry = List(List(Int), [[8,8]]) # Gx2 list
 
@@ -155,10 +158,22 @@ class ElectrodePositionsModel(HasPrivateTraits):
         import pipeline as pipe
         if self.ct_registration not in (None, ''):
             aff = load_affine(self.ct_registration)
-        else:
+
+        elif self.registration_procedure == 'experimental shape correction':
+            aff = pipe.register_ct_using_zoom_correction(
+                self.ct_scan, subjects_dir=self.subjects_dir,
+                subject=self.subject, overwrite=self.overwrite_xfms)
+
+        elif self.registration_procedure == 'standard MI registration':
             aff = pipe.register_ct_to_mr_using_mutual_information(
                 self.ct_scan, subjects_dir=self.subjects_dir, 
-                subject=self.subject)
+                subject=self.subject, overwrite=self.overwrite_xfms)
+
+        elif self.registration_procedure == 'no registration':
+            aff = np.eye(4)
+
+        else:
+            raise ValueError("Bad registration procedure type")
 
         return aff
 
@@ -198,7 +213,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #TODO
         if self.use_ct_mask:
             ct_mask = pipe.create_brainmask_in_ctspace(self.ct_scan,
-                subjects_dir=self.subjects_dir, subject=self.subject)
+                subjects_dir=self.subjects_dir, subject=self.subject,
+                overwrite=self.overwrite_xfms)
         else:
             ct_mask = None
 
@@ -685,6 +701,8 @@ class ParamsPanel(HasTraits):
     deformation_constant = DelegatesTo('model')
     use_ct_mask = DelegatesTo('model')
     disable_erosion = DelegatesTo('model')
+    overwrite_xfms = DelegatesTo('model')
+    registration_procedure = DelegatesTo('model')
 
     traits_view = View(
         Group(
@@ -702,8 +720,12 @@ class ParamsPanel(HasTraits):
             Label('Try to extract the brain from the CT image and mask\n'
                 'extracranial noise -- can take several minutes'),
             Item('use_ct_mask'),
+            Label('Overwrite existing transformations'),
+            Item('overwrite_xfms'),
             Label('Disable binary erosion procedure to reduce CT noise'),
             Item('disable_erosion'),
+            Label('Type of registration'),
+            Item('registration_procedure'),
         ),
         VGroup(
             Label('Delta controls the distance between electrodes. That is,\n'

@@ -10,7 +10,8 @@ import geometry as geo
 import grid as gl
 from electrode import Electrode
 
-def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None):
+def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None, 
+    overwrite=False):
     '''
     Calculate the reverse transformation from the MR space to the CT space,
     translate the brainmask into the space of the CT image
@@ -26,6 +27,9 @@ def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None):
     subject : Str | None
         The freesurfer subject. If this is None, it is assumed to be the
         $SUBJECT environment variable.
+    overwrite : Bool
+        When true, will do the computation and not search for a saved value.
+        Defaults to false.
 
     Returns
     -------
@@ -51,7 +55,7 @@ def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None):
     nas_brain = os.path.join(subjects_dir, subject, 'mri', 'brain_nas.nii.gz')
     ct_brain = os.path.join(subjects_dir, subject, 'mri', 'brain_ct.nii.gz')
 
-    if os.path.exists(lta):
+    if os.path.exists(lta) and not overwrite:
         print 'brainmask in ct space already exists, using it'
         return ct_brain
 
@@ -787,7 +791,7 @@ def classify_with_fixed_points(fixed_grids, known_geometry,
     return found_grids
 
 def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
-    subject=None):
+    subject=None, overwrite=False):
     '''
     Performs the registration between CT and MR using the normalized mutual
     information cost option in freesurfer's mri_robust_register. Saves the
@@ -806,6 +810,9 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     subject : Str | None
         The freesurfer subject. If this is None, it is assumed to be the
         $SUBJECT environment variable.
+    overwrite : Bool
+        When true, will do the computation and not search for a saved value.
+        Defaults to false.
 
     Returns
     -------
@@ -825,7 +832,7 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
         os.mkdir(xfms_dir)
     lta = os.path.join(xfms_dir,'ct2mr.lta')
 
-    if os.path.exists(lta):
+    if os.path.exists(lta) and not overwrite:
         print 'using existing CT to MR transformation'
         return geo.get_lta(lta)
 
@@ -844,7 +851,7 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
 
     return affine
 
-def register_hires_ct_using_hacky_tricks(ct, subjects_dir=None, subject=None,
+def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     cm_dist=5, overwrite=False):
     '''
     Performs a sophisticated and somewhat specific hack to register a
@@ -967,8 +974,8 @@ def register_hires_ct_using_hacky_tricks(ct, subjects_dir=None, subject=None,
     r = subprocess.call(mri_robustreg_trans_cmd)
 
     #calculate the desired zoom factor
-    import pdb
-    pdb.set_trace()
+    #import pdb
+    #pdb.set_trace()
     translate_affine = geo.get_lta(translate_lta)
     n = np.abs( translate_affine[2,3] )
 
@@ -990,7 +997,7 @@ def register_hires_ct_using_hacky_tricks(ct, subjects_dir=None, subject=None,
     ct_final = os.path.join(ct_register_dir, 'ct_final_resamp_reg.nii.gz')
 
     mri_robustreg_resampled_cmd = ['mri_robust_register', '--mov', 
-        resampled_ct, '--dst', orig, '--lta', lta, '--satit', '--cost', 'nmi', 
+        resampled_ct, '--dst', orig, '--lta', lta, '--satit', '--cost', 'mi', 
         '--vox2vox', '--mapmov', ct_final]
     s = subprocess.call(mri_robustreg_resampled_cmd)
 
