@@ -963,7 +963,7 @@ def register_hires_ct_using_hacky_tricks(ct, subjects_dir=None, subject=None,
     
     mri_robustreg_trans_cmd = ['mri_robust_register', '--mov', upper_reg_orig,
         '--dst', center_reg_orig, '--lta', translate_lta, '--satit', '--nosym',
-        '--cost', 'nmi', '--vox2vox']
+        ]
     r = subprocess.call(mri_robustreg_trans_cmd)
 
     #calculate the desired zoom factor
