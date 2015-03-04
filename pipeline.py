@@ -889,15 +889,30 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     xfms_dir = os.path.join(subjects_dir, subject, 'mri', 'transforms')
     if not os.path.exists(xfms_dir):
         os.mkdir(xfms_dir)
-    lta = os.path.join(xfms_dir,'ct2mr.lta')
-
-    if os.path.exists(lta) and not overwrite:
-        print 'using existing CT to MR transformation'
-        return geo.get_lta(lta)
 
     ct_register_dir = os.path.join( subjects_dir, subject, 'mri', 'ct_reg' )
     if not os.path.exists(ct_register_dir):
         os.mkdir(ct_register_dir)
+
+    lta = os.path.join(xfms_dir, 'ct2mr.lta')
+
+    #skewed_lta = os.path.join(ct_register_dir,'skewed_ct2mr.lta')
+    #lta = os.path.join(ct_register_dir,'true_ct2mr.lta')
+
+    if os.path.exists(lta) and not overwrite:
+
+
+        print 'using existing CT to MR transformation'
+
+        #perform some temporary corrections
+        zf = 1.43
+        lta = geo.get_lta(lta)
+        skew_mat = np.eye(4)
+        skew_mat[2,2] = zf
+
+        return np.dot(lta, skew_mat)
+
+        #return geo.get_lta(lta)
 
     # pick 2 slices an arbitrary distance apart
     cti = nib.load(ct)
@@ -914,8 +929,8 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     ct_slices = cm_dist * 10 / slice_thickness
     upper_z = center_z - ct_slices
 
-    import pdb
-    pdb.set_trace()
+    #import pdb
+    #pdb.set_trace()
 
     print 'loading CT data'
     ctd = cti.get_data()
@@ -942,6 +957,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     import subprocess
 
     orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
+    rawavg = os.path.join(subjects_dir, subject, 'mri', 'rawavg.mgz')
 
     center_reg_orig = os.path.join( ct_register_dir, 'center_orig.nii.gz')
     upper_reg_orig = os.path.join( ct_register_dir, 'upper_orig.nii.gz')
@@ -997,7 +1013,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     ct_final = os.path.join(ct_register_dir, 'ct_final_resamp_reg.nii.gz')
 
     mri_robustreg_resampled_cmd = ['mri_robust_register', '--mov', 
-        resampled_ct, '--dst', orig, '--lta', lta, '--satit', '--cost', 'mi', 
+        resampled_ct, '--dst', rawavg, '--lta', lta, '--satit', '--cost', 'mi', 
         '--vox2vox', '--mapmov', ct_final]
     s = subprocess.call(mri_robustreg_resampled_cmd)
 
