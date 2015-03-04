@@ -894,25 +894,23 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     if not os.path.exists(ct_register_dir):
         os.mkdir(ct_register_dir)
 
-    lta = os.path.join(xfms_dir, 'ct2mr.lta')
+    #lta = os.path.join(xfms_dir, 'ct2mr.lta')
 
-    #skewed_lta = os.path.join(ct_register_dir,'skewed_ct2mr.lta')
-    #lta = os.path.join(ct_register_dir,'true_ct2mr.lta')
+    skewed_lta = os.path.join(ct_register_dir,'skewed_ct2mr.lta')
+    lta = os.path.join(ct_register_dir,'true_ct2mr.lta')
 
     if os.path.exists(lta) and not overwrite:
-
-
         print 'using existing CT to MR transformation'
 
         #perform some temporary corrections
-        zf = 1.43
-        lta = geo.get_lta(lta)
-        skew_mat = np.eye(4)
-        skew_mat[2,2] = zf
+#        zf = 1.43
+#        lta = geo.get_lta(lta)
+#        skew_mat = np.eye(4)
+#        skew_mat[2,2] = zf
+#
+#        return np.dot(lta, skew_mat)
 
-        return np.dot(lta, skew_mat)
-
-        #return geo.get_lta(lta)
+        return geo.get_lta(lta)
 
     # pick 2 slices an arbitrary distance apart
     cti = nib.load(ct)
@@ -1013,11 +1011,17 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     ct_final = os.path.join(ct_register_dir, 'ct_final_resamp_reg.nii.gz')
 
     mri_robustreg_resampled_cmd = ['mri_robust_register', '--mov', 
-        resampled_ct, '--dst', rawavg, '--lta', lta, '--satit', '--cost', 'mi', 
-        '--vox2vox', '--mapmov', ct_final]
+        resampled_ct, '--dst', rawavg, '--lta', skewed_lta, '--satit',
+        '--vox2vox', '--mapmov', ct_final, '--cost', 'mi']
     s = subprocess.call(mri_robustreg_resampled_cmd)
 
-    return geo.get_lta(lta)
+    skew_aff = geo.get_lta(skewed_lta)
+    unskew_aff = np.eye(4)
+    unskew_aff[2,2] = zoom_factor
+    aff = np.dot(skew_aff, unskew_aff)
+    np.savetxt(lta, aff)
+
+    return aff
 
 def create_dural_surface(subjects_dir=None, subject=None):
     '''
