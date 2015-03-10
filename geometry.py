@@ -77,7 +77,7 @@ def find_best_fit_plane(points):
 # compound geometry functions
 #############################
 
-def find_nearest_pt(p0, coords, mode=0, n=1):
+def find_nearest_pt(p0, coords, allow_self=False, n=1):
     #if coords is 0 find an implausibly distant point
     #if np.size(coords) == 0:
     #    return np.array((np.inf, np.inf, np.inf)), -1
@@ -87,17 +87,13 @@ def find_nearest_pt(p0, coords, mode=0, n=1):
 
     d = np.apply_along_axis(np.subtract, 1, coords, p0)
     d = np.sum(d**2, axis=1)
-    if d.min() == 0:
-        if mode == 0:
+
+    if d.min() == 0 and not allow_self:
+        if not allow_self:
             d[np.argmin(d)] = d[np.argmax(d)]
-            which_p = np.argmin(d)
-            p1 = coords[which_p, :] 
-        else:
-            which_p = np.argmin(d)
-            p1 = coords[which_p, :] 
-    else:
-        which_p = np.argmin(d)
-        p1 = coords[which_p, :]
+
+    which_p = np.argmin(d)
+    p1 = coords[which_p, :]
     
     return p1, which_p
 

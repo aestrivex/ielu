@@ -27,6 +27,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     overwrite_xfms = Bool(False)
     registration_procedure = Enum('experimental shape correction',
         'uncorrected MI registration', 'no registration')
+    shapereg_slice_diff = Float(5.0)
 
     electrode_geometry = List(List(Int), [[8,8]]) # Gx2 list
 
@@ -164,13 +165,20 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 self.ct_scan, subjects_dir=self.subjects_dir,
                 subject=self.subject, overwrite=self.overwrite_xfms)
 
-        elif self.registration_procedure == 'standard MI registration':
+        elif self.registration_procedure == 'uncorrected MI registration':
             aff = pipe.register_ct_to_mr_using_mutual_information(
                 self.ct_scan, subjects_dir=self.subjects_dir, 
                 subject=self.subject, overwrite=self.overwrite_xfms)
 
         elif self.registration_procedure == 'no registration':
-            aff = np.eye(4)
+            #aff = np.eye(4)
+            aff = np.array(((-1., 0., 0., 128.),
+                            (0., 0., 1., -128.),
+                            (0., -1., 0., 128.),
+                            (0., 0., 0., 1.)))
+
+            #from scipy.linalg import inv
+            #aff = inv(aff)
 
         else:
             raise ValueError("Bad registration procedure type")
@@ -703,6 +711,7 @@ class ParamsPanel(HasTraits):
     disable_erosion = DelegatesTo('model')
     overwrite_xfms = DelegatesTo('model')
     registration_procedure = DelegatesTo('model')
+    shapereg_slice_diff = DelegatesTo('model')
 
     traits_view = View(
         Group(
@@ -726,6 +735,10 @@ class ParamsPanel(HasTraits):
             Item('disable_erosion'),
             Label('Type of registration'),
             Item('registration_procedure'),
+            Label('Slice separation for shape correction'),
+            Item('shapereg_slice_diff', 
+                enabled_when='registration_procedure==\'experimental shape '
+                'correction\''),
         ),
         VGroup(
             Label('Delta controls the distance between electrodes. That is,\n'

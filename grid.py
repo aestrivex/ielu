@@ -170,9 +170,10 @@ class Grid():
     def critdist(self):
         return np.mean(self.distances)
 
-    def nearest(self, p0):
+    def nearest(self, p0, allow_self=True):
         try:
-            p,_ = find_nearest_pt(p0, self.remaining_points())
+            p,_ = find_nearest_pt(p0, self.remaining_points(), 
+                allow_self=allow_self)
             return p
         except (IndexError, ValueError):
         #except IndexError:

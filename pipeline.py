@@ -1371,6 +1371,9 @@ def fit_grid_to_line(electrodes, c1, c2, c3, geom=None, mindist=0, maxdist=36,
     #pdb.set_trace()
     pog.extend_grid_arbitrarily()
 
+    if len(pog.points) < len(electrodes):
+        raise ValueError('Failed to fit all the electrodes')
+
     #try:
     #    sp = pog.extract_strip(*geom)
     #except gl.StripError as e:
