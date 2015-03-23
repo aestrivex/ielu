@@ -852,7 +852,7 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     return affine
 
 def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
-    cm_dist=5, overwrite=False):
+    cm_dist=5, overwrite=False, zf_override=0):
     '''
     Performs a sophisticated and somewhat specific hack to register a
     high resolution CT image with an awkward slice thickness and skewed
@@ -885,6 +885,8 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
         subjects_dir = os.environ['SUBJECTS_DIR']
     if subject is None or subject=='':
         subject = os.environ['SUBJECT']
+
+    import subprocess
 
     xfms_dir = os.path.join(subjects_dir, subject, 'mri', 'transforms')
     if not os.path.exists(xfms_dir):
@@ -933,69 +935,99 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     print 'loading CT data'
     ctd = cti.get_data()
 
-    center_slice = np.zeros(cti.shape)
-    center_slice[:,:,center_z] = ctd[:,:,center_z]
-    upper_slice = np.zeros(cti.shape)
-    upper_slice[:,:,upper_z] = ctd[:,:,upper_z] 
-
-    center_img = nib.Nifti1Image(center_slice, affine=cti.get_affine(),
-        header=hdr)
-    upper_img = nib.Nifti1Image(upper_slice, affine=cti.get_affine(),
-        header=hdr)
-
-    center_fname = os.path.join( ct_register_dir, 'center_ct_slice.nii.gz')
-    upper_fname = os.path.join( ct_register_dir, 'upper_ct_slice.nii.gz')
-
-    print 'saving CT slices'
-    nib.save(center_img, center_fname)
-    nib.save(upper_img, upper_fname)
-
-    #register orig independently to these two slices
-    import tempfile
-    import subprocess
-
     orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
     rawavg = os.path.join(subjects_dir, subject, 'mri', 'rawavg.mgz')
 
-    center_reg_orig = os.path.join( ct_register_dir, 'center_orig.nii.gz')
-    upper_reg_orig = os.path.join( ct_register_dir, 'upper_orig.nii.gz')
+    if zf_override == 0:
+        center_slice = np.zeros(cti.shape)
+        center_slice[:,:,center_z] = ctd[:,:,center_z]
+        upper_slice = np.zeros(cti.shape)
+        upper_slice[:,:,upper_z] = ctd[:,:,upper_z] 
 
-    center_to_orig_lta = os.path.join( ct_register_dir, 'c2o.lta')
+        center_img = nib.Nifti1Image(center_slice, affine=cti.get_affine(),
+            header=hdr)
+        upper_img = nib.Nifti1Image(upper_slice, affine=cti.get_affine(),
+            header=hdr)
 
-    _,gbg = tempfile.mkstemp()
-    print 'registering orig to slices'
+        center_fname = os.path.join( ct_register_dir, 
+            'center_ct_slice.nii.gz')
+        upper_fname = os.path.join( ct_register_dir, 'upper_ct_slice.nii.gz')
 
-    mri_robustreg_cslice_cmd = ['mri_robust_register', '--mov', orig, '--dst',
-        center_fname, '--lta', center_to_orig_lta, '--satit', '--cost', 'mi',
-         '--nosym', '--mapmovhdr', center_reg_orig]
-    p = subprocess.call(mri_robustreg_cslice_cmd)
+        print 'saving CT slices'
+        nib.save(center_img, center_fname)
+        nib.save(upper_img, upper_fname)
+
+        #register orig independently to these two slices
+        import tempfile
+
+        center_reg_orig = os.path.join( ct_register_dir, 
+            'center_orig.nii.gz')
+        upper_reg_orig = os.path.join( ct_register_dir, 'upper_orig.nii.gz')
+
+        center_to_orig_lta = os.path.join( ct_register_dir, 'c2o.lta')
+
+        _,gbg = tempfile.mkstemp()
+        print 'registering orig to slices'
+
+        mri_robustreg_cslice_cmd = ['mri_robust_register', '--mov', orig, 
+            '--dst',
+            center_fname, '--lta', center_to_orig_lta, '--satit', '--cost',
+            'mi',
+            '--nosym', '--mapmovhdr', center_reg_orig]
+        p = subprocess.call(mri_robustreg_cslice_cmd)
+         
+        mri_robustreg_uslice_cmd = ['mri_robust_register', '--mov', orig, 
+            '--dst',
+            upper_fname, '--lta', gbg, '--satit', '--cost', 'mi', '--nosym',
+            '--mapmovhdr', upper_reg_orig, '--ixform', center_to_orig_lta,
+            '--maxsize', '128']
+        q = subprocess.call(mri_robustreg_uslice_cmd) 
+
+        os.unlink(gbg)
+
+        #register the two translated origs to each other
+        print 'registering slices to each other'
+        translate_lta = os.path.join( ct_register_dir, 'u2c_translation.lta')
         
-    mri_robustreg_uslice_cmd = ['mri_robust_register', '--mov', orig, '--dst',
-        upper_fname, '--lta', gbg, '--satit', '--cost', 'mi', '--nosym',
-        '--mapmovhdr', upper_reg_orig, '--ixform', center_to_orig_lta,
-        '--maxsize', '128']
-    q = subprocess.call(mri_robustreg_uslice_cmd) 
+        mri_robustreg_trans_cmd = ['mri_robust_register', '--mov', 
+            upper_reg_orig,
+            '--dst', center_reg_orig, '--lta', translate_lta, '--satit', 
+            '--nosym',
+            ]
+        r = subprocess.call(mri_robustreg_trans_cmd)
 
-    os.unlink(gbg)
+        #calculate the desired zoom factor
+        #import pdb
+        #pdb.set_trace()
+        #translate_affine = geo.get_lta(translate_lta)
+        #n = np.abs( translate_affine[2,3] )
 
-    #register the two translated origs to each other
-    print 'registering slices to each other'
-    translate_lta = os.path.join( ct_register_dir, 'u2c_translation.lta')
-    
-    mri_robustreg_trans_cmd = ['mri_robust_register', '--mov', upper_reg_orig,
-        '--dst', center_reg_orig, '--lta', translate_lta, '--satit', '--nosym',
-        ]
-    r = subprocess.call(mri_robustreg_trans_cmd)
+        #calculate n
+        center_orig_f = nib.load(center_reg_orig)
+        upper_orig_f = nib.load(upper_reg_orig)
+        coa = center_orig_f.get_affine()
+        uoa = upper_orig_f.get_affine()
 
-    #calculate the desired zoom factor
-    #import pdb
-    #pdb.set_trace()
-    translate_affine = geo.get_lta(translate_lta)
-    n = np.abs( translate_affine[2,3] )
+        from scipy.linalg import inv
+        uoai = inv(uoa)
 
-    x = iso_sz * cm_dist * 10
+        pOrigin = (128, 128, 128, 1)
 
-    zoom_factor = (x+n)/x
+        pShifted = np.dot(uoai, np.dot(coa, pOrigin))
+
+        n = np.abs(pOrigin[1]-pShifted[1])
+
+        #calculate x, the distance covered in isotropic coordinates of 50
+        #millimeters
+
+        #we can prove that x is equal to this number by finding the RAS
+        #coordinates of the translation using the qform matrix
+        x = iso_sz * cm_dist * 10
+
+        zoom_factor = (x+n)/x
+
+    else:
+        zoom_factor = zf_override
 
     #resample the ct image and do the final registration
 
@@ -1005,7 +1037,8 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
 
     resampled_ct = os.path.join(ct_register_dir, 'ct_resampled_zf.nii.gz')
 
-    resamp_img = nib.Nifti1Image(ct_zoom, affine=cti.get_affine(), header=hdr)
+    resamp_img = nib.Nifti1Image(ct_zoom, affine=cti.get_affine(), 
+        header=hdr)
     nib.save(resamp_img, resampled_ct)
 
     ct_final = os.path.join(ct_register_dir, 'ct_final_resamp_reg.nii.gz')

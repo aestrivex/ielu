@@ -22,12 +22,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
     subject = Str
     fsdir_writable = Bool
 
-    use_ct_mask = Bool(True)
+    use_ct_mask = Bool(False)
     disable_erosion = Bool(False)
     overwrite_xfms = Bool(False)
     registration_procedure = Enum('experimental shape correction',
         'uncorrected MI registration', 'no registration')
     shapereg_slice_diff = Float(5.0)
+    zoom_factor_override = Float(0.)
 
     electrode_geometry = List(List(Int), [[8,8]]) # Gx2 list
 
@@ -163,7 +164,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         elif self.registration_procedure == 'experimental shape correction':
             aff = pipe.register_ct_using_zoom_correction(
                 self.ct_scan, subjects_dir=self.subjects_dir,
-                subject=self.subject, overwrite=self.overwrite_xfms)
+                subject=self.subject, overwrite=self.overwrite_xfms,
+                zf_override=self.zoom_factor_override)
 
         elif self.registration_procedure == 'uncorrected MI registration':
             aff = pipe.register_ct_to_mr_using_mutual_information(
@@ -564,7 +566,18 @@ class ElectrodePositionsModel(HasPrivateTraits):
         # we can update the visualization now
         self._rebuild_vizpanel_event = True
     
-    def save_montage_file(self, target=None, electrodes=None):
+    def _ask_user_for_savefile(self):
+        #from traitsui.file_dialog import save_file
+        from pyface.api import FileDialog, OK
+        
+        dialog = FileDialog(action='save as')
+        dialog.open()
+        if dialog.return_code != OK:
+            return
+
+        return os.path.join( dialog.directory, dialog.filename )
+
+    def _get_electrodes_generic_singlegrid(self, target, electrodes):
         if target is None:
             self._commit_grid_changes()
             if self.interactive_mode is None:
@@ -575,16 +588,6 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 print "select a grid to save labels from"
                 return
 
-        #from traitsui.file_dialog import save_file
-        from pyface.api import FileDialog, OK
-        
-        dialog = FileDialog(action='save as')
-        dialog.open()
-        if dialog.return_code != OK:
-            return
-
-        savefile = os.path.join( dialog.directory, dialog.filename )
-
         #for now only save label files for the current grid, may change
         #in principle this is not what we want
 
@@ -594,11 +597,28 @@ class ElectrodePositionsModel(HasPrivateTraits):
             key = self.interactive_mode.name
             electrodes = self._grids[key]
 
-        # snapping might be done at this step at some point
-        # probably not thuogh, it should make more sense to do
-        # snapping as an online interactive procedure in the megawindow
+        return electrodes
 
-        
+    def _get_electrodes_all(self):
+        return filter(lambda e:e.grid_name != 'unsorted', 
+            self._all_electrodes.values())
+
+    def save_montage_file_grid(self, target=None, electrodes=None):
+        electrodes = self._save_electrodes_generic_singlegrid(target, 
+            electrodes)
+        if electrodes is None:
+            return
+
+        savefile = self._ask_user_for_savefile()
+
+        self._save_montage_file(savefile, electrodes)
+
+    def save_montage_file_all(self):
+        electrodes = self._get_electrodes_all()
+        savefile = self._ask_user_for_savefile()
+        self._save_montage_file(savefile, electrodes)
+
+    def _save_montage_file(self, savefile, electrodes):
         # write the montage file
         with open( savefile, 'w' ) as fd:
             for j, elec in enumerate(electrodes):
@@ -610,8 +630,6 @@ class ElectrodePositionsModel(HasPrivateTraits):
                         str(elec_id))
                     label_name = '%s_elec_%s'%(key, elec_2dcoord)
 
-                #not perfect because the user might have changed the grid type
-                #after snapping. but good enough, they can just snap again
                 if (self._snapping_completed and 
                         self._grid_types[key]=='subdural'):
                     pos = elec.pial_coords.tolist()
@@ -623,6 +641,50 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 line = '%s\t%s\t%s\t%s\n' % (label_name, x, y, z)
 
                 fd.write(line)
+
+    def save_csv_file_grid(self, target=None, electrodes=None):
+        electrodes = self._get_electrodes_generic_singlegrid(target, 
+            electrodes)
+        if electrodes is None:
+            return
+
+        savefile = self._ask_user_for_savefile()
+
+        self._save_csv_file(savefile, electrodes)
+
+    def save_csv_file_all(self):
+        electrodes = self._get_electrodes_all()
+        savefile = self._ask_user_for_savefile()
+        self._save_csv_file(savefile, electrodes)
+
+    def _save_csv_file(self, savefile, electrodes):
+        #write the csv file
+        import csv
+        with open( savefile, 'w' ) as fd:
+            writer = csv.writer(fd)
+
+            for j,elec in enumerate(electrodes):
+                key = elec.grid_name
+                if elec.name != '':
+                    label_name = elec.name
+                else:
+                    elec_id = elec.geom_coords
+                    elec_2dcoord = ('unsorted%i'%j if len(elec_id)==0 else
+                        str(elec_id))
+                    label_name = '%s_elec_%s'%(key, elec_2dcoord)
+
+                if (self._snapping_completed and
+                        self._grid_types[key]=='subdural'):
+                    pos = elec.pial_coords.tolist() 
+                else:
+                    pos = tuple(elec.surf_coords)
+
+                x,y,z = pos
+
+                row = [label_name, x, y, z]
+                row.extend(elec.roi_list)
+    
+                writer.writerow(row)
 
     def save_label_files(self):
         self._commit_grid_changes()
@@ -712,6 +774,7 @@ class ParamsPanel(HasTraits):
     overwrite_xfms = DelegatesTo('model')
     registration_procedure = DelegatesTo('model')
     shapereg_slice_diff = DelegatesTo('model')
+    zoom_factor_override = DelegatesTo('model')
 
     traits_view = View(
         Group(
@@ -735,11 +798,21 @@ class ParamsPanel(HasTraits):
             Item('disable_erosion'),
             Label('Type of registration'),
             Item('registration_procedure'),
-            Label('Slice separation for shape correction'),
-            Item('shapereg_slice_diff', 
+            HGroup(
+                VGroup(
+                Label('Slice separation for shape correction'),
+                Item('shapereg_slice_diff', 
                 enabled_when='registration_procedure==\'experimental shape '
-                'correction\''),
-        ),
+                'correction\'', show_label=False),
+                ),
+                VGroup(
+                Label('Override zoom factor'),
+                Item('zoom_factor_override',
+                enabled_when='registration_procedure==\'experimental shape '
+                'correction\'', show_label=False),
+                ),
+            ),
+        show_labels=False),
         VGroup(
             Label('Delta controls the distance between electrodes. That is,\n'
                 'electrode distances must be between c*(1-d) and c*(1+d),\n'
@@ -1050,7 +1123,8 @@ class InteractivePanel(HasPrivateTraits):
     add_grid_button = Button('Add new grid')
     shell = Dict
 
-    save_montage_button = Button('Save montage file')
+    save_montage_button = Button('Save montage')
+    save_csv_button = Button('Save csv')
 
     edit_parameters_button = Button('Edit Fitting Parameters')
     
@@ -1078,7 +1152,10 @@ class InteractivePanel(HasPrivateTraits):
             VGroup(
                 Item('run_pipeline_button', show_label=False),
                 Item('edit_parameters_button', show_label=False),
-                Item('save_montage_button', show_label=False),
+                HGroup(
+                    Item('save_montage_button', show_label=False),
+                    Item('save_csv_button', show_label=False),
+                ),
             ),
         ),
         HGroup(
@@ -1123,7 +1200,10 @@ class InteractivePanel(HasPrivateTraits):
 
     def _save_montage_button_fired(self):
         #self.model.save_label_files()
-        self.model.save_montage_file()
+        self.model.save_montage_file_all()
+
+    def _save_csv_button_fired(self):
+        self.model.save_csv_file_all()
 
     def _edit_parameters_button_fired(self):
         ParamsPanel(model=self.model).edit_traits()

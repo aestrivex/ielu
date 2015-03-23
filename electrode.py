@@ -89,6 +89,8 @@ class ElectrodeWindow(Handler):
     
     save_montage_action = Action(name='Save montage file', action='do_montage')
 
+    save_csv_action = Action(name='Save CSV file', action='do_csv')
+
     interpolate_action = Action(name='Linear interpolation',
         action='do_linear_interpolation')
 
@@ -168,7 +170,8 @@ class ElectrodeWindow(Handler):
         buttons = [swap_action, OKButton],
         menubar = MenuBar(
             Menu( add_blank_action, label_auto_action,
-                interpolate_action, save_montage_action, find_rois_action,
+                interpolate_action, save_montage_action, save_csv_action,
+                find_rois_action,
                 name='Operations',
             )
         )
@@ -431,7 +434,11 @@ class ElectrodeWindow(Handler):
         return new_e
 
     def do_montage(self, info):
-        self.model.save_montage_file(target=self.cur_grid,
+        self.model.save_montage_file_grid(target=self.cur_grid,
+            electrodes=self.electrodes)
+
+    def do_csv(self, info):
+        self.model.save_csv_file_grid(target=self.cur_grid,
             electrodes=self.electrodes)
 
     def do_rois(self, info):
