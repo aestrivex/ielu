@@ -870,8 +870,8 @@ class SurfaceVisualizerPanel(HasTraits):
 
     traits_view = View(
         Item('scene', editor=SceneEditor(scene_class=MayaviScene),
-            show_label=False),
-        height=500, width=500)
+            show_label=False, resizable=True),
+        height=500, width=500, resizable=True)
 
     def __init__(self, model, **kwargs):
         super(SurfaceVisualizerPanel, self).__init__(**kwargs)
@@ -1180,7 +1180,7 @@ class InteractivePanel(HasPrivateTraits):
         ),
 
                 Item('shell', show_label=False, editor=ShellEditor()),
-        height=300, width=500
+        height=300, width=500, resizable=True
     )
 
     def __init__(self, model, viz=None, ctviz=None, **kwargs):
@@ -1237,10 +1237,10 @@ class iEEGCoregistrationFrame(HasTraits):
                     style='custom', resizable=True ),
                 Item('ct_visualizer_panel', editor=InstanceEditor(),
                     style='custom', resizable=True ),
-            show_labels=False),
+            show_labels=False, layout='split'),
             Item('interactive_panel', editor=InstanceEditor(), style='custom',
                 resizable=True),
-        show_labels=False),
+        show_labels=False, layout='split'),
         title=('llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch is'
             ' nice this time of year'),
         height=800, width=800, resizable=True

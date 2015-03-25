@@ -912,7 +912,8 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
 #
 #        return np.dot(lta, skew_mat)
 
-        return geo.get_lta(lta)
+        #return geo.get_lta(lta)
+        return np.loadtxt(lta)
 
     # pick 2 slices an arbitrary distance apart
     cti = nib.load(ct)
