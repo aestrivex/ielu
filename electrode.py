@@ -94,7 +94,7 @@ class ElectrodeWindow(Handler):
     interpolate_action = Action(name='Linear interpolation',
         action='do_linear_interpolation')
 
-    naming_convention = Enum('grid', 'reverse_grid', 'line')
+    naming_convention = Enum('line', 'grid', 'reverse_grid')
     grid_type = Enum('depth', 'subdural')
     label_auto_action = Action(name='Automatic labeling',
         action='do_label_automatically')
