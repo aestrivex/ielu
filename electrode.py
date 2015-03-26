@@ -218,6 +218,8 @@ class ElectrodeWindow(Handler):
         self.model._grid_types[self.cur_grid] = self.grid_type
 
     def do_add_blank(self, info):
+        e = electrode_factory()
+        e.grid_name = self.cur_grid
         self.electrodes.append(electrode_factory())
 
     def do_swap(self, info):
