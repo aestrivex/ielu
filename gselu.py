@@ -1132,7 +1132,8 @@ class InteractivePanel(HasPrivateTraits):
     reconstruct_vizpanel_button = Button('Rebuild viz')
     examine_electrodes_button = Button('Examine electrodes')
     snap_electrodes_button = Button('Snap electrodes')
-    adjust_registration_button = Button('Adjust registration')
+    #adjust_registration_button = Button('Adjust registration')
+    visualize_ct_button = Button('Examine CT')
 
     #we retain a reference to easily reference the visualization in the shell
     viz = Instance(SurfaceVisualizerPanel)
@@ -1143,7 +1144,8 @@ class InteractivePanel(HasPrivateTraits):
             VGroup(
                 Item('ct_scan'),
                 #Item('ct_registration', label='reg matrix\n(optional)')
-                Item('adjust_registration_button', show_label=False),
+                #Item('adjust_registration_button', show_label=False),
+                Item('visualize_ct_button', show_label=False),
             ),
             VGroup(
                 Item('electrode_geometry', editor=ListEditor(
@@ -1222,6 +1224,12 @@ class InteractivePanel(HasPrivateTraits):
 
     def _adjust_registration_button_fired(self):
         self.model.open_registration_window()
+
+    def _visualize_ct_button_fired(self):
+        import panel2d
+        pd = panel2d.TwoDimensionalPanel()
+        pd.load_img(self.ct_scan)
+        pd.edit_traits()
 
 class iEEGCoregistrationFrame(HasTraits):
     model = Instance(ElectrodePositionsModel)
