@@ -51,6 +51,10 @@ class Electrode(HasTraits):
     def __repr__(self):
         return self.__str__()
 
+    def __cmp__(self, other):
+        assert isinstance(other, Electrode) or other is None
+        return cmp(self.name, other.name)
+
     def astuple(self):
         return nparrayastuple(self.snap_coords)
 

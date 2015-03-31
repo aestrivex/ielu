@@ -600,8 +600,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         return electrodes
 
     def _get_electrodes_all(self):
-        return filter(lambda e:e.grid_name != 'unsorted', 
-            self._all_electrodes.values())
+        return sorted(filter(lambda e:e.grid_name != 'unsorted', 
+            self._all_electrodes.values()))
 
     def save_montage_file_grid(self, target=None, electrodes=None):
         electrodes = self._save_electrodes_generic_singlegrid(target, 
