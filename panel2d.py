@@ -45,10 +45,10 @@ class Click2DPanelTool(SelectTool):
             self.panel2d.move_cursor(mx, y, my)
 
         elif self.panel_id == 'yz':
-            mx, my = self.panel2d.xy_plane.map_data((event.y, event.x))
-            if z == mx and y == my:
+            mx, my = self.panel2d.yz_plane.map_data((event.x, event.y))
+            if y == mx and z == mz:
                 return
-            self.panel2d.move_cursor(x, my, mx)
+            self.panel2d.move_cursor(x, mx, my)
 
         else:
             raise NotImplementedError('FailFish')
@@ -73,16 +73,14 @@ class TwoDimensionalPanel(HasTraits):
     traits_view = View(
         Group(
         HGroup(
-            Item(name='xy_plane', editor=ComponentEditor(),
-            #Item(name='xy_container', editor=ComponentEditor(),
+            Item(name='xz_plane', editor=ComponentEditor(),
                 height=400, width=400, show_label=False, resizable=True),
             Item(name='yz_plane', editor=ComponentEditor(),
                 height=400, width=400, show_label=False, resizable=True),
         ),
         HGroup(
-            Item(name='xz_plane', editor=ComponentEditor(),
+            Item(name='xy_plane', editor=ComponentEditor(),
                 height=400, width=400, show_label=False, resizable=True),
-
             Item(name='null', editor=NullEditor(),
                 height=400, width=400, show_label=False, resizable=True),
         ),
@@ -99,9 +97,12 @@ class TwoDimensionalPanel(HasTraits):
     def cut_data(self, data, mcursor):
         xm,ym,zm = [int(np.round(c)) for c in mcursor]
         #xm, ym, zm = mcursor
-        yz_cut = np.rot90(data[xm,:,:])
-        xz_cut = np.rot90(data[:,ym,:])
-        xy_cut = np.rot90(data[:,:,zm])
+        #yz_cut = np.rot90(data[xm,:,:].T)
+        #xz_cut = np.rot90(data[:,ym,:].T)
+        #xy_cut = np.rot90(data[:,:,zm].T)
+        yz_cut = data[xm,:,:].T
+        xz_cut = data[:,ym,:].T
+        xy_cut = data[:,:,zm].T
         return xy_cut, xz_cut, yz_cut
 
     def load_img(self, imgf):
@@ -110,6 +111,16 @@ class TwoDimensionalPanel(HasTraits):
         #img_like = new_img_like(imedc, imedc.get_data(), imedc.get_affine())
         img = nib.load(imgf)
 
+        print img.get_affine()
+
+        from nilearn.image.resampling import reorder_img
+
+        #img = reorder_img(uimg, resample='continuous')
+
+        xsz, ysz, zsz = img.shape
+
+        print img.get_affine()
+
         imgd = img.get_data()
         print imgd.shape
         #imgd = img_like.get_data()
@@ -117,47 +128,48 @@ class TwoDimensionalPanel(HasTraits):
         self.images.append(imgd)
         self.current_image = imgd
 
-        self.native_cursor = x,y,z = tuple(np.array(imgd.shape) // 2)
+        self.cursor = x,y,z = tuple(np.array(imgd.shape) // 2)
 
-        self.cursor = xm,ym,zm = self.map_cursor(img.get_affine(), 
-            self.native_cursor)
+        #self.cursor = xm,ym,zm = self.map_cursor(img.get_affine(), 
+        #    self.native_cursor)
 
         xy_cut, xz_cut, yz_cut = self.cut_data(imgd, self.cursor)
 
+        print xy_cut.shape, xz_cut.shape, yz_cut.shape
+
         xy_plotdata = ArrayPlotData()
         xy_plotdata.set_data('imagedata', xy_cut)
-        #xy_plotdata.set_data('imagedata', imgd[:,:,z])
         xy_plotdata.set_data('cursor_x', np.array((x,)))
         xy_plotdata.set_data('cursor_y', np.array((y,)))
 
         xz_plotdata = ArrayPlotData()
         xz_plotdata.set_data('imagedata', xz_cut)
-        #xz_plotdata.set_data('imagedata', imgd[:,y,:])
         xz_plotdata.set_data('cursor_x', np.array((x,)))
         xz_plotdata.set_data('cursor_z', np.array((z,)))
 
         yz_plotdata = ArrayPlotData()
-        yz_plotdata.set_data('imagedata', yz_cut.T)
-        #yz_plotdata.set_data('imagedata', imgd[x,:,:].T)
+        yz_plotdata.set_data('imagedata', yz_cut)
         yz_plotdata.set_data('cursor_y', np.array((y,)))
         yz_plotdata.set_data('cursor_z', np.array((z,)))
 
-        #self.xy_plane = Plot(ArrayPlotData(imagedata=imgd[:,:,z]))
-        #self.xz_plane = Plot(ArrayPlotData(imagedata=imgd[:,y,:]))
-        #self.yz_plane = Plot(ArrayPlotData(imagedata=imgd[x,:,:].T))
-        self.xy_plane = Plot(xy_plotdata)
-        self.xz_plane = Plot(xz_plotdata)
-        self.yz_plane = Plot(yz_plotdata)
+        self.xy_plane = Plot(xy_plotdata, bgcolor='black',
+            aspect_ratio=xsz/ysz)
+        self.xz_plane = Plot(xz_plotdata, bgcolor='black',
+            aspect_ratio=xsz/zsz)
+        self.yz_plane = Plot(yz_plotdata, bgcolor='black',
+            aspect_ratio=ysz/zsz)
 
         self.xy_plane.img_plot('imagedata',name='',colormap=bone_cmap)
         self.xz_plane.img_plot('imagedata',name='',colormap=bone_cmap)
         self.yz_plane.img_plot('imagedata',name='',colormap=bone_cmap)
 
+        #self.xz_plane.y_mapper.range.high = 512
+
         self.xy_plane.plot(('cursor_x','cursor_y'), type='scatter', 
             color='red', marker='plus', size=3)
         self.xz_plane.plot(('cursor_x','cursor_z'), type='scatter',
             color='red', marker='plus', size=3)
-        self.yz_plane.plot(('cursor_z','cursor_y'), type='scatter',
+        self.yz_plane.plot(('cursor_y','cursor_z'), type='scatter',
             color='red', marker='plus', size=3)
 
         self.xy_plane.tools.append(Click2DPanelTool(self, 'xy'))
@@ -173,11 +185,19 @@ class TwoDimensionalPanel(HasTraits):
 
         self.cursor = x,y,z 
 
+        xy_cut, xz_cut, yz_cut = self.cut_data(self.current_image, self.cursor)
+
         print 'CURSING %s'%str(self.cursor)
 
-        self.xy_plane.data.set_data('imagedata', self.current_image[:,:,z])
-        self.xz_plane.data.set_data('imagedata', self.current_image[:,y,:])
-        self.yz_plane.data.set_data('imagedata', self.current_image[x,:,:].T)
+        self.xy_plane.data.set_data('imagedata', xy_cut)
+        self.xz_plane.data.set_data('imagedata', xz_cut)
+        self.yz_plane.data.set_data('imagedata', yz_cut)
 
         self.xy_plane.data.set_data('cursor_x', np.array((x,)))
         self.xy_plane.data.set_data('cursor_y', np.array((y,)))
+
+        self.xz_plane.data.set_data('cursor_x', np.array((x,)))
+        self.xz_plane.data.set_data('cursor_z', np.array((z,)))
+
+        self.yz_plane.data.set_data('cursor_y', np.array((y,)))
+        self.yz_plane.data.set_data('cursor_z', np.array((z,)))

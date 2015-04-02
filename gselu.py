@@ -96,6 +96,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     alaw = Instance(HasTraits)
     raw = Instance(HasTraits)
     
+    panel2d = Instance(HasTraits)
+    
     #def __grid_named_objects_default(self):
     #    return self._get__grid_named_objects()
 
@@ -1227,7 +1229,7 @@ class InteractivePanel(HasPrivateTraits):
 
     def _visualize_ct_button_fired(self):
         import panel2d
-        pd = panel2d.TwoDimensionalPanel()
+        self.model.panel2d = pd = panel2d.TwoDimensionalPanel()
         pd.load_img(self.ct_scan)
         pd.edit_traits()
 
