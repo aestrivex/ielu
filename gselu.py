@@ -599,7 +599,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
             key = self.interactive_mode.name
             electrodes = self._grids[key]
 
-        return electrodes
+        return sorted(electrodes)
 
     def _get_electrodes_all(self):
         return sorted(filter(lambda e:e.grid_name != 'unsorted', 

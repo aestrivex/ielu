@@ -1,6 +1,7 @@
 from __future__ import division
 import numpy as np
 from numpy.linalg import norm
+import math
 
 ###########################
 # simple geometry functions
@@ -132,6 +133,9 @@ def binarize(W):
     W=W.copy()
     W[W!=0]=1
     return W
+
+def truncate(f, n):
+    return math.floor(f*10**n)/10**n
 
 ##################################################
 # functions to load and apply linear registrations

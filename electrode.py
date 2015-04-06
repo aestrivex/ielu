@@ -52,8 +52,10 @@ class Electrode(HasTraits):
         return self.__str__()
 
     def __cmp__(self, other):
-        assert isinstance(other, Electrode) or other is None
-        return cmp(self.name, other.name)
+        if self.name != '' and other.name != '':
+            return cmp(self.name, other.name)
+        else:
+            return cmp(str(self), str(other))
 
     def astuple(self):
         return nparrayastuple(self.snap_coords)
@@ -110,6 +112,8 @@ class ElectrodeWindow(Handler):
     error_radius = Float(4)
     find_rois_action = Action(name='Estimate ROI contacts',
         action='do_rois')
+    find_all_rois_action = Action(name='Estimate all ROI contacts',
+        action='do_all_rois')
 
     #electrode_factory = Method
 
@@ -447,11 +451,11 @@ class ElectrodeWindow(Handler):
         self.model.save_csv_file_grid(target=self.cur_grid,
             electrodes=self.electrodes)
 
-    def do_rois(self, info):
-        if self.cur_sel.snap_coords is not None:
-            pos = self.cur_sel.snap_coords
+    def _find_surrounding_rois(self, elec):
+        if elec.snap_coords is not None:
+            pos = elec.snap_coords
         else:
-            pos = self.cur_sel.surf_coords
+            pos = elec.surf_coords
 
         import pipeline as pipe
         #TODO incorporate subcortical structures into non-aparc
@@ -464,4 +468,14 @@ class ElectrodeWindow(Handler):
         if len(roi_hits) == 0:
             roi_hits = ['None']
 
-        self.cur_sel.roi_list = roi_hits
+        elec.roi_list = roi_hits
+
+    def do_rois(self, info):
+        self._find_surrounding_rois( self.cur_sel )
+
+    def do_all_rois(self, info):
+        for elec in self.electrodes:
+            try:
+                self._find_surrounding_rois( elec )
+            except:
+                print 'Failed to find ROIs for %s' % str(elec)
