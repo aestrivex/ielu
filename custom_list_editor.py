@@ -192,8 +192,17 @@ class CustomQtListEditorKlass(CustomEditorKlass):
         """
         # Connecting the new button to the mapper
         from pyface.qt import QtCore, QtGui
+        from pyface.qt import qt_api
         from traitsui.qt4.helper import IconButton
-        control = IconButton('list_editor.png', self.mapper.map)
+
+        #control = IconButton('list_editor.png', self.mapper.map)
+        if qt_api == 'pyside':
+            control = IconButton('list_editor.png', self.mapper.map)
+        elif qt_api == 'pyqt':
+            control = IconButton('list_editor.png',
+                lambda : self.popup_empty_menu(
+                    self._list_pane.layout().sender() ))
+
         # Setting the mapping and asking it to send the sender to the
         # callback method
         self.mapper.setMapping(control, control)
@@ -220,6 +229,7 @@ class CustomQtListEditorKlass(CustomEditorKlass):
         """ Displays the empty list editor popup menu.
         """
         from traitsui.qt4.menu import MakeMenu
+        from pyface.qt import QtCore, QtGui
         self._cur_control = control = sender
         menu = MakeMenu( self.empty_list_menu, self, True, control ).menu
         menu.exec_(control.mapToGlobal(QtCore.QPoint(0, 0)))
