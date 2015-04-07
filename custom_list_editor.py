@@ -44,9 +44,6 @@ def qt4_editor_factory(parent, editor, *args, **kwargs):
     layout.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop) 
     layout.setContentsMargins(0, 0, 0, 0)
 
-    import pdb
-    pdb.set_trace()
-
     _editor = editor.factory.editor
     if _editor is None:
         _editor = trait_handler.item_trait.get_editor()
