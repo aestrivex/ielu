@@ -160,6 +160,7 @@ class CustomQtListEditorKlass(CustomEditorKlass):
         externally to the editor.
         """
         # If this is not a simple, single item update, rebuild entire editor:
+        from pyface.qt import QtCore, QtGui
         if (len( event.removed ) != 1) or (len( event.added ) != 1):
             self.update_editor()
             return
@@ -184,12 +185,13 @@ class CustomQtListEditorKlass(CustomEditorKlass):
         self.context_object.on_trait_change( self.update_editor_item,
                                  extended_name + '_items?', remove = True )
 
-        super( SimpleEditor, self ).dispose()
+        super( CustomQtListEditorKlass, self ).dispose()
 
     def empty_list ( self ):
         """ Creates an empty list entry (so the user can add a new item).
         """
         # Connecting the new button to the mapper
+        from pyface.qt import QtCore, QtGui
         from traitsui.qt4.helper import IconButton
         control = IconButton('list_editor.png', self.mapper.map)
         # Setting the mapping and asking it to send the sender to the

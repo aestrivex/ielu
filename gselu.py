@@ -69,6 +69,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
     _visualization_ready = Bool(False)
 
+    _add_annotation_event = Event
+    _add_label_event = Event
+    _remove_labels_event = Event 
+
     _colors = Any # OrderedDict(Grid -> Color)
     _color_scheme = Any #Generator returning 3-tuples
     _grid_geom = Dict # Grid -> Gx2 list
@@ -482,54 +486,6 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 rho_loose=self.rho_loose,
                 rho_strict=self.rho_strict)
 
-    def reconstruct_geometry(self):
-#        self._commit_grid_changes()
-#        key = self.interactive_mode.name
-#
-#        import pipeline as pipe
-#        success, interpolated_points = pipe.classify_single_fixed_grid(key, 
-#            self._grids, self._grid_geom, self._colors,
-#            delta = self.delta,
-#            epsilon = self.epsilon,
-#            rho = self.rho,
-#            rho_loose = self.rho_loose,
-#            rho_strict = self.rho_strict)
-#
-#        print success, 'nimmo'
-#
-#    
-#        #after geom reconstruction the interpolated points need to
-#        #be translated to the surface and *all points* must be
-#        #snapped again
-#        for elec in interpolated_points:
-#            self._grids[key].append(elec)
-#
-#        aff = self.acquire_affine() 
-#
-#        pipe.translate_electrodes_to_surface_space(
-#            self._grids[key], aff, subjects_dir=self.subjects_dir,
-#            subject=self.subject)
-#
-#        # we snapped the grid at this point previously
-#
-#        #at this point its safe to snap only the electrodes that we have
-#        #isolated -- that is, just snap this individual grid only
-#        
-#        #if the individual grid is not snapped alone, we should do that
-#        #even if the user doesnt reconstruct the grid
-#
-#        #add electrode to grid data structures
-#        for elec in interpolated_points:
-#            if self._snapping_completed:
-#                surf_coord = elec.astuple()
-#            else:
-#                surf_coord = elec.asras()
-#            self._ct_to_surf_map[elec.asct()] = surf_coord
-#            self._surf_to_ct_map[surf_coord] = elec.asct()
-#
-#        #do something to update the visualization with the new points
-        self._rebuild_vizpanel_event = True
-
     def snap_all(self):
         self._commit_grid_changes()
 
@@ -690,71 +646,16 @@ class ElectrodePositionsModel(HasPrivateTraits):
     
                 writer.writerow(row)
 
-    def save_label_files(self):
-        self._commit_grid_changes()
+    def add_annotation(self, annot_file):
+        
+        self._add_annotation_event = True
 
-#        if self.interactive_mode is None:
-#            print "select a grid to save labels from"
-#            return
-#        target = self.interactive_mode.name
-#        if target in ('unsorted',):
-#            print "select a grid to save labels from"
-#            return
-#
-#        #if not self._geom_reconstructed:
-#        #    error_dialog('Finish reconstructing geometry first')
-#        #    return
-#
-#        #this is the saving part
-#
-#        from file_dialog import save_in_directory
-#        labeldir = save_in_directory()
-#
-#        if os.path.exists(labeldir) and not os.path.isdir(labeldir):
-#            error_dialog('Cannot write labels to a non-directory')
-#            raise ValueError('Cannot write labels to a non-directory')
-#
-#        # if the empty string is returned, the user cancelled the operation
-#        if labeldir == '':
-#            return
-#
-#        try:
-#            os.makedirs(labeldir)
-#        except OSError:
-#            #potentially handle errno further
-#            pass
-#
-#        from mne.label import Label
-#
-#        #import pdb
-#        #pdb.set_trace()
-#
-#        #only save label files for the current grid
-#        key = self.interactive_mode.name
-#
-#        #for key in self._grids:
-#        for j,elec in enumerate(self._grids[key]):
-#            if elec.name != '':
-#                label_name = elec.name
-#            else:
-#                elec_id = elec.geom_coords
-#                elec_2dcoord = ('unsorted%i'%j if len(elec_id)==0 else
-#                    str(elec_id))
-#                label_name = '%s_elec_%s'%(key, elec_2dcoord)
-#
-#            if self._snapping_completed:
-#                pos = [elec.pial_coords.tolist()]
-#                vertices = [elec.vertno]
-#                hemi = elec.hemi
-#            else:
-#                pos = [tuple(elec.surf_coords)]
-#                vertices = [0]
-#                hemi = 'lh'
-#
-#            label = Label(vertices=vertices, pos=pos, hemi=hemi,
-#                          subject=self.subject,
-#                          name=label_name)
-#            label.save( os.path.join( labeldir, label_name ))
+    def add_label(self, label_file):
+
+        self._add_label_event = True
+
+    def remove_labels(self):
+        self._remove_labels_event
 
 class ParamsPanel(HasTraits):
     model = Instance(ElectrodePositionsModel)
@@ -1064,6 +965,19 @@ class SurfaceVisualizerPanel(HasTraits):
         for glyph in self.gs_glyphs.values():
             set_discrete_lut(glyph, self._colors.values())
 
+    @on_trait_change('model:_add_annotation_event')
+    def add_annotation(self):
+        pass
+        
+    @on_trait_change('model:_add_label_event')
+    def add_label(self):
+        pass
+
+    @on_trait_change('model:_remove_labels_event')
+    def remove_labels(self):
+        self.remove_labels(hemi='lh')
+        self.remove_labels(hemi='rh')
+    
     @on_trait_change('model:_reorient_glyph_event')
     def update_orientation(self):
         #only do this for surface viz, do not adjust CT electrode positions
@@ -1132,7 +1046,6 @@ class InteractivePanel(HasPrivateTraits):
 
     edit_parameters_button = Button('Edit Fitting Parameters')
     
-    reconstruct_geom_button = Button('Reconstruct geometry')
     reconstruct_vizpanel_button = Button('Rebuild viz')
     examine_electrodes_button = Button('Examine electrodes')
     snap_electrodes_button = Button('Snap electrodes')
@@ -1176,7 +1089,6 @@ class InteractivePanel(HasPrivateTraits):
             ),
             VGroup(
                 Item('add_grid_button', show_label=False),
-                #Item('reconstruct_geom_button', show_label=False),
                 Item('reconstruct_vizpanel_button', show_label=False),
             ),
             VGroup(
@@ -1205,7 +1117,6 @@ class InteractivePanel(HasPrivateTraits):
         self.model.fit_changes()
 
     def _save_montage_button_fired(self):
-        #self.model.save_label_files()
         self.model.save_montage_file_all()
 
     def _save_csv_button_fired(self):
@@ -1214,9 +1125,6 @@ class InteractivePanel(HasPrivateTraits):
     def _edit_parameters_button_fired(self):
         ParamsPanel(model=self.model).edit_traits()
 
-    def _reconstruct_geom_button_fired(self):
-        self.model.reconstruct_geometry()
-    
     def _reconstruct_vizpanel_button_fired(self):
         self.model._reconstruct_vizpanel_event = True
 
