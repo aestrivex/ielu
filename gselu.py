@@ -10,6 +10,8 @@ from traitsui.api import (View, Item, Group, OKCancelButtons, ShellEditor,
     Handler, Label, OKCancelButtons)
 from traitsui.message import error as error_dialog
 
+from custom_list_editor import CustomListEditor
+
 from electrode import Electrode
 from utils import virtual_points3d, NameHolder, GeometryNameHolder
 from utils import crash_if_freesurfer_is_not_sourced, gensym
@@ -1150,7 +1152,7 @@ class InteractivePanel(HasPrivateTraits):
                 Item('visualize_ct_button', show_label=False),
             ),
             VGroup(
-                Item('electrode_geometry', editor=ListEditor(
+                Item('electrode_geometry', editor=CustomListEditor(
                     editor=CSVListEditor(), rows=2), ), 
             ), 
             VGroup(

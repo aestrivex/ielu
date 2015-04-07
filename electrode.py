@@ -179,7 +179,7 @@ class ElectrodeWindow(Handler):
         menubar = MenuBar(
             Menu( add_blank_action, label_auto_action,
                 interpolate_action, save_montage_action, save_csv_action,
-                find_rois_action,
+                find_rois_action, find_all_rois_action,
                 name='Operations',
             )
         )
