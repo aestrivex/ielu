@@ -26,15 +26,27 @@ def mayavi2traits_color(mayavi_color):
     '''
     converts a 3-tuple mayavi color with values [0,1] to a 3-tuple RGB
     color with integer values [0, 255]
+
+    does not use QColor objects at all currently
     '''
     return tuple(map(lambda color:int(255*color), mayavi_color))
 
 def traits2mayavi_color(traits_color):
     '''
+    Queries the backend:
+        wx:
     converts a 4-tuple traits color with integer values [0, 255] to a
     3-tuple mayavi color with values [0,1]
+        Qt:
+    converts a 4-tuple traits color with integer values [0, 255] embedded
+    inside a QColor object to a 3-tuple mayavi color with values [0,1]
     '''
-    rgba_col = map(lambda color:color/255, traits_color)
+    from traits.trait_base import ETSConfig
+    _tk = ETSConfig.toolkit
+    if _tk == 'wx':
+        rgba_col = map(lambda color:color/255, traits_color)
+    elif _tk == 'qt4':
+        rgba_col = map(lambda color:color/255, traits_color.getRgb())
     rgb_col = (rgba_col[0], rgba_col[1], rgba_col[2])
     return rgb_col 
 

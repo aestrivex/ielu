@@ -4,7 +4,8 @@ import numpy as np
 from mayavi.core.ui.api import MayaviScene, SceneEditor, MlabSceneModel
 from traits.api import (Bool, Button, cached_property, File, HasTraits,
     Instance, on_trait_change, Str, Property, Directory, Dict, DelegatesTo,
-    HasPrivateTraits, Any, List, Enum, Int, Event, Float, Tuple)
+    HasPrivateTraits, Any, List, Enum, Int, Event, Float, Tuple, Range,
+    Color)
 from traitsui.api import (View, Item, Group, OKCancelButtons, ShellEditor,
     HGroup, VGroup, InstanceEditor, TextEditor, ListEditor, CSVListEditor,
     Handler, Label, OKCancelButtons)
@@ -72,6 +73,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
     _add_annotation_event = Event
     _add_label_event = Event
     _remove_labels_event = Event 
+    _label_file = Str
+    _label_borders = Bool(True)
+    _label_opacity = Range(0., 1., 1.)
+    _label_color = Color
 
     _colors = Any # OrderedDict(Grid -> Color)
     _color_scheme = Any #Generator returning 3-tuples
@@ -98,8 +103,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     deformation_constant = Float(1.)
 
     #state-storing interactive labeling windows
-    mlaw = Instance(HasTraits)
-    alaw = Instance(HasTraits)
+    ew = Instance(HasTraits)
+    alw = Instance(HasTraits)
     raw = Instance(HasTraits)
     
     panel2d = Instance(HasTraits)
@@ -467,12 +472,18 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         #from utils import AutomatedAssignmentWindow
         from electrode import ElectrodeWindow
-        #self.alaw = AutomatedAssignmentWindow(
-        self.alaw = ElectrodeWindow(
+        #self.ew = AutomatedAssignmentWindow(
+        self.ew = ElectrodeWindow(
             model = self,
             cur_grid = cur_grid.name,
             electrodes = self._grids[cur_grid.name])
-        self.alaw.edit_traits()
+        self.ew.edit_traits()
+
+    def open_add_label_window(self):
+        if self.alw is None:
+            from utils import AddLabelsWindow
+            self.alw = AddLabelsWindow(model=self)
+        self.alw.edit_traits()
 
     def reconstruct_all_geometry(self):
         import pipeline as pipe
@@ -646,16 +657,21 @@ class ElectrodePositionsModel(HasPrivateTraits):
     
                 writer.writerow(row)
 
-    def add_annotation(self, annot_file):
-        
+    def add_annotation(self, annot_name, border=True, opacity=1.):
+        self._label_file = annot_name
+        self._label_borders = border
+        self._label_opacity = opacity
         self._add_annotation_event = True
 
-    def add_label(self, label_file):
-
+    def add_label(self, label_file, border=True, opacity=1., color='blue'):
+        self._label_file = label_file
+        self._label_borders = border
+        self._label_opacity = opacity
+        self._label_color = color
         self._add_label_event = True
 
     def remove_labels(self):
-        self._remove_labels_event
+        self._remove_labels_event = True
 
 class ParamsPanel(HasTraits):
     model = Instance(ElectrodePositionsModel)
@@ -967,16 +983,46 @@ class SurfaceVisualizerPanel(HasTraits):
 
     @on_trait_change('model:_add_annotation_event')
     def add_annotation(self):
-        pass
+        if self.visualize_in_ctspace:
+            return
+        
+        if self.brain is None:
+            error_dialog("Run pipeline first")
+            return
+
+        for hemi in ('lh', 'rh'):
+            self.brain.add_annotation(self.model._label_file,
+                borders=self.model._label_borders,
+                alpha=self.model._label_opacity,
+                hemi=hemi)
         
     @on_trait_change('model:_add_label_event')
     def add_label(self):
-        pass
+        if self.visualize_in_ctspace:
+            return
+
+        if self.brain is None:
+            error_dialog('Run pipeline first')
+            return
+
+        import mne
+        from color_utils import traits2mayavi_color
+        self.brain.add_label(self.model._label_file,
+            borders=self.model._label_borders,
+            alpha=self.model._label_opacity,
+            color=traits2mayavi_color(self.model._label_color),
+            hemi=mne.read_label(self.model._label_file).hemi )
 
     @on_trait_change('model:_remove_labels_event')
     def remove_labels(self):
-        self.remove_labels(hemi='lh')
-        self.remove_labels(hemi='rh')
+        if self.visualize_in_ctspace or self.brain is None:
+            return
+
+        self.brain.remove_labels(hemi='lh')
+        self.brain.remove_labels(hemi='rh')
+        for annot in self.brain.annot_list:
+            annot['surface'].remove()
+        self.brain.annot_list=[]
     
     @on_trait_change('model:_reorient_glyph_event')
     def update_orientation(self):
@@ -1039,6 +1085,7 @@ class InteractivePanel(HasPrivateTraits):
     #interactive_mode = Instance(NameHolder)
     interactive_mode = DelegatesTo('model')
     add_grid_button = Button('Add new grid')
+    add_label_button = Button('Add labels')
     shell = Dict
 
     save_montage_button = Button('Save montage')
@@ -1089,7 +1136,8 @@ class InteractivePanel(HasPrivateTraits):
             ),
             VGroup(
                 Item('add_grid_button', show_label=False),
-                Item('reconstruct_vizpanel_button', show_label=False),
+                #Item('reconstruct_vizpanel_button', show_label=False),
+                Item('add_label_button', show_label=False)
             ),
             VGroup(
                 Item('examine_electrodes_button', show_label=False),
@@ -1124,6 +1172,9 @@ class InteractivePanel(HasPrivateTraits):
 
     def _edit_parameters_button_fired(self):
         ParamsPanel(model=self.model).edit_traits()
+
+    def _add_label_button_fired(self):
+        self.model.open_add_label_window()
 
     def _reconstruct_vizpanel_button_fired(self):
         self.model._reconstruct_vizpanel_event = True

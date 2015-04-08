@@ -1,10 +1,11 @@
 import numpy as np
 
 from traits.api import (HasTraits, Str, Color, List, Instance, Int, Method,
-    on_trait_change, Color, Any, Enum, Button, Float)
+    on_trait_change, Color, Any, Enum, Button, Float, File, Bool, Range)
 from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor,
     InstanceEditor, Group, OKCancelButtons, TableEditor, ObjectColumn, 
-    TextEditor, OKButton, CheckListEditor, OKCancelButtons, Label, Action)
+    TextEditor, OKButton, CheckListEditor, OKCancelButtons, Label, Action,
+    VSplit, HSplit, VGroup)
 from traitsui.message import error as error_dialog
 
 from mayavi import mlab
@@ -105,258 +106,56 @@ class GeomGetterWindow(Handler):
         buttons=OKCancelButtons,
     )
 
-class ManualLabelAssignmentWindow(Handler):
-    #model = Instance(ElectrodePositionsModel)
+class AddLabelsWindow(Handler):
     model = Any
-    #we clumsily hold a reference to the model only to fire its events
+    #clumsily old a reference to the model object
 
-    cur_grid = Str
+    annotation = Str
+    label = File
 
-    electrodes = List(Electrode)  
-    cur_sel = Instance(Electrode)
-    selection_callback = Method
-    #selected_ixes = List(Int)
-    #selected_ixes = List
-    selected_ixes = Any
-    swap_action = Action(name='Swap', action='do_swap')
+    add_annot_button = Button('Add annotation')
+    add_label_button = Button('Add label file')
 
-    #selection_color = Color('yellow')
-    previous_sel = Instance(Electrode)
-    previous_color = Int
+    annot_borders = Bool
+    annot_opacity = Range(0., 1., 1.)
+    label_borders = Bool
+    label_opacity = Range(0., 1., 1.)
+    label_color = Color('blue')
 
-    distinct_prev_sel = Instance(Electrode)
+    remove_labels_action = Action(name='Remove all labels', 
+        action='do_remove')
+
+    def _add_annot_button_fired(self):
+        self.model.add_annotation(self.annotation, border=self.annot_borders,
+            opacity=self.annot_opacity)
+         
+    def _add_label_button_fired(self):
+        self.model.add_label(self.label, border=self.label_borders,
+            opacity=self.label_opacity, color=self.label_color)
+
+    def do_remove(self, info):
+        self.model.remove_labels()
 
     traits_view = View(
-        Item('electrodes',
-            editor=TableEditor( columns = 
-                [ObjectColumn(label='electrode',
-                              editor=TextEditor(),
-                              style='readonly',
-                              editable=False,
-                              name='strrepr'),
-
-                 ObjectColumn(label='geometry',
-                              editor=CSVListEditor(),
-                              #editor=TextEditor(),
-                              #style='readonly',
-                              #editable=False,
-                              name='geom_coords'),
-                              
-                 ObjectColumn(label='channel name',
-                              editor=TextEditor(),
-                              name='name'),
-                 ],
-                selected='cur_sel',
-                #selected_indices='selected_ixes',
-                #selection_mode='rows',
-                #selected_rows='selected_ixes',
-                #selected_items='selected_ixes',
-
-                #on_select='selection_callback'),
-                ),
-            show_label=False, height=350, width=450),
-
-        resizable=True, kind='panel', title='assign labels',
-        buttons=[swap_action, OKButton])
-
-    def closed(self, is_ok, info):
-        if self.previous_sel is not None:
-            self.model._new_glyph_color = self.previous_color
-            self.model._single_glyph_to_recolor = self.previous_sel.asct()
-            self.model._update_single_glyph_event = True
-
-    @on_trait_change('cur_sel')
-    def selection_callback(self):
-        #from color_utils import traits2mayavi_color
-
-        if self.cur_sel is None:
-            return
-
-        if self.previous_sel is not None:
-            self.model._new_glyph_color = self.previous_color
-            self.model._single_glyph_to_recolor = self.previous_sel.asct()
-            self.model._update_single_glyph_event = True
-
-        if self.distinct_prev_sel != self.previous_sel:
-            self.distinct_prev_sel = self.previous_sel
-
-        self.previous_sel = self.cur_sel
-        self.previous_color = self.model._colors.keys().index(self.cur_grid)
-
-        selection_color = (self.model._colors.keys().index('selection'))
-
-        self.model._new_glyph_color = selection_color
-        self.model._single_glyph_to_recolor = self.cur_sel.asct()
-        self.model._update_single_glyph_event = True
-
-    def do_swap(self, info):
-        #if not len(self.selected_ixes) == 2:
-        #    return
-        if self.distinct_prev_sel == self.cur_sel:
-            return
-        elif None in (self.distinct_prev_sel, self.cur_sel):
-            return
-
-        #i,j = self.selected_ixes
-        #e1 = self.electrodes[i]
-        #e2 = self.electrodes[j]
-        e1 = self.cur_sel
-        e2 = self.distinct_prev_sel
-
-        geom_swap = e1.geom_coords
-        name_swap = e1.name
-
-        e1.geom_coords = e2.geom_coords
-        e1.name = e2.name
-
-        e2.geom_coords = geom_swap
-        e2.name = name_swap
-
-class AutomatedAssignmentWindow(Handler):
-    model = Any
-    #we clumsily hold a reference to the model only to fire its events
-
-    cur_grid = Str
-    cur_sel = Instance(Electrode)
-    selection_callback = Method
-    
-    naming_convention = Enum('default', 'line')
-    #first_axis = Enum('corner 1/corner 2','corner 1/corner 3')
-    first_axis = Enum('standard','reverse (short side first)')
-    name_stem = Str
-    
-    electrodes = List(Instance(Electrode))
-    c1, c2, c3 = 3*(Instance(Electrode),)
-
-    previous_sel = Instance(Electrode)
-    previous_color = Int
-
-    traits_view = View(
-        Item('electrodes',
-            editor=TableEditor( columns = 
-                [ObjectColumn(label='electrode',
-                              editor=TextEditor(),
-                              style='readonly',
-                              editable=False,
-                              name='strrepr'),
-
-                 ObjectColumn(label='corner',
-                              editor=CheckListEditor(
-                                values=['','corner 1', 'corner 2', 
-                                    'corner 3']),
-                              #style='custom',
-                              style='simple',
-                              name='corner',),
-                 ],
-                selected='cur_sel'),
-            show_label=False, height=350, width=400,),
-        Label('Note in NxN grid, corner1/corner2 axis is standard'),
-        HGroup(
-            Item('naming_convention',), 
-            Item('first_axis',),
+        HSplit(
+        VGroup(
+            Item('annotation'),
+            Item('annot_borders', label='show border only'),
+            Item('annot_opacity', label='opacity'),
+            Item('add_annot_button', show_label=False),
         ),
-        Item('name_stem', label='stem'),
-
-        resizable=True, kind='panel', title='indicate corner electrodes',
-        buttons=OKCancelButtons)
-
-    def closed(self, info, is_ok):
-        #uncolor last selection
-        if self.previous_sel is not None:
-            self.model._new_glyph_color = self.previous_color
-            self.model._single_glyph_to_recolor = self.previous_sel.asct()
-            self.model._update_single_glyph_event = True
-
-        #if the user clicked cancel, do no processing
-        if not is_ok:
-            return
-
-        try:
-
-            #figure out c1, c2, c3
-            c1,c2,c3 = 3*(None,)
-            for e in self.electrodes:
-                if len(e.corner) == 0:
-                    continue
-                elif len(e.corner) > 1:
-                    error_dialog('Too many corners specified for single'
-                        'electrode')
-                    return
-        
-                elif 'corner 1' in e.corner:
-                    c1 = e
-                elif 'corner 2' in e.corner:
-                    c2 = e
-                elif 'corner 3' in e.corner:
-                    c3 = e
-
-            if c1 is None or c2 is None or c3 is None:
-                error_dialog('Not all corners were specified')
-                return
-        
-            cur_geom = self.model._grid_geom[self.cur_grid]
-            if cur_geom=='user-defined' and self.naming_convention != 'line':
-                from color_utils import mayavi2traits_color
-                nameholder = GeometryNameHolder(
-                    geometry=cur_geom,
-                    color=mayavi2traits_color(
-                        self.model._colors[self.cur_grid]))
-                geomgetterwindow = GeomGetterWindow(holder=nameholder)
-
-                if geomgetterwindow.edit_traits().result:
-                    cur_geom = geomgetterwindow.geometry
-                else:
-                    error_dialog("User did not specify any geometry")
-                    return
-
-            import pipeline as pipe
-            if self.naming_convention == 'line':
-                pipe.fit_grid_to_line(self.electrodes, c1.asct(), c2.asct(),
-                    c3.asct(), cur_geom, delta=self.model.delta,
-                    rho_loose=self.model.rho_loose)
-                #do actual labeling
-                for elec in self.model._grids[self.cur_grid]:
-                    _,y = elec.geom_coords
-                    index = y+1
-                    elec.name = '%s%i'%(self.name_stem, index)
-
-            else:
-                pipe.fit_grid_to_plane(self.electrodes, c1.asct(), c2.asct(), 
-                    c3.asct(), cur_geom)
-
-                #do actual labeling
-                for elec in self.model._grids[self.cur_grid]:
-                    x,y = elec.geom_coords
-                    if self.first_axis=='standard':
-                        #index = y*np.max(cur_geom) + x + 1
-                        index = x*np.min(cur_geom) + y + 1
-                    else:
-                        #index = x*np.min(cur_geom) + y + 1
-                        index = y*np.max(cur_geom) + x + 1
-                    
-                    elec.name = '%s%i'%(self.name_stem, index)
-        except Exception as e:
-            print str(e)
-            return
-
-    @on_trait_change('cur_sel')
-    def selection_callback(self):
-        if self.cur_sel is None:
-            return
-
-        if self.previous_sel is not None:
-            self.model._new_glyph_color = self.previous_color
-            self.model._single_glyph_to_recolor = self.previous_sel.asct()
-            self.model._update_single_glyph_event = True
-
-        self.previous_sel = self.cur_sel
-        self.previous_color = self.model._colors.keys().index(self.cur_grid)
-
-        selection_color = (self.model._colors.keys().index('selection'))
-
-        self.model._new_glyph_color = selection_color
-        self.model._single_glyph_to_recolor = self.cur_sel.asct()
-        self.model._update_single_glyph_event = True
+        VGroup(
+            Item('label'),
+            Item('label_borders', label='show_border_only'),
+            Item('label_opacity', label='opacity'),
+            Item('label_color', label='color'),
+            Item('add_label_button', show_label=False),
+        ),
+        ),
+        buttons=[remove_labels_action, OKButton],
+        kind='livemodal',
+        title='Dial 1-800-COLLECT and save a buck or two',
+    )
 
 class RegistrationAdjustmentWindow(Handler):
     model = Any
