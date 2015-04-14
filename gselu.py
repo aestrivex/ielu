@@ -15,8 +15,11 @@ from custom_list_editor import CustomListEditor
 
 from electrode import Electrode
 from utils import (virtual_points3d, NameHolder, GeometryNameHolder,
-    crash_if_freesurfer_is_not_sourced, gensym, get_subjects_dir)
+    crash_if_freesurfer_is_not_sourced, gensym, get_subjects_dir,
+    NameHolderDisplayer)
+from color_utils import mayavi2traits_color
 from geometry import load_affine
+from functools import partial
 
 class ElectrodePositionsModel(HasPrivateTraits):
     ct_scan = File
@@ -36,11 +39,28 @@ class ElectrodePositionsModel(HasPrivateTraits):
     electrode_geometry = List(List(Int), [[8,8]]) # Gx2 list
 
     _electrodes = List(Electrode)
-    interactive_mode = Instance(NameHolder)
-    _grids = Dict # Str -> List(Electrode)
-    _grid_named_objects = Property(depends_on='_grids')
-    #_grid_named_objects = List(NameHolder)
+    #interactive_mode = Instance(NameHolder)
+    interactive_mode = Property
+    def _get_interactive_mode(self):
+        return self.interactive_mode_displayer.interactive_mode
+    def _set_interactive_mode(self, val):
+        self.interactive_mode_displayer.interactive_mode = val
 
+    interactive_mode_displayer = Instance(NameHolderDisplayer, ())
+
+    _grids = Dict # Str -> List(Electrode)
+    #_grid_named_objects = Property(depends_on='_grids')
+    _grid_named_objects = List(NameHolder)
+    
+    #@on_trait_change('_grid_named_objects')
+    #def _update_interactive_mode_displayer(self):
+    #    self.interactive_mode_displayer.name_holders = (
+    #        self._grid_named_objects)
+    #def _update_grid_named_objects_force(self):
+    #    swap = self._grid_named_objects
+    #    self._grid_named_objects = []
+    #    self._grid_named_objects = swap
+        
     _sorted_electrodes = Dict # Tuple -> Electrode
     _interpolated_electrodes = Dict # Tuple -> Electrode
     _unsorted_electrodes = Dict # Tuple -> Electrode
@@ -109,36 +129,93 @@ class ElectrodePositionsModel(HasPrivateTraits):
     
     panel2d = Instance(HasTraits)
     
-    #def __grid_named_objects_default(self):
+    def __grid_named_objects_default(self):
     #    return self._get__grid_named_objects()
-
-    #grid named objects is broken, does not update on reload and does not
-    #fully update on grid adding
-    @cached_property
-    def _get__grid_named_objects(self):
-        from color_utils import mayavi2traits_color
         grid_names = [NameHolder(name=''), 
             GeometryNameHolder(name='unsorted',
                 geometry='n/a',
                 #TODO dont totally hardcode this color
                 color=mayavi2traits_color((1,0,0)))]
 
-        #for key in sorted(self._grids.keys()):
-        #use the canonical order as the order to appear in the list
+        # put additional grids in
         if self._colors is not None:
             for key in self._colors.keys():
                 if key in ('unsorted','selection'):
                     continue
-                grid_names.append(GeometryNameHolder(
-                    name=key, 
-                    geometry=str(self._grid_geom[key]), 
-                    color=mayavi2traits_color(self._colors[key])))
-
-        #if len(self._grids) > 0:
-        #import pdb
-        #pdb.set_trace()
+                grid_names.append( self._new_grid_name_holder(key) )
 
         return grid_names
+
+    def _rebuild_interactive_mode_displayer(self):
+        self.interactive_mode_displayer = NameHolderDisplayer()
+
+        self.interactive_mode_displayer.name_holders = (
+            self.__grid_named_objects_default())
+
+        self.interactive_mode_displayer.interactive_mode = (
+            self.interactive_mode)
+
+        self._rebuild_guipanel_event = True
+
+    #grid named objects is broken, does not update on reload and does not
+    #fully update on grid adding
+    #@cached_property
+#    def _get__grid_named_objects(self):
+#        from color_utils import mayavi2traits_color
+#        grid_names = [NameHolder(name=''), 
+#            GeometryNameHolder(name='unsorted',
+#                geometry='n/a',
+#                #TODO dont totally hardcode this color
+#                color=mayavi2traits_color((1,0,0)))]
+#
+#        #for key in sorted(self._grids.keys()):
+#        #use the canonical order as the order to appear in the list
+#        if self._colors is not None:
+#            for key in self._colors.keys():
+#                if key in ('unsorted','selection'):
+#                    continue
+#                grid_names.append(GeometryNameHolder(
+#                    name=key, 
+#                    geometry=str(self._grid_geom[key]), 
+#                    color=mayavi2traits_color(self._colors[key])))
+#
+#        #if len(self._grids) > 0:
+#        #import pdb
+#        #pdb.set_trace()
+#
+#        return grid_names
+
+    def _new_grid_name_holder(self, key):
+        gnh = GeometryNameHolder(
+            name=key,
+            previous_name=key,
+            geometry=self._grid_geom[key],
+            color=mayavi2traits_color(self._colors[key])) 
+
+        #gnh.on_trait_change(partial(self._change_grid_name, gnh),name='name')
+        gnh.on_trait_change( lambda:self._change_grid_name(gnh), name='name')
+
+        return gnh
+
+    def _change_grid_name(self, holder):
+        old_name = holder.previous_name
+        new_name = holder.name
+
+        self._grids[new_name] = self._grids[old_name]
+        del self._grids[old_name]
+
+        self._colors[new_name] = self._colors[old_name]
+        del self._colors[old_name]
+
+        self._grid_geom[new_name] = self._grid_geom[old_name]
+        del self._grid_geom[old_name]
+
+        self._grid_types[new_name] = self._grid_types[old_name]
+        del self._grid_types[old_name]
+
+        holder.previous_name = new_name
+
+        self._rebuild_interactive_mode_displayer()
 
     def _interactive_mode_changed(self):
         self._commit_grid_changes()
@@ -210,9 +287,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #get rid of any existing grid changes
         self._commit_grid_changes()
         self._grids = {}
+        #self._grid_named_objects = self.__grid_named_objects_default()
+        self.interactive_mode_displayer.name_holders = (
+            self.__grid_named_objects_default())
         
         #self._grid_named_objects = self._get__grid_named_objects()
-        self.interactive_mode = self._grid_named_objects[0]
+        #self.interactive_mode = self._grid_named_objects[0]
+        self.interactive_mode= self.interactive_mode_displayer.name_holders[0]
         #manually handle property
 
 
@@ -329,9 +410,15 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         #manually trigger a change to grid_named_objects property
         #using an unlikely grid name
-        self._grids['test rice-a-roni'] = []
-        del self._grids['test rice-a-roni']
-    
+        #self._grids['test rice-a-roni'] = []
+        #del self._grids['test rice-a-roni']
+
+        #manually add the new grids to grid_named_objects
+        for key in self._grids:
+            #self._grid_named_objects.append( self._new_grid_name_holder(key))
+            self.interactive_mode_displayer.name_holders.append(
+                self._new_grid_name_holder(key))
+
         #fire visualization events
         self._visualization_ready = True
         self._rebuild_vizpanel_event = True
@@ -358,7 +445,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         self._grids[name] = []
         #self._grid_named_objects = self._get__grid_named_objects()
-        self.interactive_mode = self._grid_named_objects[0]
+        #self.interactive_mode = self._grid_named_objects[0]
+        #self._grid_named_objects.append( self._new_grid_name_holder( name ))
+        self.interactive_mode_displayer.name_holders.append(
+            self._new_grid_name_holder(name))
         
         self._update_glyph_lut_event = True
         self._update_guipanel_event = True
@@ -476,6 +566,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self.ew = ElectrodeWindow(
             model = self,
             cur_grid = cur_grid.name,
+            name_stem = cur_grid.name,
             electrodes = self._grids[cur_grid.name])
         self.ew.edit_traits()
 
@@ -485,17 +576,17 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self.alw = AddLabelsWindow(model=self)
         self.alw.edit_traits()
 
-    def reconstruct_all_geometry(self):
-        import pipeline as pipe
-
-        for key in self._grids:
-            pipe.classify_single_fixed_grid(key, self._grids, self._grid_geom,
-                self._colors, 
-                delta=self.delta, 
-                epsilon=self.epsilon,
-                rho=self.rho, 
-                rho_loose=self.rho_loose,
-                rho_strict=self.rho_strict)
+#    def reconstruct_all_geometry(self):
+#        import pipeline as pipe
+#
+#        for key in self._grids:
+#            pipe.classify_single_fixed_grid(key, self._grids, self._grid_geom,
+#                self._colors, 
+#                delta=self.delta, 
+#                epsilon=self.epsilon,
+#                rho=self.rho, 
+#                rho_loose=self.rho_loose,
+#                rho_strict=self.rho_strict)
 
     def snap_all(self):
         self._commit_grid_changes()
@@ -1091,10 +1182,12 @@ class InteractivePanel(HasPrivateTraits):
 
     electrode_geometry = DelegatesTo('model')
 
-    _grid_named_objects = DelegatesTo('model')
+    #_grid_named_objects = DelegatesTo('model')
 
     #interactive_mode = Instance(NameHolder)
-    interactive_mode = DelegatesTo('model')
+    #interactive_mode = DelegatesTo('model')
+    interactive_mode_displayer = DelegatesTo('model')
+
     add_grid_button = Button('Add new grid')
     add_label_button = Button('Add labels')
     shell = Dict
@@ -1141,9 +1234,12 @@ class InteractivePanel(HasPrivateTraits):
         ),
         HGroup(
             VGroup(
-                Item('interactive_mode', 
-                    editor=InstanceEditor(name='_grid_named_objects'),
-                    style='custom', label='Edit electrodes\nfrom grid'),
+                #Item('interactive_mode', 
+                #    editor=InstanceEditor(name='_grid_named_objects'),
+                #    style='custom', label='Edit electrodes\nfrom grid'),
+                Item('interactive_mode_displayer',
+                    editor=InstanceEditor(), style='custom',
+                    label='Edit electrodes\nfrom grid'),
             ),
             VGroup(
                 Item('add_grid_button', show_label=False),
@@ -1174,7 +1270,7 @@ class InteractivePanel(HasPrivateTraits):
 
     def _find_best_fit_button_fired(self):
         self.model.fit_changes()
-
+#
     def _save_montage_button_fired(self):
         self.model.save_montage_file_all()
 

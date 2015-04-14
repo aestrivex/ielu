@@ -85,8 +85,11 @@ class NameHolder(HasTraits):
 class GeometryNameHolder(NameHolder):
     geometry = Str
     color = Color
+    previous_name = Str
     traits_view = View( 
         HGroup(
+            Item('name', show_label=False, 
+                editor=TextEditor(auto_set=False, enter_set=True), ),
             Item('geometry', style='readonly'),
             Item('color', style='readonly'),
         ),
@@ -112,6 +115,15 @@ class GeomGetterWindow(Handler):
         title='Specify geometry',
         kind='livemodal',
         buttons=OKCancelButtons,
+    )
+
+class NameHolderDisplayer(Handler):
+    name_holders = List(Instance(NameHolder))
+    interactive_mode = Instance(NameHolder)
+
+    traits_view = View(
+        Item('interactive_mode', editor=InstanceEditor(name='name_holders'),
+            style='custom', show_label=False),
     )
 
 class AddLabelsWindow(Handler):
