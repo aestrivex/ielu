@@ -3,7 +3,7 @@ from __future__ import division
 import numpy as np
 
 from traits.api import (HasTraits, List, Instance, Any, Enum, Tuple, Float,
-    Property, Bool, on_trait_change)
+    Property, Bool, on_trait_change, Dict)
 from traitsui.api import (View, Item, HGroup, VGroup, Group, NullEditor,
     InstanceEditor, CSVListEditor)
 
@@ -17,6 +17,16 @@ from chaco.tools.api import SelectTool
 import nibabel as nib
 
 from geometry import truncate, apply_affine, get_vox2rasxfm
+
+reorient_orig2std_mat = np.array(((1, 0, 0, 0),
+                                  (0, 0, -1, -12.225153),
+                                  (0, 1, 0, -3.16071),
+                                  (0, 0, 0, 1)))
+
+reorient_orig2std_tkr_mat = np.array(((1, 0, 0, 0),
+                                      (0, 0, -1, 0),
+                                      (0, 1, 0, 0),
+                                      (0, 0, 0, 1)))
 
 class Click2DPanelTool(SelectTool):
     
@@ -91,17 +101,19 @@ class InfoPanel(HasTraits):
 
     traits_view = View(
         VGroup(
-            Item(name='cursor_csvlist', style='text',
+            Item(name='cursor_csvlist', style='text', label='cursor',
                 editor=CSVListEditor(enter_set=True, auto_set=False)),
-            Item(name='cursor_ras_csvlist', style='text',
+            Item(name='cursor_ras_csvlist', style='text', label='cursor RAS',
                 editor=CSVListEditor(enter_set=True, auto_set=False)),
-            Item(name='cursor_tkr_csvlist', style='text',
+            Item(name='cursor_tkr_csvlist', style='text', label='cursor tkr',
                 editor=CSVListEditor(enter_set=True, auto_set=False)),
-            Item(name='cursor_intensity', style='readonly'),
-            Item(name='mouse', style='readonly'),
-            Item(name='mouse_ras', style='readonly'),
-            Item(name='mouse_tkr', style='readonly'),
-            Item(name='mouse_intensity', style='readonly'),
+            Item(name='cursor_intensity', style='readonly',
+                label='cursor intensity'),
+            Item(name='mouse', style='readonly', label='mouse'),
+            Item(name='mouse_ras', style='readonly', label='mouse RAS'),
+            Item(name='mouse_tkr', style='readonly', label='mouse tkr'),
+            Item(name='mouse_intensity', style='readonly',
+                label='mouse intensity'),
         ),
         title='ilumbumbargu',
     )
@@ -120,7 +132,7 @@ class InfoPanel(HasTraits):
         self.cursor_tkr_csvlist = list(newval)
 
 class TwoDimensionalPanel(HasTraits):
-    images = List
+    images = Dict # Str -> Tuple(imgd, affine, tkr_affine)
 
     current_image = Any # np.ndarray XxYxZ
     current_affine = Any
@@ -178,13 +190,17 @@ class TwoDimensionalPanel(HasTraits):
         xy_cut = data[:,:,zm].T
         return xy_cut, xz_cut, yz_cut
 
-    def load_img(self, imgf):
+    def load_img(self, imgf, reorient2std=False, image_name=None):
         self._finished_plotting = False
 
         img = nib.load(imgf)
 
-        self.current_affine = aff = img.get_affine()
-        self.current_tkr_affine = get_vox2rasxfm(imgf, stem='vox2ras-tkr')
+        self.current_affine = aff = np.dot(
+            reorient_orig2std_mat if reorient2std else np.eye(4),
+            img.get_affine())
+        self.current_tkr_affine = tkr_aff = np.dot(
+            reorient_orig2std_tkr_mat if reorient2std else np.eye(4),
+            get_vox2rasxfm(imgf, stem='vox2ras-tkr'))
 
         from nilearn.image.resampling import reorder_img
 
@@ -192,13 +208,21 @@ class TwoDimensionalPanel(HasTraits):
 
         xsz, ysz, zsz = img.shape
 
-        print 'image coordinate transform', img.get_affine()
+        #print 'image coordinate transform', img.get_affine()
 
         imgd = img.get_data()
+        if reorient2std:
+            imgd = np.swapaxes(imgd, 1, 2)[:,:,::-1]
+
         print 'image size', imgd.shape
 
-        self.images.append(imgd)
         self.current_image = imgd
+
+        if image_name is None:
+            from utils import gensym
+            image_name = 'image%s'%gensym()
+
+        self.images[image_name] = (imgd, aff, tkr_aff)
 
         self.cursor = x,y,z = tuple(np.array(imgd.shape) // 2)
 
@@ -228,18 +252,18 @@ class TwoDimensionalPanel(HasTraits):
         self.yz_plane = Plot(yz_plotdata, bgcolor='black',
             aspect_ratio=ysz/zsz)
 
-        self.xy_plane.img_plot('imagedata',name='',colormap=bone_cmap)
-        self.xz_plane.img_plot('imagedata',name='',colormap=bone_cmap)
-        self.yz_plane.img_plot('imagedata',name='',colormap=bone_cmap)
+        self.xy_plane.img_plot('imagedata',name='brain',colormap=bone_cmap)
+        self.xz_plane.img_plot('imagedata',name='brain',colormap=bone_cmap)
+        self.yz_plane.img_plot('imagedata',name='brain',colormap=bone_cmap)
 
         #self.xz_plane.y_mapper.range.high = 512
 
         self.xy_plane.plot(('cursor_x','cursor_y'), type='scatter', 
-            color='red', marker='plus', size=3)
+            color='red', marker='plus', size=3, name='cursor')
         self.xz_plane.plot(('cursor_x','cursor_z'), type='scatter',
-            color='red', marker='plus', size=3)
+            color='red', marker='plus', size=3, name='cursor')
         self.yz_plane.plot(('cursor_y','cursor_z'), type='scatter',
-            color='red', marker='plus', size=3)
+            color='red', marker='plus', size=3, name='cursor')
 
         self.xy_plane.tools.append(Click2DPanelTool(self, 'xy'))
         self.xz_plane.tools.append(Click2DPanelTool(self, 'xz'))
@@ -257,6 +281,16 @@ class TwoDimensionalPanel(HasTraits):
         self.info_panel.cursor_intensity = self.current_image[x,y,z]
 
         self._finished_plotting = True
+
+    def switch_image(self, image_name, xyz=None):
+        self.current_image, self.current_affine, self.current_tkr_affine = (
+            self.images[image_name])
+
+        if xyz is None:
+            xyz = tuple(np.array(self.current_image.shape) // 2)
+        x,y,z = xyz
+
+        self.move_cursor(x,y,z)
 
     def cursor_outside_image_dimensions(self, cursor, image=None):
         if image is None:
@@ -314,6 +348,41 @@ class TwoDimensionalPanel(HasTraits):
             self.info_panel.cursor_tkr = self.map_cursor(self.cursor,
                 self.current_tkr_affine)
         self.info_panel.cursor_intensity = truncate(self.current_image[x,y,z],3)
+
+    def drop_pin(self, x, y, z, name='pin', color='yellow'):
+        pin = (x,y,z)
+        cx, cy, cz = self.cursor
+
+        self.xy_plane.data.set_data('%s_x'%name, 
+            np.array((x,) if z==cz else ()))
+        self.xy_plane.data.set_data('%s_y'%name, 
+            np.array((y,) if z==cz else ()))
+        
+        self.xz_plane.data.set_data('%s_x'%name, 
+            np.array((x,) if y==cy else ()))
+        self.xz_plane.data.set_data('%s_z'%name, 
+            np.array((z,) if y==cy else ()))
+    
+        #currently the pin doesn't show up at all because the electrode
+        #doesn't match the immediate starting coordinates
+
+        #move_cursor also needs to check to enable pins, maybe there is a
+        #simpler way of doing it
+
+        #i think we should hold off on finishing this for at least a week 
+        #or two
+        self.yz_plane.data.set_data('%s_y'%name, 
+            np.array((y,) if x==cx else ()))
+        self.yz_plane.data.set_data('%s_z'%name, 
+            np.array((z,) if x==cx else ()))
+
+        if name not in self.xy_plane.plots:
+            self.xy_plane.plot(('%s_x'%name,'%s_y'%name), type='scatter', 
+                color=color, marker='dot', size=4, name=name)
+            self.xz_plane.plot(('%s_x'%name,'%s_z'%name), type='scatter',
+                color=color, marker='dot', size=4, name=name)
+            self.yz_plane.plot(('%s_y'%name,'%s_z'%name), type='scatter',
+                color=color, marker='dot', size=4, name=name)
 
     def move_mouse(self, x, y, z):
         mouse = (x,y,z)

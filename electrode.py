@@ -110,10 +110,21 @@ class ElectrodeWindow(Handler):
 
     parcellation = Str
     error_radius = Float(4)
-    find_rois_action = Action(name='Estimate ROI contacts',
+    find_rois_action = Action(name='Estimate single ROI contacts',
         action='do_rois')
     find_all_rois_action = Action(name='Estimate all ROI contacts',
         action='do_all_rois')
+
+    manual_reposition_action = Action(name='Manually modify electrode '
+        'position', action='do_manual_reposition')
+
+    img_dpi = Float(125.)
+    img_size = List(Float)
+    save_coronal_slice_action = Action(name='Save coronal slice',
+        action='do_coronal_slice')
+
+    def _img_size_default(self):
+        return [450., 450.]
 
     #electrode_factory = Method
 
@@ -169,19 +180,28 @@ class ElectrodeWindow(Handler):
                 Item('parcellation'),
                 Item('error_radius'),
             ),
+            VGroup(
+                Label('Image parameters' ),
+                Item('img_dpi', label='dpi'),
+                Item('img_size', label='size', editor=CSVListEditor()),
+            ),
         ),
 
         resizable=True, kind='panel', title='modify electrodes',
         #buttons=[OKButton, swap_action, label_auto_action,
         #    interpolate_action, save_montage_action, find_rois_action]) 
 
-        buttons = [swap_action, OKButton],
+        buttons = [label_auto_action, swap_action, OKButton],
         menubar = MenuBar(
-            Menu( add_blank_action, label_auto_action,
-                interpolate_action, save_montage_action, save_csv_action,
-                find_rois_action, find_all_rois_action,
+            Menu( label_auto_action, add_blank_action,
+                interpolate_action, find_rois_action, find_all_rois_action,
+                manual_reposition_action,
                 name='Operations',
-            )
+            ),
+            Menu( save_montage_action, save_csv_action,
+                save_coronal_slice_action,
+                name='Save Output',
+            ),
         )
     )
 
@@ -479,3 +499,38 @@ class ElectrodeWindow(Handler):
                 self._find_surrounding_rois( elec )
             except:
                 print 'Failed to find ROIs for %s' % str(elec)
+
+    def do_coronal_slice(self, info):
+        savefile = self.model._ask_user_for_savefile()
+
+        elecs_have_geom = True
+        for elec in self.electrodes:
+            if len(elec.geom_coords) != 2:
+                elecs_have_geom = False
+                break
+
+        # we assume that we are only looking at depth leads with appropriate
+        # 1xN geometry
+        if elecs_have_geom:
+            start = reduce( 
+                lambda x,y:x if x.geom_coords[1]<y.geom_coords[1] else y,
+                self.electrodes)
+            end = reduce(
+                lambda x,y:x if x.geom_coords[1]>y.geom_coords[1] else y,
+                self.electrodes)
+        else:
+            start, end = (None, None)
+
+        from plotting_utils import coronal_slice
+        coronal_slice(self.electrodes, start=start, end=end, outfile=savefile,
+            subjects_dir=self.model.subjects_dir, subject=self.model.subject,
+            dpi=self.img_dpi, size=tuple(self.img_size))
+
+    def do_manual_reposition(self, info):
+        pd = self.model.construct_panel2d()
+        import panel2d
+
+        x,y,z = self.cur_sel.asras()
+        pd.drop_pin(x,y,z)
+
+        pd.edit_traits()

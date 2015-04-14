@@ -1,5 +1,5 @@
 import numpy as np
-
+import os
 from traits.api import (HasTraits, Str, Color, List, Instance, Int, Method,
     on_trait_change, Color, Any, Enum, Button, Float, File, Bool, Range)
 from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor,
@@ -44,6 +44,14 @@ def clear_scene(scene):
     pass
 
     #mlab.clf(figure=scene)
+
+def get_subjects_dir(subject=None, subjects_dir=None):
+    if subjects_dir is None or subjects_dir=='':
+        subjects_dir = os.environ['SUBJECTS_DIR']
+    if subject is None or subject=='':
+        subject = os.environ['SUBJECT']
+
+    return os.path.join(subjects_dir, subject)
 
 def _count():
     i=0
@@ -157,143 +165,143 @@ class AddLabelsWindow(Handler):
         title='Dial 1-800-COLLECT and save a buck or two',
     )
 
-class RegistrationAdjustmentWindow(Handler):
-    model = Any
-    #we clumsily hold a reference to the model only to fire its events
-
-    cur_grid = Str
-
-    x_d = Button('-x')
-    x_i = Button('+x')
-    xval = Float(0.)
-    y_d = Button('-y')
-    y_i = Button('+y')
-    yval = Float(0.)
-    z_d = Button('-z')
-    z_i = Button('+z')
-    zval = Float(0.)
-
-    pitch_d = Button('pitch-')
-    pitch_i = Button('pitch+')
-    pitchval = Float(0.)
-    roll_d = Button('roll-')
-    roll_i = Button('roll+')
-    rollval = Float(0.)
-    yaw_d = Button('yaw-')
-    yaw_i = Button('yaw+')
-    yawval = Float(0.)
-
-    reset_button = Button('Reset')
-
-    cos5 = Float(np.cos(np.pi/36))
-    sin5 = Float(np.sin(np.pi/36))
-
-    traits_view = View(
-        Group(
-        HGroup(
-            Item('x_d'),
-            Item('xval'),
-            Item('x_i'),
-        show_labels=False),
-        HGroup(
-            Item('y_d'),
-            Item('yval'),
-            Item('y_i'),
-        show_labels=False),
-        HGroup(
-            Item('z_d'),
-            Item('zval'),
-            Item('z_i'),
-        show_labels=False),
-        HGroup(
-            Item('pitch_d'),
-            Item('pitchval'),
-            Item('pitch_i'),
-        show_labels=False),
-        HGroup(
-            Item('roll_d'),
-            Item('rollval'),
-            Item('roll_i'),
-        show_labels=False),
-        HGroup(
-            Item('yaw_d'),
-            Item('yawval'),
-            Item('yaw_i'),
-        show_labels=False),
-        Item('reset_button', show_label=False)
-        ), 
-    )
-
-    def _rot_matrix(self, axis, neg=False, deg=2):
-        cval = np.cos( deg*np.pi/180 )
-        sval = -np.sin( deg*np.pi/180 ) if neg else np.sin( deg*np.pi/180 )
-
-        if axis == 'x':
-            mat = np.array(( (1, 0, 0, 0),
-                             (0, cval, -sval, 0),
-                             (0, sval, cval, 0),
-                             (0, 0, 0, 1), ))
-        elif axis == 'y':
-            mat = np.array(( (cval, 0, sval, 0),
-                             (0, 1, 0, 0),
-                             (-sval, 0, cval, 0),
-                             (0, 0, 0, 1), ))
-        elif axis == 'z':
-            mat = np.array(( (cval, -sval, 0, 0),
-                             (sval, cval, 0, 0),
-                             (0, 0, 1, 0),
-                             (0, 0, 0, 1), ))
-        else:
-            return np.eye(4)
-
-        return mat
-
-    def _trans_matrix(self, axis, neg=False, dist=.5):
-        mat = np.eye(4)
-
-        if neg:
-            dist *= -1
-
-        if axis=='x': mat[0,3]=dist
-        elif axis=='y': mat[1,3]=dist
-        elif axis=='z': mat[2,3]=dist
-
-        return mat
-
-    def _x_d_fired(self):
-        self.model.reorient_glyph(self.cur_grid, 
-            self._trans_matrix('x', neg=True))
-    def _x_i_fired(self):
-        self.model.reorient_glyph(self.cur_grid, 
-            self._trans_matrix('x', neg=False))
-    def _y_d_fired(self):
-        self.model.reorient_glyph(self.cur_grid, 
-            self._trans_matrix('y', neg=True))
-    def _y_i_fired(self):
-        self.model.reorient_glyph(self.cur_grid, 
-            self._trans_matrix('y', neg=False))
-    def _z_d_fired(self):
-        self.model.reorient_glyph(self.cur_grid, 
-            self._trans_matrix('z', neg=True))
-    def _z_i_fired(self):
-        self.model.reorient_glyph(self.cur_grid, 
-            self._trans_matrix('z', neg=False))
-
-    def _roll_d_fired(self):
-        self.model.reorient_glyph(self.cur_grid, 
-            self._rot_matrix('x', neg=True) )
-    def _roll_i_fired(self):
-        self.model.reorient_glyph(self.cur_grid, 
-            self._rot_matrix('x', neg=False) )
-    def _pitch_d_fired(self):
-        self.model.reorient_glyph(self.cur_grid, 
-            self._rot_matrix('y', neg=True) )
-    def _pitch_i_fired(self):
-        self.model.reorient_glyph(self.cur_grid, 
-            self._rot_matrix('y', neg=False) )
-    def _yaw_d_fired(self):
-        self.model.reorient_glyph(self.cur_grid, 
-            self._rot_matrix('z', neg=True) )
-    def _yaw_i_fired(self):
-        self.model.reorient_glyph(self.cur_grid, 
-            self._rot_matrix('z', neg=False) )
+#class RegistrationAdjustmentWindow(Handler):
+#    model = Any
+#    #we clumsily hold a reference to the model only to fire its events
+#
+#    cur_grid = Str
+#
+#    x_d = Button('-x')
+#    x_i = Button('+x')
+#    xval = Float(0.)
+#    y_d = Button('-y')
+#    y_i = Button('+y')
+#    yval = Float(0.)
+#    z_d = Button('-z')
+#    z_i = Button('+z')
+#    zval = Float(0.)
+#
+#    pitch_d = Button('pitch-')
+#    pitch_i = Button('pitch+')
+#    pitchval = Float(0.)
+#    roll_d = Button('roll-')
+#    roll_i = Button('roll+')
+#    rollval = Float(0.)
+#    yaw_d = Button('yaw-')
+#    yaw_i = Button('yaw+')
+#    yawval = Float(0.)
+#
+#    reset_button = Button('Reset')
+#
+#    cos5 = Float(np.cos(np.pi/36))
+#    sin5 = Float(np.sin(np.pi/36))
+#
+#    traits_view = View(
+#        Group(
+#        HGroup(
+#            Item('x_d'),
+#            Item('xval'),
+#            Item('x_i'),
+#        show_labels=False),
+#        HGroup(
+#            Item('y_d'),
+#            Item('yval'),
+#            Item('y_i'),
+#        show_labels=False),
+#        HGroup(
+#            Item('z_d'),
+#            Item('zval'),
+#            Item('z_i'),
+#        show_labels=False),
+#        HGroup(
+#            Item('pitch_d'),
+#            Item('pitchval'),
+#            Item('pitch_i'),
+#        show_labels=False),
+#        HGroup(
+#            Item('roll_d'),
+#            Item('rollval'),
+#            Item('roll_i'),
+#        show_labels=False),
+#        HGroup(
+#            Item('yaw_d'),
+#            Item('yawval'),
+#            Item('yaw_i'),
+#        show_labels=False),
+#        Item('reset_button', show_label=False)
+#        ), 
+#    )
+#
+#    def _rot_matrix(self, axis, neg=False, deg=2):
+#        cval = np.cos( deg*np.pi/180 )
+#        sval = -np.sin( deg*np.pi/180 ) if neg else np.sin( deg*np.pi/180 )
+#
+#        if axis == 'x':
+#            mat = np.array(( (1, 0, 0, 0),
+#                             (0, cval, -sval, 0),
+#                             (0, sval, cval, 0),
+#                             (0, 0, 0, 1), ))
+#        elif axis == 'y':
+#            mat = np.array(( (cval, 0, sval, 0),
+#                             (0, 1, 0, 0),
+#                             (-sval, 0, cval, 0),
+#                             (0, 0, 0, 1), ))
+#        elif axis == 'z':
+#            mat = np.array(( (cval, -sval, 0, 0),
+#                             (sval, cval, 0, 0),
+#                             (0, 0, 1, 0),
+#                             (0, 0, 0, 1), ))
+#        else:
+#            return np.eye(4)
+#
+#        return mat
+#
+#    def _trans_matrix(self, axis, neg=False, dist=.5):
+#        mat = np.eye(4)
+#
+#        if neg:
+#            dist *= -1
+#
+#        if axis=='x': mat[0,3]=dist
+#        elif axis=='y': mat[1,3]=dist
+#        elif axis=='z': mat[2,3]=dist
+#
+#        return mat
+#
+#    def _x_d_fired(self):
+#        self.model.reorient_glyph(self.cur_grid, 
+#            self._trans_matrix('x', neg=True))
+#    def _x_i_fired(self):
+#        self.model.reorient_glyph(self.cur_grid, 
+#            self._trans_matrix('x', neg=False))
+#    def _y_d_fired(self):
+#        self.model.reorient_glyph(self.cur_grid, 
+#            self._trans_matrix('y', neg=True))
+#    def _y_i_fired(self):
+#        self.model.reorient_glyph(self.cur_grid, 
+#            self._trans_matrix('y', neg=False))
+#    def _z_d_fired(self):
+#        self.model.reorient_glyph(self.cur_grid, 
+#            self._trans_matrix('z', neg=True))
+#    def _z_i_fired(self):
+#        self.model.reorient_glyph(self.cur_grid, 
+#            self._trans_matrix('z', neg=False))
+#
+#    def _roll_d_fired(self):
+#        self.model.reorient_glyph(self.cur_grid, 
+#            self._rot_matrix('x', neg=True) )
+#    def _roll_i_fired(self):
+#        self.model.reorient_glyph(self.cur_grid, 
+#            self._rot_matrix('x', neg=False) )
+#    def _pitch_d_fired(self):
+#        self.model.reorient_glyph(self.cur_grid, 
+#            self._rot_matrix('y', neg=True) )
+#    def _pitch_i_fired(self):
+#        self.model.reorient_glyph(self.cur_grid, 
+#            self._rot_matrix('y', neg=False) )
+#    def _yaw_d_fired(self):
+#        self.model.reorient_glyph(self.cur_grid, 
+#            self._rot_matrix('z', neg=True) )
+#    def _yaw_i_fired(self):
+#        self.model.reorient_glyph(self.cur_grid, 
+#            self._rot_matrix('z', neg=False) )

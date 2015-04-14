@@ -14,8 +14,8 @@ from traitsui.message import error as error_dialog
 from custom_list_editor import CustomListEditor
 
 from electrode import Electrode
-from utils import virtual_points3d, NameHolder, GeometryNameHolder
-from utils import crash_if_freesurfer_is_not_sourced, gensym
+from utils import (virtual_points3d, NameHolder, GeometryNameHolder,
+    crash_if_freesurfer_is_not_sourced, gensym, get_subjects_dir)
 from geometry import load_affine
 
 class ElectrodePositionsModel(HasPrivateTraits):
@@ -537,6 +537,16 @@ class ElectrodePositionsModel(HasPrivateTraits):
         # we can update the visualization now
         self._rebuild_vizpanel_event = True
     
+    def construct_panel2d(self):
+        if self.panel2d is None:
+            import panel2d
+            self.panel2d = pd = panel2d.TwoDimensionalPanel()
+            pd.load_img(self.ct_scan, image_name='ct')    
+            pd.load_img(os.path.join(get_subjects_dir(subject=self.subject,
+                subjects_dir=self.subjects_dir), 'mri', 'orig.mgz'), 
+                image_name='t1')
+        return self.panel2d
+
     def _ask_user_for_savefile(self):
         #from traitsui.file_dialog import save_file
         from pyface.api import FileDialog, OK
@@ -672,6 +682,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
     def remove_labels(self):
         self._remove_labels_event = True
+
 
 class ParamsPanel(HasTraits):
     model = Instance(ElectrodePositionsModel)
@@ -1188,11 +1199,11 @@ class InteractivePanel(HasPrivateTraits):
     def _adjust_registration_button_fired(self):
         self.model.open_registration_window()
 
-    def _visualize_ct_button_fired(self):
-        import panel2d
-        self.model.panel2d = pd = panel2d.TwoDimensionalPanel()
-        pd.load_img(self.ct_scan)
-        pd.edit_traits()
+    #def _visualize_ct_button_fired(self):
+    #    import panel2d
+    #    self.model.panel2d = pd = panel2d.TwoDimensionalPanel()
+    #    pd.load_img(self.ct_scan)
+    #    pd.edit_traits()
 
 class iEEGCoregistrationFrame(HasTraits):
     model = Instance(ElectrodePositionsModel)
