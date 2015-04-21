@@ -202,7 +202,7 @@ class TwoDimensionalPanel(HasTraits):
             reorient_orig2std_tkr_mat if reorient2std else np.eye(4),
             get_vox2rasxfm(imgf, stem='vox2ras-tkr'))
 
-        from nilearn.image.resampling import reorder_img
+        #from nilearn.image.resampling import reorder_img
 
         #img = reorder_img(uimg, resample='continuous')
 
