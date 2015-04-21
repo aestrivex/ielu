@@ -39,14 +39,14 @@ class ElectrodePositionsModel(HasPrivateTraits):
     electrode_geometry = List(List(Int), [[8,8]]) # Gx2 list
 
     _electrodes = List(Electrode)
-    #interactive_mode = Instance(NameHolder)
-    interactive_mode = Property
-    def _get_interactive_mode(self):
-        return self.interactive_mode_displayer.interactive_mode
-    def _set_interactive_mode(self, val):
-        self.interactive_mode_displayer.interactive_mode = val
+    interactive_mode = Instance(NameHolder)
+    #interactive_mode = Property
+    #def _get_interactive_mode(self):
+    #    return self.interactive_mode_displayer.interactive_mode
+    #def _set_interactive_mode(self, val):
+    #    self.interactive_mode_displayer.interactive_mode = val
 
-    interactive_mode_displayer = Instance(NameHolderDisplayer, ())
+    #interactive_mode_displayer = Instance(NameHolderDisplayer, ())
 
     _grids = Dict # Str -> List(Electrode)
     #_grid_named_objects = Property(depends_on='_grids')
@@ -147,13 +147,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
         return grid_names
 
     def _rebuild_interactive_mode_displayer(self):
-        self.interactive_mode_displayer = NameHolderDisplayer()
-
-        self.interactive_mode_displayer.name_holders = (
-            self.__grid_named_objects_default())
-
-        self.interactive_mode_displayer.interactive_mode = (
-            self.interactive_mode)
+#        self.interactive_mode_displayer = NameHolderDisplayer()
+#
+#        self.interactive_mode_displayer.name_holders = (
+#            self.__grid_named_objects_default())
+#
+#        self.interactive_mode_displayer.interactive_mode = (
+#            self.interactive_mode)
 
         self._rebuild_guipanel_event = True
 
@@ -198,19 +198,20 @@ class ElectrodePositionsModel(HasPrivateTraits):
         return gnh
 
     def _change_grid_name(self, holder):
+        import copy
         old_name = holder.previous_name
         new_name = holder.name
 
-        self._grids[new_name] = self._grids[old_name]
+        self._grids[new_name] = copy.copy(self._grids[old_name])
         del self._grids[old_name]
 
-        self._colors[new_name] = self._colors[old_name]
+        self._colors[new_name] = copy.copy(self._colors[old_name])
         del self._colors[old_name]
 
-        self._grid_geom[new_name] = self._grid_geom[old_name]
+        self._grid_geom[new_name] = copy.copy(self._grid_geom[old_name])
         del self._grid_geom[old_name]
 
-        self._grid_types[new_name] = self._grid_types[old_name]
+        self._grid_types[new_name] = copy.copy(self._grid_types[old_name])
         del self._grid_types[old_name]
 
         holder.previous_name = new_name
@@ -287,13 +288,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #get rid of any existing grid changes
         self._commit_grid_changes()
         self._grids = {}
-        #self._grid_named_objects = self.__grid_named_objects_default()
-        self.interactive_mode_displayer.name_holders = (
-            self.__grid_named_objects_default())
+        self._grid_named_objects = self.__grid_named_objects_default()
+        #self.interactive_mode_displayer.name_holders = (
+        #    self.__grid_named_objects_default())
         
         #self._grid_named_objects = self._get__grid_named_objects()
-        #self.interactive_mode = self._grid_named_objects[0]
-        self.interactive_mode= self.interactive_mode_displayer.name_holders[0]
+        self.interactive_mode = self._grid_named_objects[0]
+        #self.interactive_mode= self.interactive_mode_displayer.name_holders[0]
         #manually handle property
 
 
@@ -415,9 +416,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         #manually add the new grids to grid_named_objects
         for key in self._grids:
-            #self._grid_named_objects.append( self._new_grid_name_holder(key))
-            self.interactive_mode_displayer.name_holders.append(
-                self._new_grid_name_holder(key))
+            self._grid_named_objects.append( self._new_grid_name_holder(key))
+            #self.interactive_mode_displayer.name_holders.append(
+            #    self._new_grid_name_holder(key))
 
         #fire visualization events
         self._visualization_ready = True
@@ -446,9 +447,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._grids[name] = []
         #self._grid_named_objects = self._get__grid_named_objects()
         #self.interactive_mode = self._grid_named_objects[0]
-        #self._grid_named_objects.append( self._new_grid_name_holder( name ))
-        self.interactive_mode_displayer.name_holders.append(
-            self._new_grid_name_holder(name))
+        self._grid_named_objects.append( self._new_grid_name_holder( name ))
+        #self.interactive_mode_displayer.name_holders.append(
+        #    self._new_grid_name_holder(name))
         
         self._update_glyph_lut_event = True
         self._update_guipanel_event = True
@@ -1182,11 +1183,11 @@ class InteractivePanel(HasPrivateTraits):
 
     electrode_geometry = DelegatesTo('model')
 
-    #_grid_named_objects = DelegatesTo('model')
+    _grid_named_objects = DelegatesTo('model')
 
     #interactive_mode = Instance(NameHolder)
-    #interactive_mode = DelegatesTo('model')
-    interactive_mode_displayer = DelegatesTo('model')
+    interactive_mode = DelegatesTo('model')
+    #interactive_mode_displayer = DelegatesTo('model')
 
     add_grid_button = Button('Add new grid')
     add_label_button = Button('Add labels')
@@ -1234,12 +1235,12 @@ class InteractivePanel(HasPrivateTraits):
         ),
         HGroup(
             VGroup(
-                #Item('interactive_mode', 
-                #    editor=InstanceEditor(name='_grid_named_objects'),
-                #    style='custom', label='Edit electrodes\nfrom grid'),
-                Item('interactive_mode_displayer',
-                    editor=InstanceEditor(), style='custom',
-                    label='Edit electrodes\nfrom grid'),
+                Item('interactive_mode', 
+                    editor=InstanceEditor(name='_grid_named_objects'),
+                    style='custom', label='Edit electrodes\nfrom grid'),
+                #Item('interactive_mode_displayer',
+                #    editor=InstanceEditor(), style='custom',
+                #    label='Edit electrodes\nfrom grid'),
             ),
             VGroup(
                 Item('add_grid_button', show_label=False),
