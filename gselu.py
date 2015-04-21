@@ -214,6 +214,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._grid_types[new_name] = copy.copy(self._grid_types[old_name])
         del self._grid_types[old_name]
 
+        for electrode in self._grids[new_name]:
+            electrode.grid_name = new_name
+
         holder.previous_name = new_name
 
         self._rebuild_interactive_mode_displayer()
