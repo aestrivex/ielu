@@ -132,4 +132,4 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
     #pl.show()
 
     if outfile is not None:
-        pl.savefig(outfile)
+        pl.savefig(outfile, dpi=dpi)
