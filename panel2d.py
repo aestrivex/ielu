@@ -18,15 +18,29 @@ import nibabel as nib
 
 from geometry import truncate, apply_affine, get_vox2rasxfm
 
-reorient_orig2std_mat = np.array(((1, 0, 0, 0),
-                                  (0, 0, -1, -12.225153),
-                                  (0, 1, 0, -3.16071),
-                                  (0, 0, 0, 1)))
-
 reorient_orig2std_tkr_mat = np.array(((1, 0, 0, 0),
                                       (0, 0, -1, 0),
                                       (0, 1, 0, 0),
                                       (0, 0, 0, 1)))
+
+ras2mni_mat = np.array(((1, 0, 0, 128),
+                        (0, 0, -1, 128),
+                        (0, 1, 0, 128),
+                        (0, 0, 0, 1)))
+
+def get_orig2std(orig):
+    '''
+    Given an orig file, get the transformation from the orig to ras2mni.
+    '''
+    vox2ras = get_vox2rasxfm(orig)
+    bx, by, bz = vox2ras[0:3,3]
+
+    reorient_orig2std_mat = np.array(((1, 0, 0, bx-128),
+                                      (0, 0, -1, by+128), 
+                                      (0, 1, 0, bz-128),
+                                      (0, 0, 0, 1)))
+
+    return reorient_orig2std_mat
 
 class Click2DPanelTool(SelectTool):
     
@@ -196,7 +210,7 @@ class TwoDimensionalPanel(HasTraits):
         img = nib.load(imgf)
 
         self.current_affine = aff = np.dot(
-            reorient_orig2std_mat if reorient2std else np.eye(4),
+            get_orig2std(imgf) if reorient2std else np.eye(4),
             img.get_affine())
         self.current_tkr_affine = tkr_aff = np.dot(
             reorient_orig2std_tkr_mat if reorient2std else np.eye(4),

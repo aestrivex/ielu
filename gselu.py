@@ -189,7 +189,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         gnh = GeometryNameHolder(
             name=key,
             previous_name=key,
-            geometry=self._grid_geom[key],
+            geometry=str(self._grid_geom[key]),
             color=mayavi2traits_color(self._colors[key])) 
 
         #gnh.on_trait_change(partial(self._change_grid_name, gnh),name='name')

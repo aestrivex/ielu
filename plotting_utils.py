@@ -64,16 +64,20 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
     #midy = (starty+endy)/2
     #pd.move_cursor(128, midy, 128)
 
-    electrodes = np.array([pd.map_cursor(e.asras(), pd.current_affine, 
+    x_size, y_size, z_size = pd.current_image.shape
+
+    aff = pd.current_affine.copy()
+    aff[0:3,3] = (x_size / 2, y_size / 2, z_size/ 2)
+
+    electrodes = np.array([pd.map_cursor(e.asras(), aff,
         invert=True) for e in elecs])
 
     if start is not None and end is not None:
-        start_coord = pd.map_cursor( start.asras(), pd.current_affine, 
+        start_coord = pd.map_cursor( start.asras(), aff,
             invert=True)
-        end_coord = pd.map_cursor( end.asras(), pd.current_affine, 
+        end_coord = pd.map_cursor( end.asras(), aff,
             invert=True )
         
-        x_size, _, z_size = pd.current_image.shape
         slice = np.zeros((z_size, x_size))
         
         m = (start_coord[1]-end_coord[1])/(start_coord[0]-end_coord[0])
