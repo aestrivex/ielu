@@ -6,9 +6,12 @@ import nibabel as nib
 from traits.api import HasTraits, Float, Int, Tuple
 from traitsui.api import View, Item, CSVListEditor
 
+from geometry import get_vox2rasxfm, apply_affine
+
 def coronal_slice(elecs, start=None, end=None, outfile=None, 
     subjects_dir=None,
-    subject=None, reorient2std=True, dpi=150, size=(200,200)): 
+    subject=None, reorient2std=True, dpi=150, size=(200,200),
+    title=None): 
     '''
     create an image of a coronal slice which serves as a guesstimate of a
     depth lead inserted laterally and nonvaryingly in the Y axis
@@ -40,6 +43,8 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
         Dots per inch of output image
     size : Tuple
         Specify a 2-tuple to control the image size, default is (200,200)
+    title : Str
+        Specify a matplotlib title
     '''
     print 'creating coronal slice with start electrodes %s' % str(start)
 
@@ -50,75 +55,81 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
 
     orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
 
-    import panel2d
-    pd = panel2d.TwoDimensionalPanel()
-    pd.load_img(orig, reorient2std=reorient2std)
+    x_size, y_size, z_size = nib.load(orig).shape
 
-    #identify coronal slice positions -- 
-        #stupid version - use middle slice
-        #smart version bit later -- replicate cash lab procedure to
-            #create slice along coordinate frame of lead geometry
+    vox2ras = get_vox2rasxfm(orig, stem='vox2ras')
+    ras2vox = np.linalg.inv(vox2ras)
+
+    ras2vox[0:3,3] = (x_size/2, y_size/2, z_size/2)
+
+    rd, = np.where(np.abs(ras2vox[:,0]) == np.max(np.abs(ras2vox[:,0])))
+    ad, = np.where(np.abs(ras2vox[:,1]) == np.max(np.abs(ras2vox[:,1])))
+    sd, = np.where(np.abs(ras2vox[:,2]) == np.max(np.abs(ras2vox[:,2])))
+
+    r_size = [x_size, y_size, z_size][rd]
+    a_size = [x_size, y_size, z_size][ad]
+    s_size = [x_size, y_size, z_size][sd]
 
     #starty = pd.map_cursor( start.asras(), pd.current_affine, invert=True)[1]
     #endy = pd.map_cursor( end.asras(), pd.current_affine, invert=True )[1]
     #midy = (starty+endy)/2
     #pd.move_cursor(128, midy, 128)
 
-    x_size, y_size, z_size = pd.current_image.shape
+    electrodes = np.squeeze([apply_affine([e.asras()], ras2vox) 
+        for e in elecs])
+    #electrodes = np.array([pd.map_cursor(e.asras(), ras2vox,
+    #    invert=True) for e in elecs])
 
-    aff = pd.current_affine.copy()
-    aff[0:3,3] = (x_size / 2, y_size / 2, z_size/ 2)
-
-    electrodes = np.array([pd.map_cursor(e.asras(), aff,
-        invert=True) for e in elecs])
-
+    vol = np.transpose( nib.load(orig).get_data(), (rd, ad, sd) )
+    
     if start is not None and end is not None:
-        start_coord = pd.map_cursor( start.asras(), aff,
-            invert=True)
-        end_coord = pd.map_cursor( end.asras(), aff,
-            invert=True )
-        
-        slice = np.zeros((z_size, x_size))
-        
-        m = (start_coord[1]-end_coord[1])/(start_coord[0]-end_coord[0])
-        b = start_coord[1]-m*start_coord[0]
+        start_coord = np.squeeze(apply_affine([start.asras()], ras2vox))
+        end_coord = np.squeeze(apply_affine([end.asras()], ras2vox))
 
-        rnew = np.arange(x_size)
+        #start_coord = pd.map_cursor( start.asras(), ras2vox,
+        #    invert=True)
+        #end_coord = pd.map_cursor( end.asras(), ras2vox,
+        #    invert=True )
+        
+        slice = np.zeros((s_size, r_size))
+        
+        m = (start_coord[ad]-end_coord[ad])/(start_coord[rd]-end_coord[rd])
+        b = start_coord[ad]-m*start_coord[rd]
+
+        rnew = np.arange(r_size)
         anew = m*rnew+b
         alower = np.floor(anew)
         afrac = np.mod(anew, 1)
 
-        vol = pd.current_image
         for rvox in rnew:
             slice[:, rvox] = (vol[rvox, alower[rvox], :] * 
-                (1-afrac[rvox])+vol[rvox, alower[rvox], :] *
+                (1-afrac[rvox])+vol[rvox, alower[rvox]+1, :] *
                 afrac[rvox])
+
     else:
-        slice_nr = np.mean(electrodes[:,1])
-        slice = pd.current_image[:, slice_nr, :].T
+        slice_nr = np.mean(electrodes[:,ad])
+        slice = vol[:, slice_nr, :].T
     
-    pd.xz_plane.data.set_data('imagedata', slice)
+    vox2pix = np.zeros((2,4))
+    vox2pix[0, rd] = 1
+    vox2pix[1, sd] = 1
+    ras2pix = np.dot(vox2pix, ras2vox)
 
-    #determine electrode positions
-    #electrodes = np.random.random((8,2))*150+50
-
+    pix = np.dot(ras2pix, 
+        np.transpose([np.append(e.asras(), 1) for e in elecs]))
 
     #add data to coronal plane
-    pd.xz_plane.data.set_data('electrodes_x', electrodes[:,0])
-    pd.xz_plane.data.set_data('electrodes_z', electrodes[:,2])
+    import pylab as pl
 
-    pd.xz_plane.plot(('electrodes_x','electrodes_z'), type='scatter',
-        color='red', marker='dot', size=8, name='electrodes')
+    pl.imshow(slice, cmap='gray')
+    pl.scatter(pix[0,:], pix[1,:], s=10, c='red', edgecolor='yellow',
+        linewidths=0.4)
 
-    pd.xz_plane.delplot('cursor')
-    #pd.edit_traits()
+    if title is not None:
+        pl.title(title)
+
+    pl.axis('off')
+    #pl.show()
 
     if outfile is not None:
-        from chaco.api import PlotGraphicsContext
-        pd.xz_plane.do_layout(force=True)
-        pd.xz_plane.outer_bounds = size
-        gc = PlotGraphicsContext(size, dpi=dpi)
-        gc.render_component(pd.xz_plane)
-        gc.save(outfile)
-
-    return pd
+        pl.savefig(outfile)

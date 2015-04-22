@@ -524,7 +524,7 @@ class ElectrodeWindow(Handler):
         from plotting_utils import coronal_slice
         coronal_slice(self.electrodes, start=start, end=end, outfile=savefile,
             subjects_dir=self.model.subjects_dir, subject=self.model.subject,
-            dpi=self.img_dpi, size=tuple(self.img_size))
+            dpi=self.img_dpi, size=tuple(self.img_size), title=self.name_stem)
 
     def do_manual_reposition(self, info):
         pd = self.model.construct_panel2d()
