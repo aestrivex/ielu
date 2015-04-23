@@ -214,8 +214,18 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._grids[new_name] = copy.copy(self._grids[old_name])
         del self._grids[old_name]
 
-        self._colors[new_name] = copy.copy(self._colors[old_name])
-        del self._colors[old_name]
+        #make sure colors as ordereddict stays in correct order
+        #otherwise visualizations will get confused
+        from collections import OrderedDict
+
+        colors_index = self._colors.keys().index(old_name)
+        new_colors_dict = OrderedDict()
+        for i, (key, value) in enumerate(self._colors):
+            if i == colors_index:
+                new_colors_dict[new_name] = value
+            else:
+                new_colors_dict[key] = value
+        self._colors = new_colors_dict 
 
         self._grid_geom[new_name] = copy.copy(self._grid_geom[old_name])
         del self._grid_geom[old_name]
