@@ -228,6 +228,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         holder.previous_name = new_name
 
+        self._update_glyph_lut_event = True
+
         self._rebuild_interactive_mode_displayer()
 
     def _interactive_mode_changed(self):
@@ -557,7 +559,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #maybe this should be a different call which evaluates a single
         #grid
 
-        #currently we dont use this
+        #ceurrently we dont use this
         _, _, self._grids = pipe.classify_electrodes(
             self._electrodes, self.electrode_geometry,
             fixed_points=self._grids.values())
@@ -1062,6 +1064,9 @@ class SurfaceVisualizerPanel(HasTraits):
     
     @on_trait_change('model:_update_single_glyph_event')
     def update_single_glyph(self):
+
+        #to be safe
+        #self.update_glyph_lut()
 
         if len(self.gs_glyphs)==0:
             #this callback is still hooked to the SurfaceVisualizerPanel 
