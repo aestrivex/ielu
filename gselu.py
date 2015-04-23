@@ -220,11 +220,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         colors_index = self._colors.keys().index(old_name)
         new_colors_dict = OrderedDict()
-        for i, (key, value) in enumerate(self._colors):
+        for i, key in enumerate(self._colors):
             if i == colors_index:
-                new_colors_dict[new_name] = value
+                new_colors_dict[new_name] = self._colors[key]
             else:
-                new_colors_dict[key] = value
+                new_colors_dict[key] = self._colors[key]
         self._colors = new_colors_dict 
 
         self._grid_geom[new_name] = copy.copy(self._grid_geom[old_name])
@@ -238,7 +238,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         holder.previous_name = new_name
 
-        self._update_glyph_lut_event = True
+        #self._update_glyph_lut_event = True
 
         self._rebuild_interactive_mode_displayer()
 
