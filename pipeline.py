@@ -341,7 +341,7 @@ def classify_electrodes(electrodes, known_geometry,
     found_grids = {}
     grid_colors = OrderedDict()
     grid_colors['unsorted'] = (1,0,0)
-    grid_colors['selection'] = (1,1,0)
+    grid_colors['selection'] = (1,1,1)
     grid_geom = {}
     used_points = []
 
