@@ -198,9 +198,18 @@ class ElectrodePositionsModel(HasPrivateTraits):
         return gnh
 
     def _change_grid_name(self, holder):
+        self._commit_grid_changes()
+
         import copy
         old_name = holder.previous_name
         new_name = holder.name
+
+        if old_name == new_name:
+            return
+
+        if new_name in self._grids:
+            error_dialog('That name already exists. Pick a different one')  
+            return
 
         self._grids[new_name] = copy.copy(self._grids[old_name])
         del self._grids[old_name]
