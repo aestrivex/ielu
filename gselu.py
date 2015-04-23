@@ -211,6 +211,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
             error_dialog('That name already exists. Pick a different one')  
             return
 
+        if new_name == '':
+            error_dialog('Please specify a non-empty name')
+
         self._grids[new_name] = copy.copy(self._grids[old_name])
         del self._grids[old_name]
 
