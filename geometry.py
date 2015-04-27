@@ -158,8 +158,8 @@ def get_lta(lta):
 def get_vox2rasxfm(volume, stem='vox2ras'):
     import subprocess
 
-    ps = subprocess.Popen('mri_info --%s %s'%(stem, volume), 
-        shell=True, stdout=subprocess.PIPE)
+    ps = subprocess.Popen(['mri_info','--%s'%stem,volume], 
+        stdout=subprocess.PIPE)
 
     vox2ras = np.zeros((4,4))
 
