@@ -268,20 +268,23 @@ def identify_extracranial_electrodes_in_freesurfer_space(electrodes,
     maski = nib.load(brain)
     maskd = maski.get_data()
 
-    from PyQt4.QtCore import pyqtRemoveInputHook
-    import pdb
-    pyqtRemoveInputHook()
-    pdb.set_trace()
+    #from PyQt4.QtCore import pyqtRemoveInputHook
+    #import pdb
+    #pyqtRemoveInputHook()
+    #pdb.set_trace()
 
     maskd = np.around(maskd) #eliminate noise, what noise? do it anyway
     maskd = ndimage.binary_dilation(maskd, iterations=dilation_iterations)
 
     removals = []
 
+    mask_aff = maski.get_affine()
+
     for e in electrodes:
         #find nearest voxel in voxel space
-        nearest_voxel = 
-        if maskd[e.asras()] == 0:
+        voxel, = geo.apply_affine([e.asras()], np.linalg.inv(mask_aff))
+        nx, ny, nz = map(int, (np.around(voxel)))
+        if maskd[nx,ny,nz] == 0:
             removals.append(e)
 
     return removals

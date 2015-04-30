@@ -106,7 +106,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     ct_registration = File
 
     ct_threshold = Float(2500.)
-    dilation_iterations = Int(5)
+    dilation_iterations = Int(25)
 
     delta = Float(0.5)
     epsilon = Float(10.)
