@@ -240,6 +240,52 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
     return [Electrode(ct_coords=cluster.center_of_mass()) 
             for cluster in electrode_clusters]
 
+def identify_extracranial_electrodes_in_freesurfer_space(electrodes, 
+    dilation_iterations=5, subjects_dir=None, subject=None):
+    '''
+    Identify the electrodes, following translation to MR space, which fall
+    outside of the brain with default dilation parameters
+
+    Parameters
+    ----------
+    electrodes : List(Electrode)
+        A list of electrodes to either exclude or not
+    dilation_iterations : int
+        The number of iterations to dilate the brain mask. Default value 5
+
+    Returns
+    -------
+    removals : List(Electrode)
+        A list of electrodes not inside the mask
+    '''
+    if subjects_dir is None or subjects_dir=='':
+        subjects_dir = os.environ['SUBJECTS_DIR']
+    if subject is None or subject=='':
+        subject = os.environ['SUBJECT']
+
+    from scipy import ndimage
+    brain = os.path.join(subjects_dir, subject, 'mri', 'brain.mgz')
+    maski = nib.load(brain)
+    maskd = maski.get_data()
+
+    from PyQt4.QtCore import pyqtRemoveInputHook
+    import pdb
+    pyqtRemoveInputHook()
+    pdb.set_trace()
+
+    maskd = np.around(maskd) #eliminate noise, what noise? do it anyway
+    maskd = ndimage.binary_dilation(maskd, iterations=dilation_iterations)
+
+    removals = []
+
+    for e in electrodes:
+        #find nearest voxel in voxel space
+        nearest_voxel = 
+        if maskd[e.asras()] == 0:
+            removals.append(e)
+
+    return removals
+
 def classify_electrodes(electrodes, known_geometry,
     delta=.35, rho=35, rho_strict=20, rho_loose=50, color_scheme=None,
     epsilon=10, mindist=0, maxdist=36):

@@ -106,6 +106,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     ct_registration = File
 
     ct_threshold = Float(2500.)
+    dilation_iterations = Int(5)
+
     delta = Float(0.5)
     epsilon = Float(10.)
     rho = Float(35.)
@@ -340,10 +342,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #pipeline
         import pipeline as pipe
         
-        #adjust the brainmask creation to use the existing affine if provided,
-        #requires us to be "clever" and create an LTA for that
-        #TODO
-        if self.use_ct_mask:
+        #if self.use_ct_mask:
+        if False:
             ct_mask = pipe.create_brainmask_in_ctspace(self.ct_scan,
                 subjects_dir=self.subjects_dir, subject=self.subject,
                 overwrite=self.overwrite_xfms)
@@ -360,6 +360,21 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         pipe.create_dural_surface(subjects_dir=self.subjects_dir, 
             subject=self.subject)
+
+        # make the electrodes translated way outside of the brain go away
+        # and not be included in the classification at all
+        pipe.translate_electrodes_to_surface_space(
+            self._electrodes, aff, subjects_dir=self.subjects_dir,
+            subject=self.subject)
+
+        if self.use_ct_mask:
+            print 'eliminating extracranial noise'
+            removals=pipe.identify_extracranial_electrodes_in_freesurfer_space(
+                self._electrodes, dilation_iterations=self.dilation_iterations,
+                subjects_dir=self.subjects_dir, subject=self.subject)
+
+            for e in removals:
+                self._electrodes.remove(e)
 
         #initial sorting
         #self._grids, self._colors = pipe.classify_electrodes(
@@ -388,10 +403,19 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 if elec.is_interpolation:
                     self._electrodes.append(elec)
 
+        # translate any new electrodes to surface space as well
         pipe.translate_electrodes_to_surface_space(
             self._electrodes, aff, subjects_dir=self.subjects_dir,
             subject=self.subject)
 
+        # make the electrodes translated way outside of the brain go away
+        if ct_mask:
+            removals = pipe.identify_extracranial_electrodes_in_freesurfer_space(
+                self._electrodes)
+
+            for e in removals:
+                self._electrods.remove(e)
+            
         # previously we snapped here
 
         # Store the sorted/interpolated points in separate maps for access
@@ -826,6 +850,7 @@ class ParamsPanel(HasTraits):
     registration_procedure = DelegatesTo('model')
     shapereg_slice_diff = DelegatesTo('model')
     zoom_factor_override = DelegatesTo('model')
+    dilation_iterations = DelegatesTo('model')
 
     traits_view = View(
         Group(
@@ -840,9 +865,12 @@ class ParamsPanel(HasTraits):
             Label('Weight given to the deformation term in the snapping\n'
                 'algorithm, reduce if snapping error is very high.'),
             Item('deformation_constant'),
-            Label('Try to extract the brain from the CT image and mask\n'
-                'extracranial noise -- can take several minutes'),
-            Item('use_ct_mask'),
+            Label('Mask extracranial noise'),
+            HGroup(
+                Item('use_ct_mask', show_label=False),
+                Item('dilation_iterations', show_label=True, 
+                    label='iterations', enabled_when='use_ct_mask'),
+            ),
             Label('Overwrite existing transformations'),
             Item('overwrite_xfms'),
             Label('Disable binary erosion procedure to reduce CT noise'),
