@@ -66,9 +66,6 @@ class Electrode(HasTraits):
     def asct(self):
         return tuple(self.ct_coords)
 
-def electrode_factory():
-    return Electrode(special_name='Electrode for linear interpolation',
-        is_interpolation=True)
 
 def nparrayastuple(nparray):
     nparray = np.array(nparray)
@@ -127,6 +124,10 @@ class ElectrodeWindow(Handler):
         return [450., 450.]
 
     #electrode_factory = Method
+    def electrode_factory(self):
+        return Electrode(special_name='Electrode for linear interpolation',
+            grid_name=self.cur_grid,
+            is_interpolation=True)
 
     traits_view = View(
         Item('electrodes',
@@ -162,7 +163,7 @@ class ElectrodeWindow(Handler):
                  ],
                 selected='cur_sel',
                 deletable=True,
-                row_factory=electrode_factory,
+                #row_factory=electrode_factory,
                 ),
             show_label=False, height=350, width=700),
 
@@ -246,9 +247,9 @@ class ElectrodeWindow(Handler):
         self.model._grid_types[self.cur_grid] = self.grid_type
 
     def do_add_blank(self, info):
-        e = electrode_factory()
+        e = self.electrode_factory()
         e.grid_name = self.cur_grid
-        self.electrodes.append(electrode_factory())
+        self.electrodes.append(e)
 
     def do_swap(self, info):
         #if not len(self.selected_ixes) == 2:

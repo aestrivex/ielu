@@ -3,9 +3,9 @@ from __future__ import division
 import numpy as np
 
 from traits.api import (HasTraits, List, Instance, Any, Enum, Tuple, Float,
-    Property, Bool, on_trait_change, Dict)
+    Property, Bool, on_trait_change, Dict, DelegatesTo)
 from traitsui.api import (View, Item, HGroup, VGroup, Group, NullEditor,
-    InstanceEditor, CSVListEditor)
+    InstanceEditor, CSVListEditor, Spring)
 
 from enable.component_editor import ComponentEditor
 from chaco.api import Plot, ArrayPlotData
@@ -113,6 +113,8 @@ class InfoPanel(HasTraits):
     cursor_ras_csvlist = List(Float)
     cursor_tkr_csvlist = List(Float)
 
+    pin_tolerance = Float(7.5)
+
     traits_view = View(
         VGroup(
             Item(name='cursor_csvlist', style='text', label='cursor',
@@ -128,6 +130,8 @@ class InfoPanel(HasTraits):
             Item(name='mouse_tkr', style='readonly', label='mouse tkr'),
             Item(name='mouse_intensity', style='readonly',
                 label='mouse intensity'),
+            Spring(),
+            Item('pin_tolerance'),
         ),
         title='ilumbumbargu',
     )
@@ -156,6 +160,9 @@ class TwoDimensionalPanel(HasTraits):
     xz_plane = Instance(Plot)
     yz_plane = Instance(Plot)
     
+    pins = Dict # Str -> 3-Tuple
+    pin_tolerance = DelegatesTo('info_panel')
+
     info_panel = Instance(InfoPanel, ())
 
     #later we will rename cursor to "coord"
@@ -363,19 +370,29 @@ class TwoDimensionalPanel(HasTraits):
                 self.current_tkr_affine)
         self.info_panel.cursor_intensity = truncate(self.current_image[x,y,z],3)
 
-    def drop_pin(self, x, y, z, name='pin', color='yellow'):
+        for pin in self.pins:
+            px, py, pz = self.pins[pin]
+            self.drop_pin(px,py,pz, name=pin, tolerance=self.pin_tolerance)
+            #self.draw_pin(pin)
+
+    def redraw(self):
+        self.xz_plane.request_redraw()
+        self.yz_plane.request_redraw()
+        self.xy_plane.request_redraw()
+
+    def drop_pin(self, x, y, z, name='pin', color='yellow', tolerance=0.75):
         pin = (x,y,z)
         cx, cy, cz = self.cursor
 
         self.xy_plane.data.set_data('%s_x'%name, 
-            np.array((x,) if z==cz else ()))
+            np.array((x,) if np.abs(z - cz) < tolerance else ()))
         self.xy_plane.data.set_data('%s_y'%name, 
-            np.array((y,) if z==cz else ()))
+            np.array((y,) if np.abs(z - cz) < tolerance else ()))
         
         self.xz_plane.data.set_data('%s_x'%name, 
-            np.array((x,) if y==cy else ()))
+            np.array((x,) if np.abs(y - cy) < tolerance else ()))
         self.xz_plane.data.set_data('%s_z'%name, 
-            np.array((z,) if y==cy else ()))
+            np.array((z,) if np.abs(y - cy) < tolerance else ()))
     
         #currently the pin doesn't show up at all because the electrode
         #doesn't match the immediate starting coordinates
@@ -386,17 +403,41 @@ class TwoDimensionalPanel(HasTraits):
         #i think we should hold off on finishing this for at least a week 
         #or two
         self.yz_plane.data.set_data('%s_y'%name, 
-            np.array((y,) if x==cx else ()))
+            np.array((y,) if np.abs(x - cx) < tolerance else ()))
         self.yz_plane.data.set_data('%s_z'%name, 
-            np.array((z,) if x==cx else ()))
+            np.array((z,) if np.abs(x - cx) < tolerance else ()))
 
-        if name not in self.xy_plane.plots:
+        #if name not in self.xy_plane.plots:
+        if name not in self.pins:
             self.xy_plane.plot(('%s_x'%name,'%s_y'%name), type='scatter', 
                 color=color, marker='dot', size=4, name=name)
             self.xz_plane.plot(('%s_x'%name,'%s_z'%name), type='scatter',
                 color=color, marker='dot', size=4, name=name)
             self.yz_plane.plot(('%s_y'%name,'%s_z'%name), type='scatter',
                 color=color, marker='dot', size=4, name=name)
+
+            self.redraw()
+
+        self.pins[name] = (x,y,z)
+
+#    def draw_pin(self, name, tolerance=0.75):
+#        x, y, z = self.pins[name]
+#        cx, cy, cz = self.cursor
+#
+#        self.xy_plane.data.set_data('%s_x'%name, 
+#            np.array((x,) if np.abs(z - cz) < tolerance else ()))
+#        self.xy_plane.data.set_data('%s_y'%name, 
+#            np.array((y,) if np.abs(z - cz) < tolerance else ()))
+#        
+#        self.xz_plane.data.set_data('%s_x'%name, 
+#            np.array((x,) if np.abs(y - cy) < tolerance else ()))
+#        self.xz_plane.data.set_data('%s_z'%name, 
+#            np.array((z,) if np.abs(y - cy) < tolerance else ()))
+#
+#        self.yz_plane.data.set_data('%s_y'%name, 
+#            np.array((y,) if np.abs(x - cx) < tolerance else ()))
+#        self.yz_plane.data.set_data('%s_z'%name, 
+#            np.array((z,) if np.abs(x - cx) < tolerance else ()))
 
     def move_mouse(self, x, y, z):
         mouse = (x,y,z)

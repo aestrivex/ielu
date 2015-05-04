@@ -98,6 +98,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
     _label_opacity = Range(0., 1., 1.)
     _label_color = Color
 
+    _hide_noise_event = Event
+    _noise_hidden = Bool(False)
+
     _colors = Any # OrderedDict(Grid -> Color)
     _color_scheme = Any #Generator returning 3-tuples
     _grid_geom = Dict # Grid -> Gx2 list
@@ -540,6 +543,18 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         self._single_glyph_to_recolor = xyz
         self._update_single_glyph_event = True
+
+    def hide_noise(self):
+        self._commit_grid_changes()
+
+        if self._noise_hidden:
+            self._update_glyph_lut_event = True
+            self._noise_hidden = False
+        else:
+            self._hide_noise_event = True
+            self._noise_hidden = True
+
+        self._draw_event = True
 
     def open_registration_window(self):
         cur_grid = self.interactive_mode
@@ -1136,11 +1151,22 @@ class SurfaceVisualizerPanel(HasTraits):
 
         mlab.draw(figure=self.scene.mayavi_scene)
 
+    @on_trait_change('model:_draw_event')
+    def draw(self):
+        from mayavi import mlab
+        mlab.draw(figure=self.scene.mayavi_scene)
+
     @on_trait_change('model:_update_glyph_lut_event')
     def update_glyph_lut(self):
         from color_utils import set_discrete_lut
         for glyph in self.gs_glyphs.values():
             set_discrete_lut(glyph, self._colors.values())
+
+    @on_trait_change('model:_hide_noise_event')
+    def hide_unsorted_electrodes(self):
+        from color_utils import make_transparent
+        for glyph in self.gs_glyphs.values():
+            make_transparent(glyph, 0) 
 
     @on_trait_change('model:_add_annotation_event')
     def add_annotation(self):
@@ -1255,6 +1281,7 @@ class InteractivePanel(HasPrivateTraits):
     save_csv_button = Button('Save csv')
 
     edit_parameters_button = Button('Edit Fitting Parameters')
+    hide_noise_button = Button('Hide noise')
     
     reconstruct_vizpanel_button = Button('Rebuild viz')
     examine_electrodes_button = Button('Examine electrodes')
@@ -1280,7 +1307,10 @@ class InteractivePanel(HasPrivateTraits):
             ), 
             VGroup(
                 Item('run_pipeline_button', show_label=False),
-                Item('edit_parameters_button', show_label=False),
+                HGroup(
+                    Item('edit_parameters_button', show_label=False),
+                    Item('hide_noise_button', show_label=False),
+                ),
                 HGroup(
                     Item('save_montage_button', show_label=False),
                     Item('save_csv_button', show_label=False),
@@ -1339,6 +1369,9 @@ class InteractivePanel(HasPrivateTraits):
     def _edit_parameters_button_fired(self):
         ParamsPanel(model=self.model).edit_traits()
 
+    def _hide_noise_button_fired(self):
+        self.model.hide_noise() 
+
     def _add_label_button_fired(self):
         self.model.open_add_label_window()
 
@@ -1354,11 +1387,11 @@ class InteractivePanel(HasPrivateTraits):
     def _adjust_registration_button_fired(self):
         self.model.open_registration_window()
 
-    #def _visualize_ct_button_fired(self):
-    #    import panel2d
-    #    self.model.panel2d = pd = panel2d.TwoDimensionalPanel()
-    #    pd.load_img(self.ct_scan)
-    #    pd.edit_traits()
+    def _visualize_ct_button_fired(self):
+        import panel2d
+        self.model.panel2d = pd = panel2d.TwoDimensionalPanel()
+        pd.load_img(self.ct_scan)
+        pd.edit_traits()
 
 class iEEGCoregistrationFrame(HasTraits):
     model = Instance(ElectrodePositionsModel)

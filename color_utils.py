@@ -84,6 +84,22 @@ def set_discrete_lut(mayavi_obj, colors, use_vector_lut=False):
     lut_mgr.number_of_colors = n
     lut_mgr.data_range = [0, n-1]
 
+def make_transparent(mayavi_obj, index, use_vector_lut=False):
+    '''
+    Make transparent the color at specified index in the provided LUT.
+    Otherwise expects a well formed LUT.
+    '''
+    if use_vector_lut:
+        lut_mgr=mayavi_obj.module_manager.vector_lut_manager
+    else:
+        lut_mgr=mayavi_obj.module_manager.scalar_lut_manager
+
+    mayavi_obj.actor.mapper.scalar_visibility = True
+    
+    table = lut_mgr.lut.table
+    table[index] = (0., 0., 0., 0.)
+    lut_mgr.lut.table = np.array(table)
+
 def change_single_glyph_color(mayavi_glyph, index, color):
     '''
     changes the scalars trait of a mayavi glyph safely to display the altered
