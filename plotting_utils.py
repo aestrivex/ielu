@@ -121,6 +121,8 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
     #add data to coronal plane
     import pylab as pl
 
+    pl.figure()
+
     pl.imshow(slice, cmap='gray')
     pl.scatter(pix[0,:], pix[1,:], s=10, c='red', edgecolor='yellow',
         linewidths=0.4)
