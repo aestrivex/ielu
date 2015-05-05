@@ -750,7 +750,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self._all_electrodes.values()))
 
     def save_montage_file_grid(self, target=None, electrodes=None):
-        electrodes = self._save_electrodes_generic_singlegrid(target, 
+        electrodes = self._get_electrodes_generic_singlegrid(target, 
             electrodes)
         if electrodes is None:
             return
@@ -768,6 +768,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         # write the montage file
         with open( savefile, 'w' ) as fd:
             for j, elec in enumerate(electrodes):
+                key = elec.grid_name
                 if elec.name != '':
                     label_name = elec.name
                 else:
