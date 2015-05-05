@@ -151,18 +151,22 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         return grid_names
 
-    def _rebuild_interactive_mode_displayer(self):
-        #cur_mode = self.interactive_mode_displayer.interactive_mode
+    def _rebuild_interactive_mode_displayer(self, previous_holder=None):
+        if previous_holder is not None:
+            holder_index = self.interactive_mode_displayer.name_holders.index(
+                previous_holder)
 
         self.interactive_mode_displayer = NameHolderDisplayer()
 
         self.interactive_mode_displayer.name_holders = (
             self.__grid_named_objects_default())
 
-        #self.interactive_mode_displayer.interactive_mode = cur_mode
+        #self.interactive_mode_displayer.interactive_mode = (
+        #    self.interactive_mode)
 
-        self.interactive_mode_displayer.interactive_mode = (
-            self.interactive_mode)
+        if previous_holder is not None:
+            self.interactive_mode_displayer.interactive_mode = (
+                self.interactive_mode_displayer.name_holders[holder_index])
 
         self._rebuild_guipanel_event = True
 
@@ -252,7 +256,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         #self._update_glyph_lut_event = True
 
-        self._rebuild_interactive_mode_displayer()
+        self._rebuild_interactive_mode_displayer(previous_holder=holder)
 
     def _interactive_mode_changed(self):
         self._commit_grid_changes()
@@ -513,7 +517,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         
         self._update_glyph_lut_event = True
 
-        self._rebuild_interactive_mode_displayer()
+        self._rebuild_interactive_mode_displayer(previous_holder=
+            self.interactive_mode_displayer.interactive_mode)
 
     def add_electrode_to_grid(self, elec, target):
         self._grids[target].append(elec)
