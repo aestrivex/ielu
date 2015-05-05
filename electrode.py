@@ -52,6 +52,10 @@ class Electrode(HasTraits):
         return self.__str__()
 
     def __cmp__(self, other):
+        if other is None and self is not None:
+            return 1
+        if self is None and other is not None:
+            return -1
         if self.name != '' and other.name != '':
             return cmp(self.name, other.name)
         else:
