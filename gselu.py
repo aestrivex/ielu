@@ -1152,9 +1152,19 @@ class SurfaceVisualizerPanel(HasTraits):
         mlab.draw(figure=self.scene.mayavi_scene)
 
     @on_trait_change('model:_draw_event')
-    def draw(self):
+    def force_render(self):
         from mayavi import mlab
+        self.scene.render()
         mlab.draw(figure=self.scene.mayavi_scene)
+        #self.scene._renwin.render()
+        from pyface.api import GUI
+        _gui = GUI()
+        orig_val = _gui.busy
+        _gui.set_busy(busy=True)
+        _gui.process_events()
+        _gui.set_busy(busy=orig_val)
+        _gui.process_events()
+
 
     @on_trait_change('model:_update_glyph_lut_event')
     def update_glyph_lut(self):

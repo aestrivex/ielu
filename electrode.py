@@ -129,82 +129,88 @@ class ElectrodeWindow(Handler):
             grid_name=self.cur_grid,
             is_interpolation=True)
 
-    traits_view = View(
-        Item('electrodes',
-            editor=TableEditor( columns = 
-                [ObjectColumn(label='electrode',
-                              editor=TextEditor(),
-                              style='readonly',
-                              editable=False,
-                              name='strrepr'),
+    def dynamic_view(self):
+        return View(
+            Item('electrodes',
+                editor=TableEditor( columns = 
+                    [ObjectColumn(label='electrode',
+                                  editor=TextEditor(),
+                                  style='readonly',
+                                  editable=False,
+                                  name='strrepr'),
 
-                 ObjectColumn(label='corner',
-                              editor=CheckListEditor(
-                                values=['','corner 1','corner 2',
-                                    'corner 3']),
-                              style='simple',
-                              name='corner'),
+                     ObjectColumn(label='corner',
+                                  editor=CheckListEditor(
+                                    values=['','corner 1','corner 2',
+                                        'corner 3']),
+                                  style='simple',
+                                  name='corner'),
 
-                 ObjectColumn(label='geometry',
-                              editor=CSVListEditor(),
-                              #editor=TextEditor(),
-                              #style='readonly',
-                              #editable=False,
-                              name='geom_coords'),
-                              
-                 ObjectColumn(label='channel name',
-                              editor=TextEditor(),
-                              name='name'),
+                     ObjectColumn(label='geometry',
+                                  editor=CSVListEditor(),
+                                  #editor=TextEditor(),
+                                  #style='readonly',
+                                  #editable=False,
+                                  name='geom_coords'),
+                                  
+                     ObjectColumn(label='channel name',
+                                  editor=TextEditor(),
+                                  name='name'),
 
-                 ObjectColumn(label='ROIs',
-                              editor=ListStrEditor(),
-                              editable=False, 
-                              name='roi_list'),
-                 ],
-                selected='cur_sel',
-                deletable=True,
-                #row_factory=electrode_factory,
+                     ObjectColumn(label='ROIs',
+                                  editor=ListStrEditor(),
+                                  editable=False, 
+                                  name='roi_list'),
+                     ],
+                    selected='cur_sel',
+                    deletable=True,
+                    #row_factory=electrode_factory,
+                    row_factory=self.electrode_factory,
+                    ),
+                show_label=False, height=350, width=700),
+
+            HGroup(
+                VGroup( 
+                    Label( 'Automatic labeling parameters' ),
+                    Item( 'name_stem' ),
+                    HGroup(
+                        Item( 'naming_convention' ),
+                        Item( 'grid_type' ),
+                    ),
                 ),
-            show_label=False, height=350, width=700),
-
-        HGroup(
-            VGroup( 
-                Label( 'Automatic labeling parameters' ),
-                Item( 'name_stem' ),
-                HGroup(
-                    Item( 'naming_convention' ),
-                    Item( 'grid_type' ),
+                VGroup(
+                    Label( 'ROI identification parameters' ),
+                    Item('parcellation'),
+                    Item('error_radius'),
+                ),
+                VGroup(
+                    Label('Image parameters' ),
+                    Item('img_dpi', label='dpi'),
+                    Item('img_size', label='size', editor=CSVListEditor()),
                 ),
             ),
-            VGroup(
-                Label( 'ROI identification parameters' ),
-                Item('parcellation'),
-                Item('error_radius'),
-            ),
-            VGroup(
-                Label('Image parameters' ),
-                Item('img_dpi', label='dpi'),
-                Item('img_size', label='size', editor=CSVListEditor()),
-            ),
-        ),
 
-        resizable=True, kind='panel', title='modify electrodes',
-        #buttons=[OKButton, swap_action, label_auto_action,
-        #    interpolate_action, save_montage_action, find_rois_action]) 
+            resizable=True, kind='panel', title='modify electrodes',
+            #buttons=[OKButton, swap_action, label_auto_action,
+            #    interpolate_action, save_montage_action, find_rois_action]) 
 
-        buttons = [label_auto_action, swap_action, OKButton],
-        menubar = MenuBar(
-            Menu( label_auto_action, add_blank_action,
-                interpolate_action, find_rois_action, find_all_rois_action,
-                manual_reposition_action,
-                name='Operations',
-            ),
-            Menu( save_montage_action, save_csv_action,
-                save_coronal_slice_action,
-                name='Save Output',
-            ),
+            buttons = [self.label_auto_action, self.swap_action, OKButton],
+            menubar = MenuBar(
+                Menu( self.label_auto_action, self.add_blank_action,
+                    self.interpolate_action, self.find_rois_action, 
+                    self.find_all_rois_action,
+                    self.manual_reposition_action,
+                    name='Operations',
+                ),
+                Menu( self.save_montage_action, self.save_csv_action,
+                    self.save_coronal_slice_action,
+                    name='Save Output',
+                ),
+            )
         )
-    )
+
+    def edit_traits(self):
+        super(ElectrodeWindow, self).edit_traits(view=self.dynamic_view())
 
     @on_trait_change('cur_sel')
     def selection_callback(self):

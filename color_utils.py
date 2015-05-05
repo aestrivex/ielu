@@ -98,7 +98,18 @@ def make_transparent(mayavi_obj, index, use_vector_lut=False):
     
     table = lut_mgr.lut.table
     table[index] = (0., 0., 0., 0.)
-    lut_mgr.lut.table = np.array(table)
+    lut_mgr.lut.table = np.array(table).tolist()
+
+    #why in the hell is this necessary
+    #without these lines, the hiding occurs on the first time, but on no
+    #subsequent times. it's not a race condition either because the random
+    #arithmetic below doesn't result in success.
+    n = len(table)
+    lut_mgr.number_of_colors = n
+    lut_mgr.data_range = [0, n-1]
+
+    #f = 37
+    #g = f**16 + 21
 
 def change_single_glyph_color(mayavi_glyph, index, color):
     '''
