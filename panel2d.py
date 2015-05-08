@@ -3,7 +3,7 @@ from __future__ import division
 import numpy as np
 
 from traits.api import (HasTraits, List, Instance, Any, Enum, Tuple, Float,
-    Property, Bool, on_trait_change, Dict, DelegatesTo)
+    Property, Bool, on_trait_change, Dict, DelegatesTo, Str, Instance)
 from traitsui.api import (View, Item, HGroup, VGroup, Group, NullEditor,
     InstanceEditor, CSVListEditor, Spring)
 
@@ -79,6 +79,31 @@ class Click2DPanelTool(SelectTool):
         else:
             raise NotImplementedError('FailFish')
 
+    def normal_right_down(self, event):
+        x,y,z = self.panel2d.cursor
+        px,py,pz = self.panel2d.pins[self.panel2d.current_pin]
+
+        if self.panel_id == 'xy':
+            mx, my = self.panel2d.xy_plane.map_data((event.x, event.y))
+            if px == mx and py == my:
+                return
+            self.panel2d.drop_pin(mx, my, z, name=self.panel2d.current_pin)
+
+        elif self.panel_id == 'xz':
+            mx, mz = self.panel2d.xy_plane.map_data((event.x, event.y))
+            if px == mx and pz == mz:
+                return
+            self.panel2d.drop_pin(mx, y, mz, name=self.panel2d.current_pin)
+
+        elif self.panel_id == 'yz':
+            my, mz = self.panel2d.yz_plane.map_data((event.x, event.y))
+            if py == my and pz == mz:
+                return
+            self.panel2d.drop_pin(x, my, mz, name=self.panel2d.current_pin)
+
+        else:
+            raise NotImplementedError('BabyRage')
+
     def normal_mouse_move(self, event):
         x,y,z = self.panel2d.cursor    
 
@@ -97,6 +122,10 @@ class Click2DPanelTool(SelectTool):
         else:
             raise NotImplementedError('DansGame')
 
+class NullInstanceHolder(HasTraits):
+    name = Str
+    traits_view = View( Spring() )
+
 class InfoPanel(HasTraits):
     cursor = Property(Tuple)
     cursor_ras = Property(Tuple)
@@ -113,9 +142,15 @@ class InfoPanel(HasTraits):
     cursor_tkr_csvlist = List(Float)
 
     pin_tolerance = Float(7.5)
+    currently_showing_list = List(Instance(NullInstanceHolder))
+    currently_showing = Instance(NullInstanceHolder)
 
     traits_view = View(
         VGroup(
+            Item('currently_showing', 
+                editor=InstanceEditor(name='currently_showing_list'),
+                style='custom'),
+            Spring(),
             Item(name='cursor_csvlist', style='text', label='cursor',
                 editor=CSVListEditor(enter_set=True, auto_set=False)),
             Item(name='cursor_ras_csvlist', style='text', label='cursor RAS',
@@ -162,7 +197,12 @@ class TwoDimensionalPanel(HasTraits):
     pins = Dict # Str -> 3-Tuple
     pin_tolerance = DelegatesTo('info_panel')
 
+    current_pin = Str('pin')
+
     info_panel = Instance(InfoPanel, ())
+
+    currently_showing_list = DelegatesTo('info_panel')
+    currently_showing = DelegatesTo('info_panel')
 
     #later we will rename cursor to "coord"
 
@@ -243,6 +283,8 @@ class TwoDimensionalPanel(HasTraits):
             image_name = 'image%s'%gensym()
 
         self.images[image_name] = (imgd, aff, tkr_aff)
+        self.currently_showing_list.append(
+            NullInstanceHolder(name=image_name))
 
         self.cursor = x,y,z = tuple(np.array(imgd.shape) // 2)
 
@@ -302,6 +344,10 @@ class TwoDimensionalPanel(HasTraits):
 
         self._finished_plotting = True
 
+    @on_trait_change('currently_showing')
+    def switch_image_listen(self):
+        self.switch_image(self.currently_showing.name)
+
     def switch_image(self, image_name, xyz=None):
         self.current_image, self.current_affine, self.current_tkr_affine = (
             self.images[image_name])
@@ -311,6 +357,9 @@ class TwoDimensionalPanel(HasTraits):
         x,y,z = xyz
 
         self.move_cursor(x,y,z)
+        #make sure coordinate system is correct, currently it isnt right
+        #and needs to be able to dynamically resize the grid
+        #this will probably be done most easily by destroying and rebuilding it
 
     def cursor_outside_image_dimensions(self, cursor, image=None):
         if image is None:
@@ -371,7 +420,7 @@ class TwoDimensionalPanel(HasTraits):
 
         for pin in self.pins:
             px, py, pz = self.pins[pin]
-            self.drop_pin(px,py,pz, name=pin, tolerance=self.pin_tolerance)
+            self.drop_pin(px,py,pz, name=pin)
             #self.draw_pin(pin)
 
     def redraw(self):
@@ -379,9 +428,11 @@ class TwoDimensionalPanel(HasTraits):
         self.yz_plane.request_redraw()
         self.xy_plane.request_redraw()
 
-    def drop_pin(self, x, y, z, name='pin', color='yellow', tolerance=0.75):
+    def drop_pin(self, x, y, z, name='pin', color='yellow'):
         pin = (x,y,z)
         cx, cy, cz = self.cursor
+
+        tolerance = self.pin_tolerance
 
         self.xy_plane.data.set_data('%s_x'%name, 
             np.array((x,) if np.abs(z - cz) < tolerance else ()))

@@ -539,9 +539,11 @@ class ElectrodeWindow(Handler):
 
     def do_manual_reposition(self, info):
         pd = self.model.construct_panel2d()
-        import panel2d
+        #import panel2d
 
-        x,y,z = self.cur_sel.asras()
-        pd.drop_pin(x,y,z)
+        #x,y,z = self.cur_sel.asras()
+        x,y,z = self.cur_sel.asct()
+        pd.move_cursor(x,y,z)
+        pd.drop_pin(x,y,z, color='cyan', name='electrode')
 
         pd.edit_traits()
