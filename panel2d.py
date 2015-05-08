@@ -54,8 +54,7 @@ class Click2DPanelTool(SelectTool):
     def normal_left_down(self, event):
         x,y,z = self.panel2d.cursor            
 
-        #if the panel is not in the image (e.g. a click on the axis), ignore it
-        #TODO
+        #if the panel is not in the image (e.g. click on the axis), ignore it
 
         #remember event.x and event.y are in space of pixels
 

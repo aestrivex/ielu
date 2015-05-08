@@ -310,6 +310,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
                             (0., -1., 0., 128.),
                             (0., 0., 0., 1.)))
 
+            aff = np.array(((1., 0., 0., 0.),
+                            (0., 0., -1., 0.),
+                            (0., 1., 0., 0.),
+                            (0., 0., 0., 1.)))
+
             #from scipy.linalg import inv
             #aff = inv(aff)
 
