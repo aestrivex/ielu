@@ -716,10 +716,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
         if self.panel2d is None:
             import panel2d
             self.panel2d = pd = panel2d.TwoDimensionalPanel()
-            pd.load_img(self.ct_scan, image_name='ct')    
             pd.load_img(os.path.join(get_subjects_dir(subject=self.subject,
                 subjects_dir=self.subjects_dir), 'mri', 'orig.mgz'), 
                 image_name='t1')
+            pd.load_img(self.ct_scan, image_name='ct')    
         return self.panel2d
 
     def _ask_user_for_savefile(self):

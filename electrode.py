@@ -538,12 +538,17 @@ class ElectrodeWindow(Handler):
             dpi=self.img_dpi, size=tuple(self.img_size), title=self.name_stem)
 
     def do_manual_reposition(self, info):
+        if cur_sel is None:
+            return
+
         pd = self.model.construct_panel2d()
         #import panel2d
 
         #x,y,z = self.cur_sel.asras()
         x,y,z = self.cur_sel.asct()
         pd.move_cursor(x,y,z)
+
+        rx,ry,rz = self.cur_sel.asras()
         pd.drop_pin(x,y,z, color='cyan', name='electrode')
 
         pd.edit_traits()

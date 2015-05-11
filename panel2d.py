@@ -255,10 +255,10 @@ class TwoDimensionalPanel(HasTraits):
 
         img = nib.load(imgf)
 
-        self.current_affine = aff = np.dot(
+        aff = np.dot(
             get_orig2std(imgf) if reorient2std else np.eye(4),
             img.get_affine())
-        self.current_tkr_affine = tkr_aff = np.dot(
+        tkr_aff = np.dot(
             reorient_orig2std_tkr_mat if reorient2std else np.eye(4),
             get_vox2rasxfm(imgf, stem='vox2ras-tkr'))
 
@@ -274,9 +274,7 @@ class TwoDimensionalPanel(HasTraits):
         if reorient2std:
             imgd = np.swapaxes(imgd, 1, 2)[:,:,::-1]
 
-        print 'image size', imgd.shape
-
-        self.current_image = imgd
+        #print 'image size', imgd.shape
 
         if image_name is None:
             from utils import gensym
@@ -285,12 +283,26 @@ class TwoDimensionalPanel(HasTraits):
         self.images[image_name] = (imgd, aff, tkr_aff)
         self.currently_showing_list.append(
             NullInstanceHolder(name=image_name))
+        self.currently_showing = self.currently_showing_list[-1]
 
-        self.cursor = x,y,z = tuple(np.array(imgd.shape) // 2)
+        self.show_image(image_name)
 
-        xy_cut, xz_cut, yz_cut = self.cut_data(imgd, self.cursor)
+    @on_trait_change('currently_showing')
+    def switch_image(self):
+        self.show_image(self.currently_showing.name)
 
-        print xy_cut.shape, xz_cut.shape, yz_cut.shape
+    def show_image(self, image_name, xyz=None):
+        # XYZ is given in pixel coordinates
+        self.current_image, self.current_affine, self.current_tkr_affine = (
+            self.images[image_name])
+
+        if xyz is None:
+            xyz = tuple(np.array(self.current_image.shape) // 2)
+        self.cursor = x,y,z = xyz
+        xy_cut, xz_cut, yz_cut = self.cut_data(self.current_image, 
+            self.cursor)
+
+        xsz, ysz, zsz = self.current_image.shape
 
         xy_plotdata = ArrayPlotData()
         xy_plotdata.set_data('imagedata', xy_cut)
@@ -318,8 +330,6 @@ class TwoDimensionalPanel(HasTraits):
         self.xz_plane.img_plot('imagedata',name='brain',colormap=bone_cmap)
         self.yz_plane.img_plot('imagedata',name='brain',colormap=bone_cmap)
 
-        #self.xz_plane.y_mapper.range.high = 512
-
         self.xy_plane.plot(('cursor_x','cursor_y'), type='scatter', 
             color='red', marker='plus', size=3, name='cursor')
         self.xz_plane.plot(('cursor_x','cursor_z'), type='scatter',
@@ -331,35 +341,18 @@ class TwoDimensionalPanel(HasTraits):
         self.xz_plane.tools.append(Click2DPanelTool(self, 'xz'))
         self.yz_plane.tools.append(Click2DPanelTool(self, 'yz'))
 
-        #from PyQt4.QtCore import pyqtRemoveInputHook
-        #import pdb
-        #pyqtRemoveInputHook()
-        #pdb.set_trace()
-
         self.info_panel.cursor = self.cursor
-        self.info_panel.cursor_ras = self.map_cursor(self.cursor, aff)
+        self.info_panel.cursor_ras = self.map_cursor(self.cursor, 
+            self.current_affine)
         self.info_panel.cursor_tkr = self.map_cursor(self.cursor,
             self.current_tkr_affine)
         self.info_panel.cursor_intensity = self.current_image[x,y,z]
 
         self._finished_plotting = True
 
-    @on_trait_change('currently_showing')
-    def switch_image_listen(self):
-        self.switch_image(self.currently_showing.name)
-
-    def switch_image(self, image_name, xyz=None):
-        self.current_image, self.current_affine, self.current_tkr_affine = (
-            self.images[image_name])
-
-        if xyz is None:
-            xyz = tuple(np.array(self.current_image.shape) // 2)
-        x,y,z = xyz
-
-        self.move_cursor(x,y,z)
-        #make sure coordinate system is correct, currently it isnt right
-        #and needs to be able to dynamically resize the grid
-        #this will probably be done most easily by destroying and rebuilding it
+        for pin in self.pins:
+            px, py, pz = self.pins[pin]
+            self.drop_pin(px,py,pz, name=pin)
 
     def cursor_outside_image_dimensions(self, cursor, image=None):
         if image is None:
@@ -428,8 +421,13 @@ class TwoDimensionalPanel(HasTraits):
         self.yz_plane.request_redraw()
         self.xy_plane.request_redraw()
 
-    def drop_pin(self, x, y, z, name='pin', color='yellow'):
-        pin = (x,y,z)
+    def drop_pin(self, rx, ry, rz, name='pin', color='yellow', 
+            image_name=None):
+        #x,y,z is given in RAS
+        ras_pin = (x,y,z)
+
+        pin = x,y,z = self.map_cursor(pin, self.current_affine, invert=True)
+
         cx, cy, cz = self.cursor
 
         tolerance = self.pin_tolerance
@@ -444,20 +442,11 @@ class TwoDimensionalPanel(HasTraits):
         self.xz_plane.data.set_data('%s_z'%name, 
             np.array((z,) if np.abs(y - cy) < tolerance else ()))
     
-        #currently the pin doesn't show up at all because the electrode
-        #doesn't match the immediate starting coordinates
-
-        #move_cursor also needs to check to enable pins, maybe there is a
-        #simpler way of doing it
-
-        #i think we should hold off on finishing this for at least a week 
-        #or two
         self.yz_plane.data.set_data('%s_y'%name, 
             np.array((y,) if np.abs(x - cx) < tolerance else ()))
         self.yz_plane.data.set_data('%s_z'%name, 
             np.array((z,) if np.abs(x - cx) < tolerance else ()))
 
-        #if name not in self.xy_plane.plots:
         if name not in self.pins:
             self.xy_plane.plot(('%s_x'%name,'%s_y'%name), type='scatter', 
                 color=color, marker='dot', size=4, name=name)
@@ -468,26 +457,7 @@ class TwoDimensionalPanel(HasTraits):
 
             self.redraw()
 
-        self.pins[name] = (x,y,z)
-
-#    def draw_pin(self, name, tolerance=0.75):
-#        x, y, z = self.pins[name]
-#        cx, cy, cz = self.cursor
-#
-#        self.xy_plane.data.set_data('%s_x'%name, 
-#            np.array((x,) if np.abs(z - cz) < tolerance else ()))
-#        self.xy_plane.data.set_data('%s_y'%name, 
-#            np.array((y,) if np.abs(z - cz) < tolerance else ()))
-#        
-#        self.xz_plane.data.set_data('%s_x'%name, 
-#            np.array((x,) if np.abs(y - cy) < tolerance else ()))
-#        self.xz_plane.data.set_data('%s_z'%name, 
-#            np.array((z,) if np.abs(y - cy) < tolerance else ()))
-#
-#        self.yz_plane.data.set_data('%s_y'%name, 
-#            np.array((y,) if np.abs(x - cx) < tolerance else ()))
-#        self.yz_plane.data.set_data('%s_z'%name, 
-#            np.array((z,) if np.abs(x - cx) < tolerance else ()))
+        self.pins[name] = (rx,ry,rz)
 
     def move_mouse(self, x, y, z):
         mouse = (x,y,z)
