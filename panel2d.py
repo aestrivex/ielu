@@ -3,7 +3,8 @@ from __future__ import division
 import numpy as np
 
 from traits.api import (HasTraits, List, Instance, Any, Enum, Tuple, Float,
-    Property, Bool, on_trait_change, Dict, DelegatesTo, Str, Instance)
+    Property, Bool, on_trait_change, Dict, DelegatesTo, Str, Instance,
+    Event, Button)
 from traitsui.api import (View, Item, HGroup, VGroup, Group, NullEditor,
     InstanceEditor, CSVListEditor, Spring)
 
@@ -81,25 +82,32 @@ class Click2DPanelTool(SelectTool):
 
     def normal_right_down(self, event):
         x,y,z = self.panel2d.cursor
-        px,py,pz = self.panel2d.pins[self.panel2d.current_pin]
+
+        image_name = self.panel2d.currently_showing.name
+        pin_name = self.panel2d.current_pin
+
+        px,py,pz,pcolor = self.panel2d.pins[image_name][pin_name]
 
         if self.panel_id == 'xy':
             mx, my = self.panel2d.xy_plane.map_data((event.x, event.y))
             if px == mx and py == my:
                 return
-            self.panel2d.drop_pin(mx, my, z, name=self.panel2d.current_pin)
+            self.panel2d.drop_pin(mx, my, z, name=self.panel2d.current_pin,
+                color=pcolor)
 
         elif self.panel_id == 'xz':
-            mx, mz = self.panel2d.xy_plane.map_data((event.x, event.y))
+            mx, mz = self.panel2d.xz_plane.map_data((event.x, event.y))
             if px == mx and pz == mz:
                 return
-            self.panel2d.drop_pin(mx, y, mz, name=self.panel2d.current_pin)
+            self.panel2d.drop_pin(mx, y, mz, name=self.panel2d.current_pin,
+                color=pcolor)
 
         elif self.panel_id == 'yz':
             my, mz = self.panel2d.yz_plane.map_data((event.x, event.y))
             if py == my and pz == mz:
                 return
-            self.panel2d.drop_pin(x, my, mz, name=self.panel2d.current_pin)
+            self.panel2d.drop_pin(x, my, mz, name=self.panel2d.current_pin,
+                color=pcolor)
 
         else:
             raise NotImplementedError('BabyRage')
@@ -112,7 +120,7 @@ class Click2DPanelTool(SelectTool):
             self.panel2d.move_mouse(mx, my, z) 
 
         elif self.panel_id == 'xz':
-            mx, mz = self.panel2d.xy_plane.map_data((event.x, event.y))
+            mx, mz = self.panel2d.xz_plane.map_data((event.x, event.y))
             self.panel2d.move_mouse(mx, y, mz)
 
         elif self.panel_id == 'yz':
@@ -145,11 +153,16 @@ class InfoPanel(HasTraits):
     currently_showing_list = List(Instance(NullInstanceHolder))
     currently_showing = Instance(NullInstanceHolder)
 
+    confirm_movepin_button = Button('Confirm adjustment')
+
     traits_view = View(
         VGroup(
             Item('currently_showing', 
                 editor=InstanceEditor(name='currently_showing_list'),
                 style='custom'),
+            Spring(),
+            Item('confirm_movepin_button'),
+            Item('pin_tolerance'),
             Spring(),
             Item(name='cursor_csvlist', style='text', label='cursor',
                 editor=CSVListEditor(enter_set=True, auto_set=False)),
@@ -164,8 +177,6 @@ class InfoPanel(HasTraits):
             Item(name='mouse_tkr', style='readonly', label='mouse tkr'),
             Item(name='mouse_intensity', style='readonly',
                 label='mouse intensity'),
-            Spring(),
-            Item('pin_tolerance'),
         ),
         title='ilumbumbargu',
     )
@@ -194,10 +205,12 @@ class TwoDimensionalPanel(HasTraits):
     xz_plane = Instance(Plot)
     yz_plane = Instance(Plot)
     
-    pins = Dict # Str -> 3-Tuple
+    pins = Dict # Str -> (Str -> 3-Tuple)
     pin_tolerance = DelegatesTo('info_panel')
 
     current_pin = Str('pin')
+    confirm_movepin_button = DelegatesTo('info_panel')
+    move_electrode_event = Event
 
     info_panel = Instance(InfoPanel, ())
 
@@ -285,6 +298,8 @@ class TwoDimensionalPanel(HasTraits):
             NullInstanceHolder(name=image_name))
         self.currently_showing = self.currently_showing_list[-1]
 
+        self.pins[image_name] = {}
+
         self.show_image(image_name)
 
     @on_trait_change('currently_showing')
@@ -350,9 +365,10 @@ class TwoDimensionalPanel(HasTraits):
 
         self._finished_plotting = True
 
-        for pin in self.pins:
-            px, py, pz = self.pins[pin]
-            self.drop_pin(px,py,pz, name=pin)
+        if image_name in self.pins:
+            for pin in self.pins[image_name]:
+                px, py, pz, pcolor = self.pins[image_name][pin]
+                self.drop_pin(px,py,pz, name=pin, color=pcolor)
 
     def cursor_outside_image_dimensions(self, cursor, image=None):
         if image is None:
@@ -411,53 +427,68 @@ class TwoDimensionalPanel(HasTraits):
                 self.current_tkr_affine)
         self.info_panel.cursor_intensity = truncate(self.current_image[x,y,z],3)
 
-        for pin in self.pins:
-            px, py, pz = self.pins[pin]
-            self.drop_pin(px,py,pz, name=pin)
-            #self.draw_pin(pin)
+        image_name = self.currently_showing.name
+
+        if image_name in self.pins:
+            for pin in self.pins[image_name]:
+                px, py, pz, pcolor = self.pins[image_name][pin]
+                self.drop_pin(px,py,pz, name=pin, color=pcolor)
 
     def redraw(self):
         self.xz_plane.request_redraw()
         self.yz_plane.request_redraw()
         self.xy_plane.request_redraw()
 
-    def drop_pin(self, rx, ry, rz, name='pin', color='yellow', 
-            image_name=None):
-        #x,y,z is given in RAS
-        ras_pin = (x,y,z)
+    def drop_pin(self, x, y, z, name='pin', color='yellow', 
+            image_name=None, ras_coords=False, alter_current_pin=True):
+        '''
+        XYZ is given in pixel space
+        '''
+        if ras_coords:
+            #affine might not necessarily be currently displayed
+            _,_,affine = self.images[image_name]
 
-        pin = x,y,z = self.map_cursor(pin, self.current_affine, invert=True)
+            ras_pin = self.map_cursor((x,y,z), affine, invert=True)
+            x,y,z = ras_pin
+
+        if image_name is None:
+            image_name = self.currently_showing.name
 
         cx, cy, cz = self.cursor
 
         tolerance = self.pin_tolerance
 
-        self.xy_plane.data.set_data('%s_x'%name, 
-            np.array((x,) if np.abs(z - cz) < tolerance else ()))
-        self.xy_plane.data.set_data('%s_y'%name, 
-            np.array((y,) if np.abs(z - cz) < tolerance else ()))
+        if image_name == self.currently_showing.name:
+            self.xy_plane.data.set_data('%s_x'%name, 
+                np.array((x,) if np.abs(z - cz) < tolerance else ()))
+            self.xy_plane.data.set_data('%s_y'%name, 
+                np.array((y,) if np.abs(z - cz) < tolerance else ()))
+            
+            self.xz_plane.data.set_data('%s_x'%name, 
+                np.array((x,) if np.abs(y - cy) < tolerance else ()))
+            self.xz_plane.data.set_data('%s_z'%name, 
+                np.array((z,) if np.abs(y - cy) < tolerance else ()))
         
-        self.xz_plane.data.set_data('%s_x'%name, 
-            np.array((x,) if np.abs(y - cy) < tolerance else ()))
-        self.xz_plane.data.set_data('%s_z'%name, 
-            np.array((z,) if np.abs(y - cy) < tolerance else ()))
-    
-        self.yz_plane.data.set_data('%s_y'%name, 
-            np.array((y,) if np.abs(x - cx) < tolerance else ()))
-        self.yz_plane.data.set_data('%s_z'%name, 
-            np.array((z,) if np.abs(x - cx) < tolerance else ()))
+            self.yz_plane.data.set_data('%s_y'%name, 
+                np.array((y,) if np.abs(x - cx) < tolerance else ()))
+            self.yz_plane.data.set_data('%s_z'%name, 
+                np.array((z,) if np.abs(x - cx) < tolerance else ()))
 
-        if name not in self.pins:
-            self.xy_plane.plot(('%s_x'%name,'%s_y'%name), type='scatter', 
-                color=color, marker='dot', size=4, name=name)
-            self.xz_plane.plot(('%s_x'%name,'%s_z'%name), type='scatter',
-                color=color, marker='dot', size=4, name=name)
-            self.yz_plane.plot(('%s_y'%name,'%s_z'%name), type='scatter',
-                color=color, marker='dot', size=4, name=name)
+            #if name not in self.pins[image_name]:
+            if name not in self.xy_plane.plots:
+                self.xy_plane.plot(('%s_x'%name,'%s_y'%name), type='scatter', 
+                    color=color, marker='dot', size=3, name=name)
+                self.xz_plane.plot(('%s_x'%name,'%s_z'%name), type='scatter',
+                    color=color, marker='dot', size=3, name=name)
+                self.yz_plane.plot(('%s_y'%name,'%s_z'%name), type='scatter',
+                    color=color, marker='dot', size=3, name=name)
 
             self.redraw()
 
-        self.pins[name] = (rx,ry,rz)
+        self.pins[image_name][name] = (x,y,z,color)
+
+        if alter_current_pin:
+            self.current_pin = name
 
     def move_mouse(self, x, y, z):
         mouse = (x,y,z)
@@ -471,6 +502,9 @@ class TwoDimensionalPanel(HasTraits):
         self.info_panel.mouse_tkr = self.map_cursor(mouse, 
             self.current_tkr_affine)
         self.info_panel.mouse_intensity = truncate(self.current_image[x,y,z], 3)
+
+    def _confirm_movepin_button_fired(self):
+        self.move_electrode_event = True 
 
     #because these calls all call map_cursor, which changes the listener
     #variables they end up infinite looping.
