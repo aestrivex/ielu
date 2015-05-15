@@ -153,7 +153,8 @@ class InfoPanel(HasTraits):
     currently_showing_list = List(Instance(NullInstanceHolder))
     currently_showing = Instance(NullInstanceHolder)
 
-    confirm_movepin_button = Button('Confirm adjustment')
+    confirm_movepin_internal_button = Button('Confirm move electrode')
+    confirm_movepin_postproc_button = Button('Move for postprocessing')
 
     traits_view = View(
         VGroup(
@@ -161,7 +162,8 @@ class InfoPanel(HasTraits):
                 editor=InstanceEditor(name='currently_showing_list'),
                 style='custom'),
             Spring(),
-            Item('confirm_movepin_button'),
+            Item('confirm_movepin_internal_button', show_label=False),
+            Item('confirm_movepin_postproc_button', show_label=False),
             Item('pin_tolerance'),
             Spring(),
             Item(name='cursor_csvlist', style='text', label='cursor',
@@ -209,8 +211,10 @@ class TwoDimensionalPanel(HasTraits):
     pin_tolerance = DelegatesTo('info_panel')
 
     current_pin = Str('pin')
-    confirm_movepin_button = DelegatesTo('info_panel')
-    move_electrode_event = Event
+    confirm_movepin_postproc_button = DelegatesTo('info_panel')
+    confirm_movepin_internal_button = DelegatesTo('info_panel')
+    move_electrode_internally_event = Event
+    move_electrode_postprocessing_event = Event
 
     info_panel = Instance(InfoPanel, ())
 
@@ -445,7 +449,7 @@ class TwoDimensionalPanel(HasTraits):
         XYZ is given in pixel space
         '''
         if ras_coords:
-            #affine might not necessarily be currently displayed
+            #affine might not necessarily be from image currently on display
             _,_,affine = self.images[image_name]
 
             ras_pin = self.map_cursor((x,y,z), affine, invert=True)
@@ -503,8 +507,11 @@ class TwoDimensionalPanel(HasTraits):
             self.current_tkr_affine)
         self.info_panel.mouse_intensity = truncate(self.current_image[x,y,z], 3)
 
-    def _confirm_movepin_button_fired(self):
-        self.move_electrode_event = True 
+    def _confirm_movepin_internal_button_fired(self):
+        self.move_electrode_internally_event = True
+
+    def _confirm_movepin_postproc_button_fired(self):
+        self.move_electrode_postprocessing_event = True 
 
     #because these calls all call map_cursor, which changes the listener
     #variables they end up infinite looping.

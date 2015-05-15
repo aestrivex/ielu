@@ -15,8 +15,13 @@ class Electrode(HasTraits):
 #    snap_coords = List(Float)
     ct_coords = Tuple
     surf_coords = Tuple
-    #snap_coords = Tuple
-    snap_coords = Instance(np.ndarray)
+
+    #snap coords are an intermediate field used during snapping
+    #pial coords are where the final result is stored
+
+    #these are typically nondifferent? i guess?
+    snap_coords = Either(None, Instance(np.ndarray))
+    pial_coords = Either(None, Instance(np.ndarray))
 
     special_name = Str
 
@@ -26,7 +31,6 @@ class Electrode(HasTraits):
     
     hemi = Str
     vertno = Int(-1)
-    pial_coords = Instance(np.ndarray)
 
     plane_coords = Either(None, Tuple)
     #geom_coords = Either(None, Tuple)
@@ -553,4 +557,30 @@ class ElectrodeWindow(Handler):
         pd.drop_pin(rx,ry,rz, color='cyan', name='electrode', image_name='t1',
             ras_coords=True)
 
-        pd.edit_traits()
+        pd.edit_traits(kind='livemodal')
+
+    @on_trait_change('model:panel2d:move_electrode_internally_event')
+    def _internally_effect_electrode_reposition(self):
+        print 'vorokuz'
+        pd = self.model.panel2d
+        image_name = pd.currently_showing.name
+        px,py,pz,_ = pd.pins[image_name][pd.current_pin]
+
+        if image_name=='t1':
+            px,py,pz = pd.map_cursor((px,py,pz), pd.images['t1'][2])
+            
+        self.model.move_electrode( self.cur_sel, (px,py,pz),
+            in_ras=(image_name=='t1') )
+
+    @on_trait_change('model:panel2d:move_electrode_postprocessing_event')
+    def _postprocessing_effect_electrode_reposition(self):
+        print 'hamwiskey'
+        pd = self.model.panel2d
+        image_name = pd.currently_showing.name
+        px,py,pz,_ = pd.pins[image_name][pd.current_pin]
+
+        if image_name=='t1':
+            px,py,pz = pd.map_cursor((px,py,pz), pd.images['t1'][2])
+            
+        self.model.move_electrode( self.cur_sel, (px,py,pz),
+            in_ras=(image_name=='t1'), as_postprocessing=True )

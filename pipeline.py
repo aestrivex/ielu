@@ -1200,8 +1200,8 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
 
     if not os.path.exists(lta):
         import subprocess
-        mri_robustreg_cmd = ['mri_robust_register','--mov',rawavg,'--dst',orig,
-            '--lta',lta,'--satit','--vox2vox']
+        mri_robustreg_cmd = ['mri_robust_register','--mov',rawavg,'--dst',
+            orig,'--lta',lta,'--satit','--vox2vox']
         p = subprocess.call(mri_robustreg_cmd)
 
     nas2ras = geo.get_lta(lta)

@@ -722,6 +722,58 @@ class ElectrodePositionsModel(HasPrivateTraits):
             pd.load_img(self.ct_scan, image_name='ct')    
         return self.panel2d
 
+    def move_electrode(self, elec, new_coords, in_ras=False,
+        as_postprocessing=False):
+        '''
+        Move the electrode to fix errors, or for postprocessing visualization.
+        
+        If done as postprocessing, ROIs are not reset and snapped coordinates
+        are updated to the new values from the RAS (even if these RAS values were just calculated
+
+        This eliminates the effect of snapping and usually should be done
+        before snapping, also resets ROIs.
+        '''
+
+        #remove old electrode position from dictionary data structures
+        del self._ct_to_surf_map[elec.asct()]
+        del self._surf_to_ct_map[elec.asras()]
+
+        target_grid = self._ct_to_grid_ident_map[elec.asct()]
+        del self._ct_to_grid_ident_map[elec.asct()]
+        del self._all_electrodes[elec.asct()]
+
+        if not in_ras:
+            elec.ct_coords = new_coords
+            aff = self.acquire_affine()
+
+            import pipeline as pipe
+            pipe.translate_electrodes_to_surface_space( [elec], aff,
+                subjects_dir=self.subjects_dir, subject=self.subject) 
+        else:
+            #leave CT alone
+            elec.surf_coords = new_coords
+
+        new_ras_coords = elec.asras()
+
+        if as_postprocessing:
+            if self._snapping_completed:
+                elec.snap_coords = new_ras_coords
+                elec.pial_coords = new_ras_coords
+        else:
+            self._snapping_completed = False
+            elec.snap_coords = None
+            elec.pial_coords = None
+            elec.roi_list = []
+
+        #repopulate dictionaries with new updated electrode
+        self._ct_to_surf_map[elec.asct()] = elec.asras()
+        self._surf_to_ct_map[elec.asras()] = elec.asct()
+
+        self._ct_to_grid_ident_map[elec.asct()] = target_grid
+        self._all_electrodes[elec.asct()] = elec
+
+        self._rebuild_vizpanel_event = True
+
     def _ask_user_for_savefile(self):
         #from traitsui.file_dialog import save_file
         from pyface.api import FileDialog, OK
