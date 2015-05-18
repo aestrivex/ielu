@@ -158,14 +158,14 @@ class InfoPanel(HasTraits):
 
     traits_view = View(
         VGroup(
-            Item('currently_showing', 
-                editor=InstanceEditor(name='currently_showing_list'),
-                style='custom'),
-            Spring(),
-            Item('confirm_movepin_internal_button', show_label=False),
-            Item('confirm_movepin_postproc_button', show_label=False),
-            Item('pin_tolerance'),
-            Spring(),
+            #Item('currently_showing', 
+            #    editor=InstanceEditor(name='currently_showing_list'),
+            #    style='custom'),
+            #Spring(),
+            #Item('confirm_movepin_internal_button', show_label=False),
+            #Item('confirm_movepin_postproc_button', show_label=False),
+            #Item('pin_tolerance'),
+            #Spring(),
             Item(name='cursor_csvlist', style='text', label='cursor',
                 editor=CSVListEditor(enter_set=True, auto_set=False)),
             Item(name='cursor_ras_csvlist', style='text', label='cursor RAS',
