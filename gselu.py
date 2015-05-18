@@ -22,10 +22,10 @@ from geometry import load_affine
 from functools import partial
 
 class ElectrodePositionsModel(HasPrivateTraits):
-    ct_scan = File
+    ct_scan = File('demo/ct.nii.gz')
     t1_scan = File
-    subjects_dir = Directory
-    subject = Str
+    subjects_dir = Directory('demo')
+    subject = Str('fake_subject')
     fsdir_writable = Bool
 
     use_ct_mask = Bool(False)
@@ -36,7 +36,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     shapereg_slice_diff = Float(5.0)
     zoom_factor_override = Float(0.)
 
-    electrode_geometry = List(List(Int), [[8,8]]) # Gx2 list
+    #electrode_geometry = List(List(Int), [[8,8]]) # Gx2 list
+    electrode_geometry = List(List(Int), [[8,6],[8,2],[8,2]])
 
     _electrodes = List(Electrode)
     #interactive_mode = Instance(NameHolder)
@@ -111,7 +112,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     ct_threshold = Float(2500.)
     dilation_iterations = Int(25)
 
-    delta = Float(0.5)
+    delta = Float(0.45)
     epsilon = Float(10.)
     rho = Float(35.)
     rho_strict = Float(20.)
@@ -1375,9 +1376,10 @@ class InteractivePanel(HasPrivateTraits):
     ctviz = Instance(SurfaceVisualizerPanel)
 
     traits_view = View(
+        VGroup(
         HGroup(
             VGroup(
-                Item('ct_scan'),
+                #Item('ct_scan'),
                 #Item('ct_registration', label='reg matrix\n(optional)')
                 #Item('adjust_registration_button', show_label=False),
                 HGroup(
@@ -1391,17 +1393,17 @@ class InteractivePanel(HasPrivateTraits):
             ), 
             VGroup(
                 Item('run_pipeline_button', show_label=False),
-                Item('edit_parameters_button', show_label=False),
-                HGroup(
-                    Item('save_montage_button', show_label=False),
-                    Item('save_csv_button', show_label=False),
-                ),
+                #Item('edit_parameters_button', show_label=False),
+                #HGroup(
+                #    Item('save_montage_button', show_label=False),
+                #    Item('save_csv_button', show_label=False),
+                #),
             ),
         ),
-        HGroup(
-                Item('subjects_dir'),
-                Item('subject'),
-        ),
+        #HGroup(
+        #        Item('subjects_dir'),
+        #        Item('subject'),
+        #),
         HGroup(
             VGroup(
                 #Item('interactive_mode', 
@@ -1421,9 +1423,11 @@ class InteractivePanel(HasPrivateTraits):
                 Item('snap_electrodes_button', show_label=False),
             ),
         ),
+        ),
 
-                Item('shell', show_label=False, editor=ShellEditor()),
-        height=300, width=500, resizable=True
+                #Item('shell', show_label=False, editor=ShellEditor()),
+        #height=300, width=500, resizable=True
+        height=100, width=500, resizable=True
     )
 
     def __init__(self, model, viz=None, ctviz=None, **kwargs):
@@ -1494,7 +1498,8 @@ class iEEGCoregistrationFrame(HasTraits):
         show_labels=False, layout='split'),
         title=('llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch is'
             ' nice this time of year'),
-        height=800, width=800, resizable=True
+        #height=800, width=800, resizable=True
+        height=550, width=800, resizable=True
     )
 
     def __init__(self, **kwargs):
