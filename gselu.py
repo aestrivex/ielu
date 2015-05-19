@@ -1414,14 +1414,14 @@ class InteractivePanel(HasPrivateTraits):
                     label='Edit electrodes\nfrom grid'),
             ),
             VGroup(
-                Item('add_grid_button', show_label=False),
+                #Item('add_grid_button', show_label=False),
                 #Item('reconstruct_vizpanel_button', show_label=False),
                 Item('add_label_button', show_label=False)
-            ),
-            VGroup(
-                Item('examine_electrodes_button', show_label=False),
                 Item('snap_electrodes_button', show_label=False),
             ),
+            #VGroup(
+                #Item('examine_electrodes_button', show_label=False),
+            #),
         ),
         ),
 
