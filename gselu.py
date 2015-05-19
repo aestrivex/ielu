@@ -1416,7 +1416,7 @@ class InteractivePanel(HasPrivateTraits):
             VGroup(
                 #Item('add_grid_button', show_label=False),
                 #Item('reconstruct_vizpanel_button', show_label=False),
-                Item('add_label_button', show_label=False)
+                Item('add_label_button', show_label=False),
                 Item('snap_electrodes_button', show_label=False),
             ),
             #VGroup(
