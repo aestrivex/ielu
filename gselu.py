@@ -1368,7 +1368,7 @@ class InteractivePanel(HasPrivateTraits):
     interactive_mode_displayer = DelegatesTo('model')
 
     add_grid_button = Button('Add new grid')
-    add_label_button = Button('Add labels')
+    add_label_button = Button('Add ROIs')
     shell = Dict
 
     save_montage_button = Button('Save montage')
@@ -1489,7 +1489,8 @@ class InteractivePanel(HasPrivateTraits):
         self.model.hide_noise() 
 
     def _add_label_button_fired(self):
-        self.model.open_add_label_window()
+        #self.model.open_add_label_window()
+        self.model.add_annotation('aparc.a2009s', border=False, opacity=0.3)
 
     def _reconstruct_vizpanel_button_fired(self):
         self.model._reconstruct_vizpanel_event = True
