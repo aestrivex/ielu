@@ -447,9 +447,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 #save each electrode's grid identity
                 self._ct_to_grid_ident_map[elec.asct()] = key
 
-        #set the grid type to be depth
+        #set the grid type to be subdural
+        #any depth grids will not have been created by now since they have
+        #a geometry
         for key in self._grids:
-            self._grid_types[key] = 'depth'
+            self._grid_types[key] = 'subdural'
 
         # store the unsorted points in a separate map for access
         for elec in self._electrodes:
