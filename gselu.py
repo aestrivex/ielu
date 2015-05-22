@@ -1263,11 +1263,20 @@ class SurfaceVisualizerPanel(HasTraits):
             return
 
         #for hemi in ('lh', 'rh'):
-        self.brain.add_annotation(self.model._label_file,
-            borders=self.model._label_borders,
-            alpha=self.model._label_opacity,
-            hemi=self.model._label_hemi,
-            remove_existing=True)
+        if self.model._label_hemi in ('lh','rh'):
+            self.brain.add_annotation(self.model._label_file,
+                borders=self.model._label_borders,
+                alpha=self.model._label_opacity,
+                hemi=hemi,
+                remove_existing=True)
+
+        else:
+            for hemi in ('lh','rh'):
+                self.brain.add_annotation(self.model._label_file,
+                    borders=self.model._label_borders,
+                    alpha=self.model._label_opacity,
+                    hemi=hemi,
+                    remove_existing=(hemi=='lh'))
         
     @on_trait_change('model:_add_label_event')
     def add_label(self):
