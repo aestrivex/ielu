@@ -1271,11 +1271,10 @@ class SurfaceVisualizerPanel(HasTraits):
             error_dialog("Run pipeline first")
             return
 
-        for hemi in ('lh', 'rh'):
-            self.brain.add_annotation(self.model._label_file,
-                borders=self.model._label_borders,
-                alpha=self.model._label_opacity,
-                hemi=hemi)
+        self.brain.add_annotation(self.model._label_file,
+            borders=self.model._label_borders,
+            alpha=self.model._label_opacity,
+            hemi='both')
         
     @on_trait_change('model:_add_label_event')
     def add_label(self):
