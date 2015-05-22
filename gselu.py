@@ -1380,6 +1380,7 @@ class InteractivePanel(HasPrivateTraits):
         HGroup(
             VGroup(
                 Item('ct_scan'),
+                Item('subject'),
                 #Item('ct_registration', label='reg matrix\n(optional)')
                 #Item('adjust_registration_button', show_label=False),
                 HGroup(
@@ -1400,10 +1401,9 @@ class InteractivePanel(HasPrivateTraits):
                 #),
             ),
         ),
-        HGroup(
+        #HGroup(
         #        Item('subjects_dir'),
-                Item('subject'),
-        ),
+        #),
         HGroup(
             VGroup(
                 #Item('interactive_mode', 
