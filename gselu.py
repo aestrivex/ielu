@@ -1267,7 +1267,7 @@ class SurfaceVisualizerPanel(HasTraits):
             self.brain.add_annotation(self.model._label_file,
                 borders=self.model._label_borders,
                 alpha=self.model._label_opacity,
-                hemi=hemi,
+                hemi=self.model._label_hemi,
                 remove_existing=True)
 
         else:
