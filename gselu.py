@@ -1271,10 +1271,12 @@ class SurfaceVisualizerPanel(HasTraits):
             error_dialog("Run pipeline first")
             return
 
-        self.brain.add_annotation(self.model._label_file,
-            borders=self.model._label_borders,
-            alpha=self.model._label_opacity,
-            hemi='both')
+        for hemi in ('lh', 'rh'):
+            self.brain.add_annotation(self.model._label_file,
+                borders=self.model._label_borders,
+                alpha=self.model._label_opacity,
+                hemi=hemi,
+                remove_existing=hemi=='lh')
         
     @on_trait_change('model:_add_label_event')
     def add_label(self):
@@ -1490,7 +1492,7 @@ class InteractivePanel(HasPrivateTraits):
 
     def _add_label_button_fired(self):
         #self.model.open_add_label_window()
-        self.model.add_annotation('aparc.a2009s', border=False, opacity=0.3)
+        self.model.add_annotation('aparc.a2005s', border=False, opacity=0.3)
 
     def _reconstruct_vizpanel_button_fired(self):
         self.model._reconstruct_vizpanel_event = True
