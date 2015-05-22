@@ -169,6 +169,7 @@ class AddLabelsWindow(Handler):
             Item('annotation'),
             Item('annot_borders', label='show border only'),
             Item('annot_opacity', label='opacity'),
+            Item('annot_hemi', label='hemi'),
             Item('add_annot_button', show_label=False),
         ),
         VGroup(
