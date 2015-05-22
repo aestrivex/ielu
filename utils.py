@@ -1,7 +1,8 @@
 import numpy as np
 import os
 from traits.api import (HasTraits, Str, Color, List, Instance, Int, Method,
-    on_trait_change, Color, Any, Enum, Button, Float, File, Bool, Range)
+    on_trait_change, Color, Any, Enum, Button, Float, File, Bool, Range, 
+    Event)
 from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor,
     InstanceEditor, Group, OKCancelButtons, TableEditor, ObjectColumn, 
     TextEditor, OKButton, CheckListEditor, OKCancelButtons, Label, Action,
@@ -120,6 +121,11 @@ class GeomGetterWindow(Handler):
 class NameHolderDisplayer(Handler):
     name_holders = List(Instance(NameHolder))
     interactive_mode = Instance(NameHolder)
+    _mode_changed_event = Event
+
+    @on_trait_change('interactive_mode')
+    def fire_event(self):
+        self._mode_changed_event = True
 
     traits_view = View(
         Item('interactive_mode', editor=InstanceEditor(name='name_holders'),
