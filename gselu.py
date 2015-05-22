@@ -333,6 +333,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #get rid of any existing grid changes
         self._commit_grid_changes()
         self._grids = {}
+        self._grid_types = {}
         #self._grid_named_objects = self.__grid_named_objects_default()
         self.interactive_mode_displayer.name_holders = (
             self.__grid_named_objects_default())
@@ -485,11 +486,17 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #self._grids['test rice-a-roni'] = []
         #del self._grids['test rice-a-roni']
 
+        self.interactive_mode_displayer.name_holders = (
+            self.__grid_named_objects_default())
+        
+        self.interactive_mode_displayer.interactive_mode = (
+            self.interactive_mode_displayer.name_holders[0])
+
         #manually add the new grids to grid_named_objects
-        for key in self._grids:
+        #for key in self._grids:
             #self._grid_named_objects.append( self._new_grid_name_holder(key))
-            self.interactive_mode_displayer.name_holders.append(
-                self._new_grid_name_holder(key))
+        #    self.interactive_mode_displayer.name_holders.append(
+        #        self._new_grid_name_holder(key))
 
         #fire visualization events
         self._visualization_ready = True
