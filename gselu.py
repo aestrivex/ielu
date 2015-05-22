@@ -97,6 +97,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     _label_borders = Bool(True)
     _label_opacity = Range(0., 1., 1.)
     _label_color = Color
+    _label_hemi = Enum('both','lh','rh')
 
     _hide_noise_event = Event
     _noise_hidden = Bool(False)
@@ -897,10 +898,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
     
                 writer.writerow(row)
 
-    def add_annotation(self, annot_name, border=True, opacity=1.):
+    def add_annotation(self, annot_name, hemi='both', border=True, opacity=1.):
         self._label_file = annot_name
         self._label_borders = border
         self._label_opacity = opacity
+        self._label_hemi = hemi
         self._add_annotation_event = True
 
     def add_label(self, label_file, border=True, opacity=1., color='blue'):
@@ -1260,11 +1262,12 @@ class SurfaceVisualizerPanel(HasTraits):
             error_dialog("Run pipeline first")
             return
 
-        for hemi in ('lh', 'rh'):
-            self.brain.add_annotation(self.model._label_file,
-                borders=self.model._label_borders,
-                alpha=self.model._label_opacity,
-                hemi=hemi)
+        #for hemi in ('lh', 'rh'):
+        self.brain.add_annotation(self.model._label_file,
+            borders=self.model._label_borders,
+            alpha=self.model._label_opacity,
+            hemi=self.model._label_hemi,
+            remove_existing=True)
         
     @on_trait_change('model:_add_label_event')
     def add_label(self):

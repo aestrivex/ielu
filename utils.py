@@ -144,6 +144,7 @@ class AddLabelsWindow(Handler):
 
     annot_borders = Bool
     annot_opacity = Range(0., 1., 1.)
+    annot_hemi = Enum('both','lh','rh')
     label_borders = Bool
     label_opacity = Range(0., 1., 1.)
     label_color = Color('blue')
@@ -153,7 +154,7 @@ class AddLabelsWindow(Handler):
 
     def _add_annot_button_fired(self):
         self.model.add_annotation(self.annotation, border=self.annot_borders,
-            opacity=self.annot_opacity)
+            hemi=self.annot_hemi, opacity=self.annot_opacity)
          
     def _add_label_button_fired(self):
         self.model.add_label(self.label, border=self.label_borders,
