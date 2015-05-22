@@ -22,11 +22,13 @@ from geometry import load_affine
 from functools import partial
 
 class ElectrodePositionsModel(HasPrivateTraits):
-    ct_scan = File('demo/ct.nii.gz')
+    ct_scan = File('demo/nmr00124_ct.nii.gz')
     t1_scan = File
     subjects_dir = Directory('demo')
-    subject = Str('fake_subject')
+    subject = Str('nmr00124')
     fsdir_writable = Bool
+
+    current_subject = Enum('nmr00124', 'mg79')
 
     use_ct_mask = Bool(False)
     disable_erosion = Bool(False)
@@ -1339,6 +1341,7 @@ class InteractivePanel(HasPrivateTraits):
 
     ct_scan = DelegatesTo('model')
     t1_scan = DelegatesTo('model')
+    current_subject = DelegatesTo('model')
     run_pipeline_button = Button('Run pipeline')
 
     subjects_dir = DelegatesTo('model')
@@ -1375,12 +1378,29 @@ class InteractivePanel(HasPrivateTraits):
     viz = Instance(SurfaceVisualizerPanel)
     ctviz = Instance(SurfaceVisualizerPanel)
 
+    @on_trait_change('current_subject')
+    def _hackily_change_some_variables(self):
+        if self.current_subject == 'nmr00124':
+            self.ct_scan = 'demo/nmr00124_ct.nii.gz'
+            self.t1_scan = 'demo/nmr00124/mri/orig.mgz'
+            self.electrode_geometry = [[8,6],[8,2],[8,2]]
+            self.model.dilation_iterations = 25.
+            
+        elif self.current_subject == 'mg79':
+            self.ct_scan = 'demo/mg79_ct.nii.gz'
+            self.t1_scan = 'demo/mg79/mri/orig.mgz'
+            self.electrode_geometry = []
+            self.model.dilation_iterations = 10.
+            self.model.use_ct_mask = True
+
     traits_view = View(
         VGroup(
         HGroup(
             VGroup(
-                Item('ct_scan'),
-                Item('subject'),
+                Item('ct_scan', style='readonly'),
+                #Item('subject'),
+                Item('t1_scan', style='readonly'),
+                Item('current_subject'),
                 #Item('ct_registration', label='reg matrix\n(optional)')
                 #Item('adjust_registration_button', show_label=False),
                 HGroup(
