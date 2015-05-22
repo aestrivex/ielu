@@ -1076,7 +1076,7 @@ class SurfaceVisualizerPanel(HasTraits):
                 surf='pial', curv=False, hemi='both',
                 figure=self.scene.mayavi_scene)
 
-            brain.toggle_toolbars(True)
+            #brain.toggle_toolbars(True)
 
             #set the surface unpickable
             for srf in brain.brains:
@@ -1496,8 +1496,9 @@ class iEEGCoregistrationFrame(HasTraits):
             Item('interactive_panel', editor=InstanceEditor(), style='custom',
                 resizable=True),
         show_labels=False, layout='split'),
-        title=('llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch is'
-            ' nice this time of year'),
+        #title=('llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch is'
+        #    ' nice this time of year'),
+        title = 'electrode localization utility',
         #height=800, width=800, resizable=True
         height=550, width=800, resizable=True
     )

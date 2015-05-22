@@ -247,7 +247,8 @@ class TwoDimensionalPanel(HasTraits):
                 height=400, width=400, show_label=False, resizable=True),
         ),
         ),
-        title='Contact 867-5309 for blobfish sales',
+        #title='Contact 867-5309 for blobfish sales',
+        title='raw image',
     )
 
     def map_cursor(self, cursor, affine, invert=False):
