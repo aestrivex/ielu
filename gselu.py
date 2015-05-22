@@ -23,7 +23,7 @@ from functools import partial
 
 class ElectrodePositionsModel(HasPrivateTraits):
     ct_scan = File('demo/nmr00124_ct.nii.gz')
-    t1_scan = File
+    t1_scan = File('demo/nmr00124/mri/orig.mgz')
     subjects_dir = Directory('demo')
     subject = Str('nmr00124')
     fsdir_writable = Bool
@@ -450,9 +450,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 #save each electrode's grid identity
                 self._ct_to_grid_ident_map[elec.asct()] = key
 
-        #set the grid type to be depth
+        #set the grid type for any grids (i.e. anything which has geometry
+        #so far) to be subdural. we'll never get a depth grid here because
+        #we only here have grids with some geometry
+
         for key in self._grids:
-            self._grid_types[key] = 'depth'
+            #self._grid_types[key] = 'depth'
+            self._grid_types[key] = 'subdural'
 
         # store the unsorted points in a separate map for access
         for elec in self._electrodes:
@@ -496,6 +500,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._visualization_ready = True
         self._rebuild_vizpanel_event = True
         self._rebuild_guipanel_event = True
+
+        #self._demo_pipeline_finished = True
 
     def add_grid(self):
         name = 'usergrid%s'%gensym()
@@ -1047,6 +1053,9 @@ class SurfaceVisualizerPanel(HasTraits):
 
     @on_trait_change('scene:activated')
     def setup(self):
+
+        self.scene.scene_editor._tool_bar.setVisible(False)
+
         #import pdb
         #pdb.set_trace()
         if self.model._visualization_ready:
@@ -1088,6 +1097,8 @@ class SurfaceVisualizerPanel(HasTraits):
             scale_factor = 3.
         else:
             scale_factor = 5.
+
+        self.scene.scene_editor._tool_bar.setVisible(False)
 
         # we used to snap everything but now we only snap grids
         # if the user wants to make further changes, they need to snap again
@@ -1384,36 +1395,38 @@ class InteractivePanel(HasPrivateTraits):
             self.ct_scan = 'demo/nmr00124_ct.nii.gz'
             self.t1_scan = 'demo/nmr00124/mri/orig.mgz'
             self.electrode_geometry = [[8,6],[8,2],[8,2]]
-            self.model.dilation_iterations = 25.
+            self.model.dilation_iterations = 25
+            self.model.use_ct_mask = True
             
         elif self.current_subject == 'mg79':
             self.ct_scan = 'demo/mg79_ct.nii.gz'
             self.t1_scan = 'demo/mg79/mri/orig.mgz'
             self.electrode_geometry = []
-            self.model.dilation_iterations = 10.
+            self.model.dilation_iterations = 10
             self.model.use_ct_mask = True
 
     traits_view = View(
         VGroup(
         HGroup(
             VGroup(
+                Item('current_subject'),
                 Item('ct_scan', style='readonly'),
                 #Item('subject'),
                 Item('t1_scan', style='readonly'),
-                Item('current_subject'),
                 #Item('ct_registration', label='reg matrix\n(optional)')
                 #Item('adjust_registration_button', show_label=False),
                 HGroup(
                     Item('visualize_ct_button', show_label=False),
-                    Item('hide_noise_button', show_label=False),
                 ),
             ),
             VGroup(
+                Label('Electrode geometry:'),
                 Item('electrode_geometry', editor=CustomListEditor(
-                    editor=CSVListEditor(), rows=2), ), 
+                    editor=CSVListEditor(), rows=2, ), show_label=False, ), 
             ), 
             VGroup(
                 Item('run_pipeline_button', show_label=False),
+                Item('hide_noise_button', show_label=False),
                 #Item('edit_parameters_button', show_label=False),
                 #HGroup(
                 #    Item('save_montage_button', show_label=False),
