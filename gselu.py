@@ -261,6 +261,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     def _interactive_mode_changed(self):
         self._commit_grid_changes()
 
+    @on_trait_change('interactive_mode_displayer:_mode_changed_event')
     def _commit_grid_changes(self):
         for p in (self._points_to_cur_grid, self._points_to_unsorted):
             for loc in p:
@@ -334,15 +335,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._commit_grid_changes()
         self._grids = {}
         self._grid_types = {}
-        #self._grid_named_objects = self.__grid_named_objects_default()
-        self.interactive_mode_displayer.name_holders = (
-            self.__grid_named_objects_default())
         
-        #self._grid_named_objects = self._get__grid_named_objects()
-        #self.interactive_mode = self._grid_named_objects[0]
-        #self.interactive_mode= self.interactive_mode_displayer.name_holders[0]
-        self.interactive_mode_displayer.interactive_mode = (
-            self.interactive_mode_displayer.name_holders[0])
         #manually handle property
 
 
