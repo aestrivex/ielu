@@ -337,15 +337,6 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._commit_grid_changes()
         self._grids = {}
         self._grid_types = {}
-        #self._grid_named_objects = self.__grid_named_objects_default()
-        self.interactive_mode_displayer.name_holders = (
-            self.__grid_named_objects_default())
-        
-        #self._grid_named_objects = self._get__grid_named_objects()
-        #self.interactive_mode = self._grid_named_objects[0]
-        #self.interactive_mode= self.interactive_mode_displayer.name_holders[0]
-        self.interactive_mode_displayer.interactive_mode = (
-            self.interactive_mode_displayer.name_holders[0])
         #manually handle property
 
 
@@ -1465,9 +1456,9 @@ class InteractivePanel(HasPrivateTraits):
         ),
         ),
 
-                #Item('shell', show_label=False, editor=ShellEditor()),
-        #height=300, width=500, resizable=True
-        height=100, width=500, resizable=True
+                Item('shell', show_label=False, editor=ShellEditor()),
+        height=300, width=500, resizable=True
+        #height=100, width=500, resizable=True
     )
 
     def __init__(self, model, viz=None, ctviz=None, **kwargs):
