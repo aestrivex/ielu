@@ -30,7 +30,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
     current_subject = Enum('nmr00124', 'mg79')
 
-    use_ct_mask = Bool(False)
+    use_ct_mask = Bool(True)
     disable_erosion = Bool(False)
     overwrite_xfms = Bool(False)
     registration_procedure = Enum('experimental shape correction',
