@@ -568,11 +568,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._commit_grid_changes()
 
         if self._noise_hidden:
-            self._update_glyph_lut_event = True
+            #self._update_glyph_lut_event = True
             self._noise_hidden = False
+            self._rebuild_vizpanel_event = True
         else:
-            self._hide_noise_event = True
+            #self._hide_noise_event = True
             self._noise_hidden = True
+            self._rebuild_vizpanel_event = True
 
         self._draw_event = True
 
@@ -1090,21 +1092,23 @@ class SurfaceVisualizerPanel(HasTraits):
         else:
             scale_factor = 5.
 
-        # we used to snap everything but now we only snap grids
-        # if the user wants to make further changes, they need to snap again
-        unsorted_coordtype = (self._viz_coordtype if 
-            self._viz_coordtype!='snap_coords' else 'surf_coords')
-    
-        unsorted_elecs = map((lambda x:getattr(x, unsorted_coordtype)),
-            self._unsorted_electrodes.values())
-        self.gs_glyphs['unsorted'] = glyph = virtual_points3d( 
-            unsorted_elecs, scale_factor=scale_factor, name='unsorted',
-            figure=self.scene.mayavi_scene, color=self._colors['unsorted'])  
 
-        set_discrete_lut(glyph, self._colors.values())
-        glyph.mlab_source.dataset.point_data.scalars=(
-            np.zeros(len(unsorted_elecs)))
+        #unsorted
+        if not self.model._noise_hidden:
+            unsorted_coordtype = (self._viz_coordtype if 
+                self._viz_coordtype!='snap_coords' else 'surf_coords')
+        
+            unsorted_elecs = map((lambda x:getattr(x, unsorted_coordtype)),
+                self._unsorted_electrodes.values())
+            self.gs_glyphs['unsorted'] = glyph = virtual_points3d( 
+                unsorted_elecs, scale_factor=scale_factor, name='unsorted',
+                figure=self.scene.mayavi_scene, color=self._colors['unsorted'])  
 
+            set_discrete_lut(glyph, self._colors.values())
+            glyph.mlab_source.dataset.point_data.scalars=(
+                np.zeros(len(unsorted_elecs)))
+
+        #grids
         for i,key in enumerate(self._grids):
             grid_coordtype = (self._viz_coordtype if
                 (self._viz_coordtype!='snap_coords' or
@@ -1247,6 +1251,8 @@ class SurfaceVisualizerPanel(HasTraits):
         for glyph in self.gs_glyphs.values():
             set_discrete_lut(glyph, self._colors.values())
 
+    #not used. has the problem of crescent moon shaped electrodes,
+    #transparent electrodes are still occlusive despite being transparent
     @on_trait_change('model:_hide_noise_event')
     def hide_unsorted_electrodes(self):
         from color_utils import make_transparent
