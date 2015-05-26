@@ -29,6 +29,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     fsdir_writable = Bool
 
     current_subject = Enum('nmr00124', 'mg79')
+    brain_opacity = Enum('transparent', 'opaque', 'off') 
 
     use_ct_mask = Bool(True)
     disable_erosion = Bool(False)
@@ -84,12 +85,15 @@ class ElectrodePositionsModel(HasPrivateTraits):
     _new_ras_positions = Dict
 
     _interactive_mode_snapshot = Str
+    _current_brain_opacity = Float(.25)
 
     _rebuild_vizpanel_event = Event
     _rebuild_guipanel_event = Event
     _update_glyph_lut_event = Event
     _update_single_glyph_event = Event
     _reorient_glyph_event = Event
+   
+    _update_opacity_event = Event
 
     _visualization_ready = Bool(False)
 
@@ -328,6 +332,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         return aff
 
     def run_pipeline(self):
+
         #setup
         if self.subjects_dir is None or self.subjects_dir=='':
             self.subjects_dir = os.environ['SUBJECTS_DIR']
@@ -580,6 +585,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self._noise_hidden = True
 
         self._draw_event = True
+
+    def change_opacity(self, opacity):
+        self._current_brain_opacity = opacity
+        self._update_opacity_event = True
 
     def open_registration_window(self):
         cur_grid = self.interactive_mode_displayer.interactive_mode
@@ -1091,7 +1100,7 @@ class SurfaceVisualizerPanel(HasTraits):
             #set the surface unpickable
             for srf in brain.brains:
                 srf._geo_surf.actor.actor.pickable=False
-                srf._geo_surf.actor.property.opacity = 0.4
+                srf._geo_surf.actor.property.opacity = 0.25
 
             scale_factor = 3.
         else:
@@ -1139,6 +1148,15 @@ class SurfaceVisualizerPanel(HasTraits):
         #setup the node selection callback
         picker = self.scene.mayavi_scene.on_mouse_pick( self.selectnode_cb )
         picker.tolerance = .02
+  
+    @on_trait_change('model:_update_opacity_event')
+    def change_opacity(self):
+        if self.visualize_in_ctspace:
+            return
+        else:
+            for srf in self.brain.brains:
+                srf._geo_surf.actor.property.opacity = (
+                    self.model._current_brain_opacity)
 
     def redraw_single_grid(self, key):
         #this function is never called
@@ -1378,6 +1396,7 @@ class InteractivePanel(HasPrivateTraits):
 
     edit_parameters_button = Button('Edit Fitting Parameters')
     hide_noise_button = Button('Hide noise')
+    brain_opacity = DelegatesTo('model')
     
     reconstruct_vizpanel_button = Button('Rebuild viz')
     examine_electrodes_button = Button('Examine electrodes')
@@ -1405,6 +1424,15 @@ class InteractivePanel(HasPrivateTraits):
             self.model.dilation_iterations = 10
             self.model.use_ct_mask = True
 
+    @on_trait_change('brain_opacity')
+    def _change_brain_opacity(self):
+        if self.brain_opacity == 'transparent':
+            self.model.change_opacity(0.25)
+        elif self.brain_opacity == 'opaque':
+            self.model.change_opacity(1.)
+        elif self.brain_opacity == 'off':
+            self.model.change_opacity(0.)
+
     traits_view = View(
         VGroup(
         HGroup(
@@ -1418,6 +1446,7 @@ class InteractivePanel(HasPrivateTraits):
                 HGroup(
                     Item('visualize_ct_button', show_label=False),
                 ),
+                Item('brain_opacity', show_label=True, label='Brain opacity'), 
             ),
             VGroup(
                 Label('Electrode geometry:'),
