@@ -8,7 +8,7 @@ from traits.api import (Bool, Button, cached_property, File, HasTraits,
     Color)
 from traitsui.api import (View, Item, Group, OKCancelButtons, ShellEditor,
     HGroup, VGroup, InstanceEditor, TextEditor, ListEditor, CSVListEditor,
-    Handler, Label, OKCancelButtons)
+    Handler, Label, OKCancelButtons, ButtonEditor)
 from traitsui.message import error as error_dialog
 
 from custom_list_editor import CustomListEditor
@@ -661,6 +661,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
             error_dialog('Select a grid to assign labels')
             return
 
+        for k, elec in enumerate(self._grids[cur_grid.name]):
+            elec.electrode_id = k + 1           
+
         #from utils import AutomatedAssignmentWindow
         from electrode import ElectrodeWindow
         #self.ew = AutomatedAssignmentWindow(
@@ -669,6 +672,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
             cur_grid = cur_grid.name,
             name_stem = cur_grid.name,
             electrodes = self._grids[cur_grid.name])
+        if self._grids[cur_grid.name][0].roi_list == '':
+            self.ew.do_all_rois(None)
         self.ew.edit_traits()
 
     def open_add_label_window(self):
@@ -1289,7 +1294,8 @@ class SurfaceVisualizerPanel(HasTraits):
             error_dialog("Run pipeline first")
             return
 
-        for hemi in ('lh', 'rh'):
+        #for hemi in ('lh', 'rh'):
+        for hemi in ('rh',):
             self.brain.add_annotation(self.model._label_file,
                 borders=self.model._label_borders,
                 alpha=self.model._label_opacity,
@@ -1388,7 +1394,11 @@ class InteractivePanel(HasPrivateTraits):
     interactive_mode_displayer = DelegatesTo('model')
 
     add_grid_button = Button('Add new grid')
-    add_label_button = Button('Add ROIs')
+    add_label_button = Button#Button('Add ROIs')
+    _labels_exist = Bool(False)
+    add_label_button_label = Property(depends_on='_labels_exist')
+    def _get_add_label_button_label(self):
+        return 'Show ROIs' if not self._labels_exist else 'Remove ROIs'
     shell = Dict
 
     save_montage_button = Button('Save montage')
@@ -1443,9 +1453,9 @@ class InteractivePanel(HasPrivateTraits):
                 Item('t1_scan', style='readonly'),
                 #Item('ct_registration', label='reg matrix\n(optional)')
                 #Item('adjust_registration_button', show_label=False),
-                HGroup(
-                    Item('visualize_ct_button', show_label=False),
-                ),
+#                HGroup(
+#                    Item('visualize_ct_button', show_label=False),
+#                ),
                 Item('brain_opacity', show_label=True, label='Brain opacity'), 
             ),
             VGroup(
@@ -1456,6 +1466,7 @@ class InteractivePanel(HasPrivateTraits):
             VGroup(
                 Item('run_pipeline_button', show_label=False),
                 Item('hide_noise_button', show_label=False),
+                Item('visualize_ct_button', show_label=False),
                 #Item('edit_parameters_button', show_label=False),
                 #HGroup(
                 #    Item('save_montage_button', show_label=False),
@@ -1478,12 +1489,13 @@ class InteractivePanel(HasPrivateTraits):
             VGroup(
                 #Item('add_grid_button', show_label=False),
                 #Item('reconstruct_vizpanel_button', show_label=False),
-                Item('add_label_button', show_label=False),
+                Item('add_label_button', show_label=False,
+                    editor=ButtonEditor(label_value='add_label_button_label'),),
                 Item('snap_electrodes_button', show_label=False),
             ),
-            #VGroup(
-                #Item('examine_electrodes_button', show_label=False),
-            #),
+            VGroup(
+                Item('examine_electrodes_button', show_label=False),
+            ),
         ),
         ),
 
@@ -1521,7 +1533,12 @@ class InteractivePanel(HasPrivateTraits):
 
     def _add_label_button_fired(self):
         #self.model.open_add_label_window()
-        self.model.add_annotation('aparc.a2005s', border=False, opacity=0.3)
+        if not self._labels_exist:
+            self.model.add_annotation('aparc.a2005s', border=False, opacity=0.3)
+            self._labels_exist = True
+        else:
+            self.model.remove_labels()
+            self._labels_exist = False
 
     def _reconstruct_vizpanel_button_fired(self):
         self.model._reconstruct_vizpanel_event = True
