@@ -131,7 +131,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     rho_loose_recon = Float(55.)
 
     _snapping_completed = Bool(False)
-    nr_steps = Int(2500)
+    nr_steps = Int(1000)
     deformation_constant = Float(1.)
 
     #state-storing interactive labeling windows
@@ -1504,11 +1504,11 @@ class InteractivePanel(HasPrivateTraits):
             VGroup(
                 Item('add_grid_button', show_label=False),
                 #Item('reconstruct_vizpanel_button', show_label=False),
-                Item('add_label_button', show_label=False,
-                    editor=ButtonEditor(label_value='add_label_button_label'),),
+                Item('examine_electrodes_button', show_label=False),
             ),
             VGroup(
-                Item('examine_electrodes_button', show_label=False),
+                Item('add_label_button', show_label=False,
+                    editor=ButtonEditor(label_value='add_label_button_label'),),
                 Item('snap_electrodes_button', show_label=False),
             ),
         ),
