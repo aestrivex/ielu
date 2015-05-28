@@ -1397,7 +1397,7 @@ class InteractivePanel(HasPrivateTraits):
     #interactive_mode = DelegatesTo('model')
     interactive_mode_displayer = DelegatesTo('model')
 
-    add_grid_button = Button('Add new grid')
+    add_grid_button = Button('Create new grid')
     add_label_button = Button#Button('Add ROIs')
     _labels_exist = Bool(False)
     add_label_button_label = Property(depends_on='_labels_exist')
@@ -1498,14 +1498,14 @@ class InteractivePanel(HasPrivateTraits):
                     label='Edit electrodes\nfrom grid'),
             ),
             VGroup(
-                #Item('add_grid_button', show_label=False),
+                Item('add_grid_button', show_label=False),
                 #Item('reconstruct_vizpanel_button', show_label=False),
                 Item('add_label_button', show_label=False,
                     editor=ButtonEditor(label_value='add_label_button_label'),),
-                Item('snap_electrodes_button', show_label=False),
             ),
             VGroup(
                 Item('examine_electrodes_button', show_label=False),
+                Item('snap_electrodes_button', show_label=False),
             ),
         ),
         ),
