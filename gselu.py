@@ -1514,7 +1514,7 @@ class InteractivePanel(HasPrivateTraits):
         ),
         ),
 
-                Item('shell', show_label=False, editor=ShellEditor()),
+                #Item('shell', show_label=False, editor=ShellEditor()),
         height=300, width=500, resizable=True
         #height=100, width=500, resizable=True
     )
