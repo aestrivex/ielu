@@ -280,12 +280,32 @@ def identify_extracranial_electrodes_in_freesurfer_space(electrodes,
 
     mask_aff = maski.get_affine()
 
+    orig_ras2vox = geo.get_vox2rasxfm(brain, stem='ras2vox')
+
+    orig_vox2ras = geo.get_vox2rasxfm(brain, stem='vox2ras')
+
+    np.set_printoptions(precision=2)
+
+    #print mask_aff
+    #print orig_ras2vox
+    #print orig_vox2ras
+    #print np.linalg.inv(mask_aff)
+
     for e in electrodes:
         #find nearest voxel in voxel space
-        voxel, = geo.apply_affine([e.asras()], np.linalg.inv(mask_aff))
-        nx, ny, nz = map(int, (np.around(voxel)))
-        if maskd[nx,ny,nz] == 0:
-            removals.append(e)
+        #voxel, = geo.apply_affine([e.asras()], np.linalg.inv(mask_aff))
+        voxel, = geo.apply_affine([e.asras()], orig_ras2vox)
+        #nx, ny, nz = map(int, (np.around(voxel)))
+        nx, ny, nz = np.around(voxel).astype(np.int)
+
+        try:
+
+            if maskd[nx,ny,nz] == 0:
+                removals.append(e)
+
+        except:
+            print "BAD %s"%str((nx,ny,nz))
+            pass
 
     return removals
 

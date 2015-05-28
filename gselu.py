@@ -1431,6 +1431,7 @@ class InteractivePanel(HasPrivateTraits):
         if self.current_subject == 'nmr00124':
             self.ct_scan = 'demo/nmr00124_ct.nii.gz'
             self.t1_scan = 'demo/nmr00124/mri/orig.mgz'
+            self.subject = 'nmr00124'
             self.electrode_geometry = [[8,6],[8,2],[8,2]]
             self.model.dilation_iterations = 25
             self.model.use_ct_mask = True
@@ -1438,6 +1439,7 @@ class InteractivePanel(HasPrivateTraits):
         elif self.current_subject == 'mg79':
             self.ct_scan = 'demo/mg79_ct.nii.gz'
             self.t1_scan = 'demo/mg79/mri/orig.mgz'
+            self.subject = 'mg79'
             self.electrode_geometry = []
             self.model.dilation_iterations = 10
             self.model.use_ct_mask = True
@@ -1629,5 +1631,6 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
     crash_if_freesurfer_is_not_sourced()
+    np.set_printoptions(precision=2)
     iEEGCoregistrationFrame().configure_traits()
 
