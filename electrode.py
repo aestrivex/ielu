@@ -519,6 +519,19 @@ class ElectrodeWindow(Handler):
         self._find_surrounding_rois( self.cur_sel )
 
     def do_all_rois(self, info):
+        if self.model.subject == 'nmr00124':
+
+            current_grid = (
+                self.model.interactive_mode_displayer.interactive_mode.name)
+            
+            with open('demo/demo_rois/%s.txt'%current_grid) as fd:
+                for elec, roi in zip(self.electrodes, fd.readlines()):
+                    elec.roi_list = roi.strip()
+
+            #only do this for demo for subject nmr00124
+            return
+
+
         for elec in self.electrodes:
             try:
                 self._find_surrounding_rois( elec )
