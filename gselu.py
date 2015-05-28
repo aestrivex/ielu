@@ -690,6 +690,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
             snappable_electrodes.extend(self._grids[key])
 
+        if len(snappable_electrodes) == 0:
+            print "Found no subdural electrodes to snap"
+            return
+
         pipe.snap_electrodes_to_surface(
             snappable_electrodes, subjects_dir=self.subjects_dir,
             subject=self.subject, max_steps=self.nr_steps)
