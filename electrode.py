@@ -212,7 +212,8 @@ class ElectrodeWindow(Handler):
             #    interpolate_action, save_montage_action, find_rois_action]) 
 
 #            buttons = [self.label_auto_action, self.swap_action, OKButton],
-            buttons = [self.find_all_rois_action, OKButton],
+            #buttons = [self.find_all_rois_action, OKButton],
+            buttons = [OKButton],
 #            menubar = MenuBar(
 #                Menu( self.label_auto_action, self.add_blank_action,
 #                    self.interpolate_action, self.find_rois_action, 
