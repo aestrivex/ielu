@@ -284,6 +284,15 @@ def identify_extracranial_electrodes_in_freesurfer_space(electrodes,
         #find nearest voxel in voxel space
         voxel, = geo.apply_affine([e.asras()], np.linalg.inv(mask_aff))
         nx, ny, nz = map(int, (np.around(voxel)))
+
+        #a value not in [0-255] index range means a value not in the image at all
+        #these values are potentially possible for outlying noise but usually
+        #are an indication of registration errors
+        #so we remove them
+        if not np.all([0 <= p <= 255 for p in (nx,ny,nz)]):
+            removals.append(e)
+            continue
+
         if maskd[nx,ny,nz] == 0:
             removals.append(e)
 
