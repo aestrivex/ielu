@@ -1107,7 +1107,8 @@ class SurfaceVisualizerPanel(HasTraits):
             #set the surface unpickable
             for srf in brain.brains:
                 srf._geo_surf.actor.actor.pickable=False
-                srf._geo_surf.actor.property.opacity = 0.25
+                srf._geo_surf.actor.property.opacity = (
+                    self.model._current_brain_opacity)
 
             scale_factor = 3.
         else:
@@ -1404,6 +1405,10 @@ class InteractivePanel(HasPrivateTraits):
         return 'Show ROIs' if not self._labels_exist else 'Remove ROIs'
     shell = Dict
 
+    hide_noise_button_label = Property(depends_on='model:_noise_hidden')
+    def _get_hide_noise_button_label(self):
+        return 'Show noise' if self.model._noise_hidden else 'Hide noise'
+
     save_montage_button = Button('Save montage')
     save_csv_button = Button('Save csv')
 
@@ -1468,7 +1473,8 @@ class InteractivePanel(HasPrivateTraits):
             ), 
             VGroup(
                 Item('run_pipeline_button', show_label=False),
-                Item('hide_noise_button', show_label=False),
+                Item('hide_noise_button', show_label=False,
+                    editor=ButtonEditor(label_value='hide_noise_button_label'),),
                 Item('visualize_ct_button', show_label=False),
                 #Item('edit_parameters_button', show_label=False),
                 #HGroup(

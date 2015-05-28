@@ -522,6 +522,8 @@ class ElectrodeWindow(Handler):
         for elec in self.electrodes:
             try:
                 self._find_surrounding_rois( elec )
+                print 'Decided that electrode %i is closest to %s' % (
+                    elec.electrode_id, elec.roi_list)
             except:
                 print 'Failed to find ROIs for %s' % str(elec)
 
