@@ -663,8 +663,20 @@ class ElectrodePositionsModel(HasPrivateTraits):
             error_dialog('Select a grid to assign labels')
             return
 
-        for k, elec in enumerate(self._grids[cur_grid.name]):
-            elec.electrode_id = k + 1           
+        if self._grid_types[cur_grid.name] == 'subdural':
+
+            #elec_list = self._grids[cur_grid.name]
+
+            for k, elec in enumerate(self._grids[cur_grid.name]):
+                elec.electrode_id = k + 1           
+
+        else:
+            #elec_list = []
+
+            for k, elec in enumerate(sorted( self._grids[cur_grid.name],
+                    key = lambda x:x.asras()[0] )):
+                #elec_list.append(elec)
+                elec.electrode_id = k+1 
 
         #from utils import AutomatedAssignmentWindow
         from electrode import ElectrodeWindow
@@ -674,6 +686,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
             cur_grid = cur_grid.name,
             name_stem = cur_grid.name,
             electrodes = self._grids[cur_grid.name])
+            #electrodes = elec_list)
+
         if self._grids[cur_grid.name][0].roi_list == '':
             self.ew.do_all_rois(None)
         self.ew.edit_traits()
