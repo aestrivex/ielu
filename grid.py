@@ -343,7 +343,7 @@ class Grid():
         else:
             return self.ccw_orientation(new_ort, nr_rot=nr_rot-1)
 
-    def fits_cross_motif(self, pJ, p0, p1, p2 ):
+    def fits_cross_motif(self, pJ, p0, p1, p2, corner=None ):
         '''
         compares the angle p1-p0-pJ. p0 is the point being extended and pJ is the point
         being considered.
@@ -361,8 +361,17 @@ class Grid():
         angle_cond = is_perpend(pJ-p0, p1-p0, self.rho_loose)
         #angle_cond = True
         rel_angle_cond = (np.abs( angle(pJ-p0, p1-p0) - angle(p1-p0, p2-p0) ) < self.rho)
+
+        if corner is not None:
+            corner_distance_cond = within_distance(c, pJ, corner, self.delta)
+            corner_angle_cond = is_perpend(pJ-corner, p1-corner, self.rho_loose)
+        else:
+            corner_distance_cond = True
+            corner_angle_cond = True
+
         #rel_angle_cond = True
-        return (distance_cond and angle_cond and rel_angle_cond)
+        return all((distance_cond, angle_cond, rel_angle_cond, corner_distance_cond, corner_angle_cond))
+        #return (distance_cond and angle_cond and rel_angle_cond and corner_distance_cond and corner_angle_cond)
 
     def fits_line(self, pJ, p0, p1): 
         '''
@@ -467,27 +476,37 @@ class Grid():
             if local_connectivity in ('FULL', 'SINGLETON'):
                 continue
 
-            x,y = self.connectivity[GridPoint(p0)]
+            x,y = p0_coord = self.connectivity[GridPoint(p0)]
         
             if self.is_marked((x,y), local_connectivity):
                 continue
 
-            p1 = self.get_3d_point( (
-                x-int(orient=='west')+int(orient=='east'),
-                y+int(orient=='north')-int(orient=='south') ))
+            p1_coord = (x-int(orient=='west')+int(orient=='east'),
+                        y-int(orient=='north')-int(orient=='south'))
+
+            p1 = self.get_3d_point( p1_coord )
                 
             if local_connectivity == 'MOTIF':
                 #check to extend the motif in both directions
-                p2 = self.get_3d_point( self.ccw_point(orient, p1, nr_rot=1) )
+                p2_coord = self.ccw_point(orient, p1, nr_rot=1)
+                p2 = self.get_3d_point( p2_coord )
                 pJa = self.nearest( 2*p0-p2 )
                 pJa_coord = self.ccw_point(orient, p1, nr_rot=3)
-                if self.fits_cross_motif(pJa, p0, p1, p2):
+
+                pCa_coord = tuple(np.array(p1_coord) + np.array(pJa_coord) - np.array(p0_coord))
+                pCa = self.get_3d_point( pCa_coord )
+
+                if self.fits_cross_motif(pJa, p0, p1, p2, corner=pCa):
                     self.add_point(pJa, pJa_coord)
                     pts_added = True
 
                 pJb = self.nearest( 2*p0-p1 )
                 pJb_coord = self.ccw_point(orient, p1, nr_rot=2)
-                if self.fits_cross_motif(pJb, p0, p2, p1):
+
+                pCb_coord = tuple(np.array(p1_coord) + np.array(pJb_coord) - np.array(p0_coord))
+                pCb = self.get_3d_point( pCb_coord )
+
+                if self.fits_cross_motif(pJb, p0, p2, p1, corner=pCb):
                     self.add_point(pJb, pJb_coord)
                     pts_added = True
 
