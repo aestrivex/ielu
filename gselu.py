@@ -909,12 +909,25 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._save_csv_file(savefile, electrodes)
 
     def _save_csv_file(self, savefile, electrodes):
+
+        for cur_grid in self._grids.keys():
+
+            if self._grid_types[cur_grid] == 'subdural':
+                for k, elec in enumerate(self._grids[cur_grid]):
+                    elec.electrode_id = k + 1           
+
+            else:
+                for k, elec in enumerate(sorted( self._grids[cur_grid],
+                        key = lambda x:x.asras()[0] )):
+                    elec.electrode_id = k+1 
+
+
         #write the csv file
         import csv
         with open( savefile, 'w' ) as fd:
             writer = csv.writer(fd)
 
-            for j,elec in enumerate(electrodes):
+            for j,elec in enumerate( sorted(electrodes, key=lambda x:(x.grid_name,x.electrode_id)) ):
                 key = elec.grid_name
                 if elec.name != '':
                     label_name = elec.name
@@ -922,7 +935,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
                     elec_id = elec.geom_coords
                     elec_2dcoord = ('unsorted%i'%j if len(elec_id)==0 else
                         str(elec_id))
-                    label_name = '%s_elec_%s'%(key, elec_2dcoord)
+                    #label_name = '%s_elec_%s'%(key, elec_2dcoord)
+                    label_name = '%s_elec_%s'%(key, elec.electrode_id)
 
                 if (self._snapping_completed and
                         self._grid_types[key]=='subdural'):
@@ -933,7 +947,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 x,y,z = ['%.4f'%i for i in pos]
 
                 row = [label_name, x, y, z]
-                row.extend(elec.roi_list)
+                row.extend([elec.roi_list])
     
                 writer.writerow(row)
 

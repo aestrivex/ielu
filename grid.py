@@ -482,7 +482,7 @@ class Grid():
                 continue
 
             p1_coord = (x-int(orient=='west')+int(orient=='east'),
-                        y-int(orient=='north')-int(orient=='south'))
+                        y+int(orient=='north')-int(orient=='south'))
 
             p1 = self.get_3d_point( p1_coord )
                 
@@ -503,7 +503,7 @@ class Grid():
                 pJb = self.nearest( 2*p0-p1 )
                 pJb_coord = self.ccw_point(orient, p1, nr_rot=2)
 
-                pCb_coord = tuple(np.array(p1_coord) + np.array(pJb_coord) - np.array(p0_coord))
+                pCb_coord = tuple(np.array(p2_coord) + np.array(pJb_coord) - np.array(p0_coord))
                 pCb = self.get_3d_point( pCb_coord )
 
                 if self.fits_cross_motif(pJb, p0, p2, p1, corner=pCb):
