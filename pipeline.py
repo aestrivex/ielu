@@ -291,7 +291,7 @@ def identify_extracranial_electrodes_in_freesurfer_space(electrodes,
         #so we remove them
         if not np.all([0 <= p <= 255 for p in (nx,ny,nz)]):
             removals.append(e)
-            print "Warning: Removed some extremely far outlying noise, "
+            print ("Warning: Removed some extremely far outlying noise, "
                 "likely sign of registration errors")
             continue
 
