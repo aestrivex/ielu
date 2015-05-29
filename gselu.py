@@ -1496,6 +1496,7 @@ class InteractivePanel(HasPrivateTraits):
                 Item('hide_noise_button', show_label=False,
                     editor=ButtonEditor(label_value='hide_noise_button_label'),),
                 Item('visualize_ct_button', show_label=False),
+                Item('save_csv_button', show_label=False),
                 #Item('edit_parameters_button', show_label=False),
                 #HGroup(
                 #    Item('save_montage_button', show_label=False),
