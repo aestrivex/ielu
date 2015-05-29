@@ -854,7 +854,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 else:
                     pos = tuple(elec.surf_coords)
 
-                x,y,z = pos
+                x,y,z = ['%.4f'%i for i in pos]
 
                 line = '%s\t%s\t%s\t%s\n' % (label_name, x, y, z)
 
@@ -897,7 +897,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 else:
                     pos = tuple(elec.surf_coords)
 
-                x,y,z = pos
+                x,y,z = ['%.4f'%i for i in pos]
 
                 row = [label_name, x, y, z]
                 row.extend(elec.roi_list)
