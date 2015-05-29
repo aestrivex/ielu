@@ -959,7 +959,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     Clearly, this hack is pretty specific to the type of CT image we are
     collecting at our center. But maybe it can be of more general use.
     '''
-    print 'registering CT to MR with manual resampling and hacky tricks'
+    print 'registering CT to MR with manual resampling'
 
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
