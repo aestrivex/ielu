@@ -1667,8 +1667,8 @@ if __name__ == '__main__':
     crash_if_freesurfer_is_not_sourced()
     np.set_printoptions(precision=2)
 
-    import warning
-    warning.filterwarnings('ignore', category=FutureWarning)
+    import warnings
+    warnings.filterwarnings('ignore', category=FutureWarning)
 
     iEEGCoregistrationFrame().configure_traits()
 
