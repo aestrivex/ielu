@@ -356,6 +356,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._surf_to_ct_map = {}
 
         self._snapping_completed = False
+        self._noise_hidden = False
         #self._visualization_ready = False
 
         #pipeline
