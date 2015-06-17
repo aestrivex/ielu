@@ -25,7 +25,17 @@ class ElectrodePositionsModel(HasPrivateTraits):
     ct_scan = File
     t1_scan = File
     subjects_dir = Directory
+    def _subjects_dir_default(self):
+        if 'SUBJECTS_DIR' in os.environ:
+            return os.environ['SUBJECTS_DIR']
+        else:
+            return ''
     subject = Str
+    def _subject_default(self):
+        if 'SUBJECT' in os.environ:
+            return os.environ['SUBJECT']
+        else:
+            return ''
     fsdir_writable = Bool
 
     use_ct_mask = Bool(False)
