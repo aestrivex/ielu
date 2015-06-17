@@ -1663,8 +1663,8 @@ def identify_roi_from_atlas( pos, approx=4, atlas=None, subjects_dir=None,
     pia = np.vstack((lh_pia, rh_pia))
 
     # find closest vertex
-    import pdb
-    pdb.set_trace()
+    #import pdb
+    #pdb.set_trace()
     closest_vert = np.argmin(cdist(pia, [pos]))
 
     # grow the area of surface surrounding the vertex
