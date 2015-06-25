@@ -144,6 +144,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     raw = Instance(HasTraits)
     
     panel2d = Instance(HasTraits)
+    _cursor_tracker = Instance(Electrode)
     
     def __grid_named_objects_default(self):
     #    return self._get__grid_named_objects()
@@ -301,6 +302,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
     
     def acquire_affine(self):
         import pipeline as pipe
+
+        overwrite = self.overwrite_xfms and not self._visualization_ready
+
         if self.ct_registration not in (None, ''):
             aff = load_affine(self.ct_registration)
 
@@ -361,7 +365,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         self._snapping_completed = False
         self._noise_hidden = False
-        #self._visualization_ready = False
+        self._visualization_ready = False
 
         #pipeline
         import pipeline as pipe
@@ -393,9 +397,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         if self.use_ct_mask:
             print 'eliminating extracranial noise'
-            removals=pipe.identify_extracranial_electrodes_in_freesurfer_space(
-                self._electrodes, dilation_iterations=self.dilation_iterations,
-                subjects_dir=self.subjects_dir, subject=self.subject)
+            removals=(
+                pipe.identify_extracranial_electrodes_in_freesurfer_space(
+                self._electrodes, 
+                dilation_iterations=self.dilation_iterations,
+                subjects_dir=self.subjects_dir, subject=self.subject))
 
             for e in removals:
                 self._electrodes.remove(e)
@@ -736,6 +742,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         if self.panel2d is None:
             import panel2d
             self.panel2d = pd = panel2d.TwoDimensionalPanel()
+            #pd.on_trait_change( self._create_new_electrode, 
+            #    'add_electrode_event')
             pd.load_img(os.path.join(get_subjects_dir(subject=self.subject,
                 subjects_dir=self.subjects_dir), 'mri', 'orig.mgz'), 
                 image_name='t1')
@@ -793,6 +801,81 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._all_electrodes[elec.asct()] = elec
 
         self._rebuild_vizpanel_event = True
+
+    @on_trait_change('panel2d:add_electrode_event')
+    def _create_new_electrode(self):
+        if len(self._all_electrodes) == 0:
+            error_dialog('No electrodes loaded')
+            return
+
+        pd = self.panel2d
+        image_name = pd.currently_showing.name
+        px, py, pz = pd.cursor
+
+        #px,py,pz,_ = pd.pins[image_name][pd.current_pin]
+
+        from electrode import Electrode
+        elec = Electrode(ct_coords = (px,py,pz))
+
+        if image_name == 't1':
+            #rx,ry,rz = pd.map_cursor((px,py,pz), pd.images['t1'][2])
+            error_dialog('Adding electrodes only allowed from CT reference')
+            return
+    
+        elif image_name == 'ct':
+            aff = self.acquire_affine()
+            import pipeline as pipe
+            pipe.translate_electrodes_to_surface_space( [elec], aff,
+                subjects_dir=self.subjects_dir, subject=self.subject)
+        else:
+            raise ValueError("Internal error: bad image type")
+
+        #self._grids['unsorted'] = elec
+        #self._grids['unsorted'].append(elec)
+
+        self._ct_to_surf_map[elec.asct()] = elec.asras()
+        self._surf_to_ct_map[elec.asras()] = elec.asct()
+
+        self._ct_to_grid_ident_map[elec.asct()] = 'unsorted'
+        self._all_electrodes[elec.asct()] = elec
+        self._unsorted_electrodes[elec.asct()] = elec
+
+        self._rebuild_vizpanel_event = True
+
+    @on_trait_change('panel2d:track_cursor_event')
+    def _add_tracked_cursor(self):
+        #if there is already a tracker and the user hits this button, it
+        #becomes an undo function. remove the existing tracker and exit
+        if self._cursor_tracker is not None:
+            self._cursor_tracker = None
+            self._rebuild_vizpanel_event = True
+            return
+
+        pd = self.panel2d
+        image_name = pd.currently_showing.name
+        px, py, pz = pd.cursor
+
+        if image_name == 't1':
+            error_dialog('Cursor can only be tracked from CT reference')
+            return
+
+        elif image_name == 'ct':
+            elec = Electrode(ct_coords = (px,py,pz))
+            self._cursor_tracker = elec
+            
+            aff = self.acquire_affine()
+            import pipeline as pipe
+            pipe.translate_electrodes_to_surface_space( [elec], aff,
+                subjects_dir=self.subjects_dir, subject=self.subject)
+
+        else:
+            raise ValueError("Internal error: bad image type")
+
+        self._rebuild_vizpanel_event = True
+
+    @on_trait_change('track_cursor_deselection_event')
+    def _removed_tracked_cursor(self):
+        self._cursor_tracker = None
 
     def _ask_user_for_savefile(self):
         #from traitsui.file_dialog import save_file
@@ -1041,6 +1124,8 @@ class SurfaceVisualizerPanel(HasTraits):
     _surf_to_ct_map = DelegatesTo('model')
     _grid_types = DelegatesTo('model')
 
+    _cursor_tracker = DelegatesTo('model')
+
     visualize_in_ctspace = Bool(False)
     _viz_coordtype = Property#(depends_on='visualize_in_ctspace')
     def _get__viz_coordtype(self):
@@ -1053,6 +1138,7 @@ class SurfaceVisualizerPanel(HasTraits):
 
     brain = Any
     gs_glyphs = Dict
+    tracking_glyph = Any
 
     traits_view = View(
         Item('scene', editor=SceneEditor(scene_class=MayaviScene),
@@ -1117,7 +1203,8 @@ class SurfaceVisualizerPanel(HasTraits):
                 self._unsorted_electrodes.values())
             self.gs_glyphs['unsorted'] = glyph = virtual_points3d( 
                 unsorted_elecs, scale_factor=scale_factor, name='unsorted',
-                figure=self.scene.mayavi_scene, color=self._colors['unsorted'])  
+                figure=self.scene.mayavi_scene, 
+                color=self._colors['unsorted'])  
 
             set_discrete_lut(glyph, self._colors.values())
             glyph.mlab_source.dataset.point_data.scalars=(
@@ -1145,6 +1232,16 @@ class SurfaceVisualizerPanel(HasTraits):
 
             glyph.mlab_source.dataset.point_data.scalars=(
                 np.ones(len(self._grids[key])) * scalar_color)
+
+        #panel tracking
+        if self._cursor_tracker is not None:
+            tracked_coordinates = [self._cursor_tracker.asct() if 
+                self.visualize_in_ctspace else self._cursor_tracker.asras()]
+
+            self.tracking_glyph = virtual_points3d( tracked_coordinates,
+                scale_factor=scale_factor, name='tracking_glyph',
+                figure=self.scene.mayavi_scene, 
+                color=self._colors['selection'])
 
         #setup the node selection callback
         picker = self.scene.mayavi_scene.on_mouse_pick( self.selectnode_cb )
@@ -1506,7 +1603,9 @@ class InteractivePanel(HasPrivateTraits):
     def _visualize_ct_button_fired(self):
         import panel2d
         self.model.panel2d = pd = panel2d.TwoDimensionalPanel()
-        pd.load_img(self.ct_scan)
+        #pd.on_trait_change(self.model._create_new_electrode, 
+        #    'add_electrode_event')
+        pd.load_img(self.ct_scan, image_name='ct')
         pd.edit_traits()
 
 class iEEGCoregistrationFrame(HasTraits):

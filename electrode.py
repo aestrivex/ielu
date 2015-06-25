@@ -128,6 +128,11 @@ class ElectrodeWindow(Handler):
     save_coronal_slice_action = Action(name='Save coronal slice',
         action='do_coronal_slice')
 
+    #handler method
+    #whenever the window closes, it no longer has a valid cur_sel to listen to
+    def closed(self, info, is_ok):
+        self.cur_sel = None 
+
     def _img_size_default(self):
         return [450., 450.]
 
@@ -561,7 +566,10 @@ class ElectrodeWindow(Handler):
 
     @on_trait_change('model:panel2d:move_electrode_internally_event')
     def _internally_effect_electrode_reposition(self):
-        print 'vorokuz'
+        if self.cur_sel is None:
+            error_dialog("No electrode specified to move")
+            return
+
         pd = self.model.panel2d
         image_name = pd.currently_showing.name
         px,py,pz,_ = pd.pins[image_name][pd.current_pin]
@@ -574,7 +582,10 @@ class ElectrodeWindow(Handler):
 
     @on_trait_change('model:panel2d:move_electrode_postprocessing_event')
     def _postprocessing_effect_electrode_reposition(self):
-        print 'hamwiskey'
+        if self.cur_sel is None:
+            error_dialog("No electrode specified to move")
+            return
+
         pd = self.model.panel2d
         image_name = pd.currently_showing.name
         px,py,pz,_ = pd.pins[image_name][pd.current_pin]

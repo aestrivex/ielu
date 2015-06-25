@@ -6,7 +6,7 @@ from traits.api import (HasTraits, List, Instance, Any, Enum, Tuple, Float,
     Property, Bool, on_trait_change, Dict, DelegatesTo, Str, Instance,
     Event, Button)
 from traitsui.api import (View, Item, HGroup, VGroup, Group, NullEditor,
-    InstanceEditor, CSVListEditor, Spring)
+    InstanceEditor, CSVListEditor, Spring, Handler)
 
 from enable.component_editor import ComponentEditor
 from chaco.api import Plot, ArrayPlotData
@@ -153,8 +153,13 @@ class InfoPanel(HasTraits):
     currently_showing_list = List(Instance(NullInstanceHolder))
     currently_showing = Instance(NullInstanceHolder)
 
-    confirm_movepin_internal_button = Button('Confirm move electrode')
-    confirm_movepin_postproc_button = Button('Move for postprocessing')
+    add_electrode_button = Button('Make new elec here')
+    confirm_movepin_internal_button = Button('Move elec here')
+    confirm_movepin_postproc_button = Button('Move postproc')
+    track_cursor_button = Button('Track cursor')
+
+    minimum_contrast = Float( -200 )
+    maximum_contrast = Float( 5000 )
 
     traits_view = View(
         VGroup(
@@ -162,8 +167,19 @@ class InfoPanel(HasTraits):
                 editor=InstanceEditor(name='currently_showing_list'),
                 style='custom'),
             Spring(),
+            HGroup(
+            Item('minimum_contrast'),
+            Item('maximum_contrast'),
+            ),
+            Spring(),
+            HGroup(
+            Item('add_electrode_button', show_label=False),
+            Item('track_cursor_button', show_label=False),
+            ),
+            HGroup(
             Item('confirm_movepin_internal_button', show_label=False),
             Item('confirm_movepin_postproc_button', show_label=False),
+            ),
             Item('pin_tolerance'),
             Spring(),
             Item(name='cursor_csvlist', style='text', label='cursor',
@@ -180,6 +196,7 @@ class InfoPanel(HasTraits):
             Item(name='mouse_intensity', style='readonly',
                 label='mouse intensity'),
         ),
+        height=400, width=400,
         title='ilumbumbargu',
     )
 
@@ -196,7 +213,8 @@ class InfoPanel(HasTraits):
     def _set_cursor_tkr(self, newval):
         self.cursor_tkr_csvlist = list(newval)
 
-class TwoDimensionalPanel(HasTraits):
+#class TwoDimensionalPanel(HasTraits):
+class TwoDimensionalPanel(Handler):
     images = Dict # Str -> Tuple(imgd, affine, tkr_affine)
 
     current_image = Any # np.ndarray XxYxZ
@@ -209,13 +227,20 @@ class TwoDimensionalPanel(HasTraits):
     
     pins = Dict # Str -> (Str -> 3-Tuple)
     pin_tolerance = DelegatesTo('info_panel')
+    minimum_contrast = DelegatesTo('info_panel')
+    maximum_contrast = DelegatesTo('info_panel')
 
     current_pin = Str('pin')
     confirm_movepin_postproc_button = DelegatesTo('info_panel')
     confirm_movepin_internal_button = DelegatesTo('info_panel')
+    add_electrode_button = DelegatesTo('info_panel')
     move_electrode_internally_event = Event
     move_electrode_postprocessing_event = Event
-
+    add_electrode_event = Event
+    track_cursor_button = DelegatesTo('info_panel')
+    track_cursor_event = Event
+    track_cursor_deselection_event = Event
+    
     info_panel = Instance(InfoPanel, ())
 
     currently_showing_list = DelegatesTo('info_panel')
@@ -262,6 +287,11 @@ class TwoDimensionalPanel(HasTraits):
         #yz_cut = np.rot90(data[xm,:,:].T)
         #xz_cut = np.rot90(data[:,ym,:].T)
         #xy_cut = np.rot90(data[:,:,zm].T)
+
+        ndata = data.copy()
+        ndata[ndata < self.minimum_contrast] = self.minimum_contrast
+        ndata[ndata > self.maximum_contrast] = self.maximum_contrast
+
         yz_cut = data[xm,:,:].T
         xz_cut = data[:,ym,:].T
         xy_cut = data[:,:,zm].T
@@ -303,10 +333,12 @@ class TwoDimensionalPanel(HasTraits):
         self.currently_showing = self.currently_showing_list[-1]
 
         self.pins[image_name] = {}
+        self.current_pin = image_name
 
         self.show_image(image_name)
 
-    @on_trait_change('currently_showing')
+    @on_trait_change('currently_showing', 'minimum_contrast', 
+        'maximum_contrast')
     def switch_image(self):
         self.show_image(self.currently_showing.name)
 
@@ -512,6 +544,15 @@ class TwoDimensionalPanel(HasTraits):
 
     def _confirm_movepin_postproc_button_fired(self):
         self.move_electrode_postprocessing_event = True 
+
+    def _add_electrode_button_fired(self):
+        self.add_electrode_event = True
+
+    def _track_cursor_button_fired(self):
+        self.track_cursor_event = True
+
+    def closed(self, info, is_ok):
+        self.track_cursor_deselection_event = True
 
     #because these calls all call map_cursor, which changes the listener
     #variables they end up infinite looping.
