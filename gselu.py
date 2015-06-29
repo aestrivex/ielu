@@ -311,13 +311,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
         elif self.registration_procedure == 'experimental shape correction':
             aff = pipe.register_ct_using_zoom_correction(
                 self.ct_scan, subjects_dir=self.subjects_dir,
-                subject=self.subject, overwrite=self.overwrite_xfms,
+                subject=self.subject, overwrite=overwrite,
                 zf_override=self.zoom_factor_override)
 
         elif self.registration_procedure == 'uncorrected MI registration':
             aff = pipe.register_ct_to_mr_using_mutual_information(
                 self.ct_scan, subjects_dir=self.subjects_dir, 
-                subject=self.subject, overwrite=self.overwrite_xfms)
+                subject=self.subject, overwrite=overwrite)
 
         elif self.registration_procedure == 'no registration':
             #aff = np.eye(4)

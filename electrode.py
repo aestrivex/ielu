@@ -426,8 +426,8 @@ class ElectrodeWindow(Handler):
         
         if y_hi is not None and loc is None:
             y_higher = self._find_closest_neighbor(y_hi, 'y', '+')
-            yh = y_hi.geom_coords[0]
-            yhh = y_higher.geom_coords[0]
+            yh = y_hi.geom_coords[1]
+            yhh = y_higher.geom_coords[1]
             if yh == yhh-1:
                 loc = 2*np.array(y_hi.ct_coords) - np.array(
                     y_higher.ct_coords)
