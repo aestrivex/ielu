@@ -6,7 +6,7 @@ from traits.api import (HasTraits, List, Instance, Any, Enum, Tuple, Float,
     Property, Bool, on_trait_change, Dict, DelegatesTo, Str, Instance,
     Event, Button)
 from traitsui.api import (View, Item, HGroup, VGroup, Group, NullEditor,
-    InstanceEditor, CSVListEditor, Spring, Handler)
+    InstanceEditor, CSVListEditor, Spring, Handler, TextEditor)
 
 from enable.component_editor import ComponentEditor
 from chaco.api import Plot, ArrayPlotData
@@ -158,7 +158,7 @@ class InfoPanel(HasTraits):
     confirm_movepin_postproc_button = Button('Move postproc')
     track_cursor_button = Button('Track cursor')
 
-    minimum_contrast = Float( -200 )
+    minimum_contrast = Float( -2000 )
     maximum_contrast = Float( 5000 )
 
     traits_view = View(
@@ -168,8 +168,10 @@ class InfoPanel(HasTraits):
                 style='custom'),
             Spring(),
             HGroup(
-            Item('minimum_contrast'),
-            Item('maximum_contrast'),
+            Item('minimum_contrast', editor=TextEditor(enter_set=True,
+                auto_set=False, evaluate=float)),
+            Item('maximum_contrast', editor=TextEditor(enter_set=True,
+                auto_set=False, evaluate=float)),
             ),
             Spring(),
             HGroup(
@@ -292,9 +294,9 @@ class TwoDimensionalPanel(Handler):
         ndata[ndata < self.minimum_contrast] = self.minimum_contrast
         ndata[ndata > self.maximum_contrast] = self.maximum_contrast
 
-        yz_cut = data[xm,:,:].T
-        xz_cut = data[:,ym,:].T
-        xy_cut = data[:,:,zm].T
+        yz_cut = ndata[xm,:,:].T
+        xz_cut = ndata[:,ym,:].T
+        xy_cut = ndata[:,:,zm].T
         return xy_cut, xz_cut, yz_cut
 
     def load_img(self, imgf, reorient2std=False, image_name=None):
@@ -337,8 +339,7 @@ class TwoDimensionalPanel(Handler):
 
         self.show_image(image_name)
 
-    @on_trait_change('currently_showing', 'minimum_contrast', 
-        'maximum_contrast')
+    @on_trait_change('currently_showing, minimum_contrast, maximum_contrast')
     def switch_image(self):
         self.show_image(self.currently_showing.name)
 
