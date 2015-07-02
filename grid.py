@@ -158,7 +158,8 @@ class Grid():
             graph[-min_x+1,-min_y]=4
 
         if pad_zeros:
-            new_graph = np.zeros((max_x-min_x+1+2*pad_zeros, max_y-min_y+1+2*pad_zeros), dtype=int)
+            new_graph = np.zeros((max_x-min_x+1+2*pad_zeros, 
+                max_y-min_y+1+2*pad_zeros), dtype=int)
             new_graph[pad_zeros:-pad_zeros, pad_zeros:-pad_zeros] = graph
             graph = new_graph
 
@@ -522,13 +523,15 @@ class Grid():
                 pCa_coord = self.ccw_point(orient, p1, nr_rot=1)
                 pCb_coord = self.ccw_point(orient, p1, nr_rot=3)
 
-                pSa = self.get_3d_point( self.ccw_point( opp_orient, p0, nr_rot=3 ))
+                pSa = self.get_3d_point( self.ccw_point( opp_orient, p0, 
+                    nr_rot=3 ))
                 if pSa is not None:
                     pCa = self.nearest( p0+pSa-p1 )
                     if self.fits_corner( pCa, p1, p0, pSa):
                         self.add_point(pCa, pCa_coord)
                         pts_added = True
-                pSb = self.get_3d_point( self.ccw_point( opp_orient, p0, nr_rot=1 ))
+                pSb = self.get_3d_point( self.ccw_point( opp_orient, p0, 
+                    nr_rot=1 ))
                 if pSb is not None:
                     pCb = self.nearest( p0+pSb-p1 )
                     if self.fits_corner( pCb, p1, p0, pSb):
@@ -536,14 +539,17 @@ class Grid():
                         pts_added = True
 
                 # check for parallel extension
-                pX = self.get_3d_point( self.ccw_point( opp_orient, p0, nr_rot=2))
-                pZa = self.get_3d_point( self.ccw_point( opp_orient, p1, nr_rot=3))
+                pX = self.get_3d_point( self.ccw_point( opp_orient, p0,  
+                    nr_rot=2))
+                pZa = self.get_3d_point( self.ccw_point( opp_orient, p1, 
+                    nr_rot=3))
                 if pZa is not None and pX is not None:
                     pIa = self.nearest( p0+pZa-pX )
                     if self.fits_parallel( pIa, p0, p1, pX, pZa):
                         self.add_point(pIa, pCa_coord) 
                         pts_added = True
-                pZb = self.get_3d_point( self.ccw_point( opp_orient, p1, nr_rot=1))
+                pZb = self.get_3d_point( self.ccw_point( opp_orient, p1, 
+                    nr_rot=1))
                 if pZb is not None and pX is not None:
                     pIb = self.nearest( p0+pZb-pX )
                     if self.fits_parallel( pIb, p0, p1, pX, pZb):
@@ -557,22 +563,28 @@ class Grid():
                 pCb_coord = self.ccw_point(orient, p1, nr_rot=3)
                 opp_orient = self.ccw_orientation(orient, nr_rot=2)
 
-                pSa = self.get_3d_point( self.ccw_point( opp_orient, p0, nr_rot=3 ))
-                pSd = self.get_3d_point( self.ccw_point( orient, p0, nr_rot=1 ))
+                pSa = self.get_3d_point( self.ccw_point( opp_orient, p0, 
+                    nr_rot=3 ))
+                pSd = self.get_3d_point( self.ccw_point( orient, p0, 
+                    nr_rot=1 ))
 
                 if pSa is not None or pSd is not None: 
-                    pCa = self.nearest(p0+pSa-p1) if pSa is not None else self.nearest(p0+pSd-p2)
+                    pCa = (self.nearest(p0+pSa-p1) if pSa is not None else 
+                        self.nearest(p0+pSd-p2))
                     corner_1 = self.fits_corner(pCa, p1, pSa, p0)
                     corner_2 = self.fits_corner(pCa, p2, pSd, p0)
                     if corner_1 or corner_2:
                         self.add_point(pCa, pCa_coord)
                         pts_added = True
 
-                pSb = self.get_3d_point( self.ccw_point( opp_orient, p0, nr_rot=1 ))
-                pSc = self.get_3d_point( self.ccw_point( orient, p0, nr_rot=3 ))
+                pSb = self.get_3d_point( self.ccw_point( opp_orient, p0, 
+                    nr_rot=1 ))
+                pSc = self.get_3d_point( self.ccw_point( orient, p0, 
+                    nr_rot=3 ))
 
                 if pSb is not None or pSc is not None:
-                    pCb = self.nearest(p0+pSb-p1) if pSb is not None else self.nearest(p0+pSc-p2)
+                    pCb = (self.nearest(p0+pSb-p1) if pSb is not None else
+                        self.nearest(p0+pSc-p2))
                     corner_1 = self.fits_corner(pCb, p1, pSb, p0)
                     corner_2 = self.fits_corner(pCb, p2, pSc, p0)
                     if corner_1 or corner_2:
@@ -580,13 +592,17 @@ class Grid():
                         pts_added = True
 
                 # check for parallel extension
-                pX = self.get_3d_point( self.ccw_point( opp_orient, p0, nr_rot=2))
+                pX = self.get_3d_point( self.ccw_point( opp_orient, p0, 
+                    nr_rot=2))
                 pY = self.get_3d_point( self.ccw_point( orient, p0, nr_rot=2))
 
-                pZa = self.get_3d_point( self.ccw_point( opp_orient, p1, nr_rot=3))
-                pZd = self.get_3d_point( self.ccw_point( orient, p2, nr_rot=1 ))
+                pZa = self.get_3d_point( self.ccw_point( opp_orient, p1, 
+                    nr_rot=3))
+                pZd = self.get_3d_point( self.ccw_point( orient, p2, 
+                    nr_rot=1 ))
 
-                if (pZa is not None and pX is not None) or (pZd is not None and pY is not None):
+                if ((pZa is not None and pX is not None) or 
+                        (pZd is not None and pY is not None)):
                     if pX is not None and pZa is not None:
                         pIa = self.nearest( p0+pZa-pX )
                     elif pY is not None and pZd is not None:
@@ -596,9 +612,12 @@ class Grid():
                     if parallel_1 or parallel_2:
                         self.add_point(pIa, pCa_coord) 
                         pts_added = True
-                pZb = self.get_3d_point( self.ccw_point( opp_orient, p1, nr_rot=1))
-                pZc = self.get_3d_point( self.ccw_point( orient, p2, nr_rot=3 ))
-                if (pZb is not None and pX is not None) or (pZc is not None and pY is not None):
+                pZb = self.get_3d_point( self.ccw_point( opp_orient, p1, 
+                    nr_rot=1))
+                pZc = self.get_3d_point( self.ccw_point( orient, p2, 
+                    nr_rot=3 ))
+                if ((pZb is not None and pX is not None) or 
+                        (pZc is not None and pY is not None)):
                     if pX is not None and pZb is not None:
                         pIb = self.nearest( p0+pZb-pX )
                     elif pY is not None and pZc is not None:
@@ -614,18 +633,25 @@ class Grid():
 
     def extract_strip(self, N, M):
         '''
-        iterate through the grid and extract the best fit location for a strip with dimensions NxM
-        the best fit location is the one that has the most nodes matching the expected geometric configuration
+        iterate through the grid and extract the best fit location for a strip 
+        with dimensions NxM
+        the best fit location is the one that has the most nodes matching the  
+        expected geometric configuration
 
         interpolate any missing nodes into the geometry
 
-        if multiple best fits exist, check the best one based on the best fit plausibility (by distance only)
-        of *all* grid nodes that were not selected in this strip. this biases strip points to be in areas of
-        possible overlap with other strips, rather than in areas with no electrodes at all.
+        if multiple best fits exist, check the best one based on the best fit 
+        plausibility (by distance only)
+        of *all* grid nodes that were not selected in this strip. this biases 
+        strip points to be in areas of
+        possible overlap with other strips, rather than in areas with no 
+        electrodes at all.
 
-        if multiple best fits still exist (the distances were very high to any electrodes, pick one arbitrarily)
+        if multiple best fits still exist (the distances were very high to any 
+        electrodes, pick one arbitrarily)
 
-        returns the set of points in the strip, including possible interpolated points that are not in the
+        returns the set of points in the strip, including possible 
+        interpolated points that are not in the
         image at all
         '''
         print 'Extracting an %i by %i strip' % (M,N)
@@ -633,31 +659,43 @@ class Grid():
         fit_ok, best_locs, best_fit = self.matches_strip_geometry(M,N)
 
         if not fit_ok:
-            raise StripError("No strip had a sufficiently good fit, best fit was %i"%int(best_fit))
+            raise StripError("No strip had a sufficiently good fit, "
+                " best fit was %i"%int(best_fit))
 
         best_loc, points = self.disambiguate_best_fit_strips(best_locs, M, N)
 
-        print 'Decided that the %i by %i strip at %s is the best fit' % (M,N,best_loc)
+        corners = self.determine_corners( best_loc, M, N, best_locs )
 
-        return points
+        print ('Decided that the %i by %i strip at %s is the best fit' % 
+            (M,N,best_loc))
+
+        return points, corners
 
     def disambiguate_best_fit_strips(self, potential_strip_locs, M, N):
         '''
-        given a list of equally full potential strip locations, assign an objective plausibility score to
-        each strip based on the density of electrodes near missing points in the strip.
+        given a list of equally full potential strip locations, assign an 
+        objective plausibility score to
+        each strip based on the density of electrodes near missing points in 
+        the strip.
 
-        to do this, we interpolate the missing points based on the available geometry.
+        to do this, we interpolate the missing points based on the available  
+        geometry.
 
         then we calculate the
-        distances of these points to the nearest unrelated point (to account for image artifacts that
-        may cause us to lose the electrode to a nearby cluster). each individual distance is capped at
+        distances of these points to the nearest unrelated point (to account 
+        for image artifacts that
+        may cause us to lose the electrode to a nearby cluster). each 
+        individual distance is capped at
         2*delta to limit the effect of outliers. 
 
-        we return the sum of each of these distances in the grid as an objective penalty function.
-        the configuration that returns the lowest penalty function is returned along with a list of its
+        we return the sum of each of these distances in the grid as an 
+        objective penalty function.
+        the configuration that returns the lowest penalty function is returned 
+        along with a list of its
         points in 3D space, including interpolated points
 
-        if the strip locations all have the same penalty value, one of them is returned arbitrarily
+        if the strip locations all have the same penalty value, one of them is 
+        returned arbitrarily
         (but not pseudorandomly)
         '''
         if len(potential_strip_locs) == 1:
@@ -688,13 +726,17 @@ class Grid():
             interpolated_gridpoints = []
             #total_points = 0
 
-            strip_graph = graph[r:r+N,c:c+M] if orient=='horiz' else graph[c:c+M, r:r+N]
+            strip_graph = (graph[r:r+N,c:c+M] if orient=='horiz' else 
+                graph[c:c+M, r:r+N])
 
             for x,y in zip(*np.where(strip_graph)):
                 #print "Added the existing point (%i,%i)"%(x+r-v,y+c-w)
-                #print "Added the existing point (%i,%i) which is %s"%(x+c-v,y+r-w,
-                #    None if self.get_3d_point((x+c-v, y+r-w)) is None else 'not None')
-                cur_points.append(self.get_3d_point( (x+r-v, y+c-w) if orient=='horiz' else (x+c-v, y+r-w) ))
+                #print ("Added the existing point "
+                #    "(%i,%i) which is %s"%(x+c-v,y+r-w,
+                #    None if self.get_3d_point((x+c-v, y+r-w)) is None 
+                #    else 'not None')
+                cur_points.append(self.get_3d_point( (x+r-v, y+c-w) if 
+                    orient=='horiz' else (x+c-v, y+r-w) ))
                 #total_points += 1
 
             print 'starting disambiguation with %i points'%(len(cur_points))
@@ -713,7 +755,8 @@ class Grid():
                     if (i,j) in interpolated_gridpoints:
                         continue
 
-                    connectivity, orientation = self.get_local_connectivity_2d( (i,j) )
+                    connectivity, orientation = (self.
+                        get_local_connectivity_2d( (i,j) ))
 
                     pN = self.get_3d_point( (i, j+1) ) 
                     pE = self.get_3d_point( (i+1, j) )
@@ -741,39 +784,48 @@ class Grid():
                             pInterp = (pE+pW)/2
 
                     elif connectivity in ('MOTIF', 'LEAF'):
-                        if pNN is not None and (orientation=='north' or (connectivity=='MOTIF' and
+                        if pNN is not None and (orientation=='north' 
+                                or (connectivity=='MOTIF' and
                                 orientation=='east')):
                             pInterp = 2*pN-pNN
-                        elif pWW is not None and (orientation=='west' or (connectivity=='MOTIF' and 
+                        elif pWW is not None and (orientation=='west' 
+                                or (connectivity=='MOTIF' and 
                                 orientation=='north')):
                             pInterp = 2*pW-pWW
-                        elif pSS is not None and (orientation=='south' or (connectivity=='MOTIF' and 
+                        elif pSS is not None and (orientation=='south' 
+                                or (connectivity=='MOTIF' and 
                                 orientation=='west')):
                             pInterp = 2*pS-pSS
-                        elif pEE is not None and (orientation=='east' or (connectivity=='MOTIF' and 
+                        elif pEE is not None and (orientation=='east' 
+                                or (connectivity=='MOTIF' and 
                                 orientation=='south')):
                             pInterp = 2*pE-pEE
                         else:
                             continue
 
-                    # if we found a singleton it means not enough of the other points have been interpolated yet
+                    # if we found a singleton it means not enough of the other 
+                    # points have been interpolated yet
                     # we pass and wait
                     elif connectivity == 'SINGLETON':
                         pInterp = None
                         continue
                     
                     if pInterp is None:
-                        raise ValueError('Could not interpolate point with current methods')
+                        raise ValueError('Could not interpolate point with ' 
+                            'current methods')
                     elif self.get_3d_point((i,j)) is not None:
-                        # in case the nonexistent point was added in a previous iteration dont add it again
+                        # in case the nonexistent point was added in a 
+                        # previous iteration dont add it again
                         #if GridPoint(pInterp) in interpolated_gridpoints:
                         #    continue
-                        # greedily growing the grid here might cause bias. but check for bugs adding the same
-                        # point multiple times
+                        # greedily growing the grid here might cause bias. but 
+                        # check for bugs adding the same point multiple times
                         if (i,j) in interpolated_gridpoints:
-                            raise ValueError("Internal error: should never be adding a point that already exists")
+                            raise ValueError("Internal error: should never be" 
+                                "adding a point that already exists")
                         
-                        #otherwise, we added this point on another strip choice. We should add it to the interpolated
+                        #otherwise, we added this point on another strip 
+                        #choice. We should add it to the interpolated
                         #points  as normally, but not add the point to the Grid
 
                     else:
@@ -788,8 +840,10 @@ class Grid():
                     points_left = rm_pts(cur_points, self.all_elecs)
                     
                     if len(points_left) > 0:
-                        pPenalty, _ = find_nearest_pt(pInterp, rm_pts(cur_points, self.all_elecs))
-                        cur_penalty += np.min((norm(pPenalty-pInterp), 2*self.delta*critdist))
+                        pPenalty, _ = find_nearest_pt(pInterp, 
+                            rm_pts(cur_points, self.all_elecs))
+                        cur_penalty += np.min((norm(pPenalty-pInterp), 
+                            2*self.delta*critdist))
                     else:
                         cur_penalty = np.inf
 
@@ -814,14 +868,17 @@ class Grid():
             for r in xrange(graph.shape[int(orient=='vert')]-N+1):
                 for c in xrange(graph.shape[int(orient=='horiz')]-M+1):
                     cur_loc = (r, c, orient)
-                    subgraph = graph[r:r+N, c:c+M] if orient=='horiz' else graph[c:c+M, r:r+N]
+                    subgraph = (graph[r:r+N, c:c+M] if orient=='horiz' 
+                        else graph[c:c+M, r:r+N])
 
-                    #if the control points are not present, reject this choice of strip immediately
+                    #if the control points are not present, reject this choice 
+                    #of strip immediately
                     #this causes problems
-                    #if (2 not in subgraph or 3 not in subgraph or 4 not in subgraph):
+                    #if (2 not in subgraph or 3 not in subgraph or 
+                    #        4 not in subgraph):
                     #    continue
 
-                    #calculate the binary fit of connectivity in this choice of strip
+                    #calculate the binary fit of connectivity in this choice
                     cur_fit = np.sum(binarize(subgraph))
 
                     if cur_fit > best_fit:
@@ -833,6 +890,40 @@ class Grid():
         if best_fit < M*N*self.critical_percentage:
             return False, None, best_fit
         return True, best_locs, best_fit
+
+    def determine_corners(self, best_loc, M, N, useless):
+        #print best_loc
+        #print M,N
+        #print self
+
+        #from PyQt4.QtCore import pyqtRemoveInputHook
+        #import pdb
+        #pyqtRemoveInputHook()
+        #pdb.set_trace()
+
+        graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
+
+        r, c, orient = best_loc
+
+        origin = v,w = zip(*np.where(graph==2))[0]
+
+        #corner 1, x=0 y=0
+        c1 = self.get_3d_point( (r-v, c-w) if orient=='horiz' else
+            (c-v, r-w) )
+        
+        #corner 2, HORIZ: x=N-1, y=0 VERT: x=0, y=N-1
+        c2 = self.get_3d_point( (N-1+r-v, c-w) if orient=='horiz' else
+            (c-v, N-1+r-w) )
+
+        #corner 3, HORIZ: x=0, y=M-1 VERT: x=M-1, y=0
+        c3 = self.get_3d_point( (r-v, M-1+c-w) if orient=='horiz' else
+            (M-1+c-v, r-w) )
+
+        #corner 4, HORIZ: x=N-1, y=M-1 VERT: x=M-1, y=N-1
+        c4 = self.get_3d_point( (N-1+r-v, M-1+c-2) if orient=='horiz' else
+            (M-1+c-v, N-1+r-w) )
+        
+        return (c1, c2, c3, c4)
 
 ##########################
 # initialization point API
