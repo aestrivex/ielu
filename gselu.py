@@ -139,7 +139,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     deformation_constant = Float(1.)
 
     #state-storing interactive labeling windows
-    ew = Instance(HasTraits)
+    #ew = Instance(HasTraits)
+    ews = Dict #str -> Instance(HasTraits)
     alw = Instance(HasTraits)
     raw = Instance(HasTraits)
     
@@ -666,15 +667,20 @@ class ElectrodePositionsModel(HasPrivateTraits):
             error_dialog('Select a grid to assign labels')
             return
 
+        if cur_grid.name in self.ews:
+            error_dialog('This window is already open')
+            return
+
         #from utils import AutomatedAssignmentWindow
         from electrode import ElectrodeWindow
         #self.ew = AutomatedAssignmentWindow(
-        self.ew = ElectrodeWindow(
+        ew = ElectrodeWindow(
             model = self,
             cur_grid = cur_grid.name,
             name_stem = cur_grid.name,
             electrodes = self._grids[cur_grid.name])
-        self.ew.edit_traits()
+        self.ews[cur_grid.name] = ew
+        ew.edit_traits()
 
     def open_add_label_window(self):
         if self.alw is None:

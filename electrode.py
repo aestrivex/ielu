@@ -128,11 +128,6 @@ class ElectrodeWindow(Handler):
     save_coronal_slice_action = Action(name='Save coronal slice',
         action='do_coronal_slice')
 
-    #handler method
-    #whenever the window closes, it no longer has a valid cur_sel to listen to
-    def closed(self, info, is_ok):
-        self.cur_sel = None 
-
     def _img_size_default(self):
         return [450., 450.]
 
@@ -255,7 +250,10 @@ class ElectrodeWindow(Handler):
         self.model._single_glyph_to_recolor = self.cur_sel.asct()
         self.model._update_single_glyph_event = True
 
+    #whenever the window closes, it no longer has a valid cur_sel to listen to
     def closed(self, is_ok, info):
+        self.cur_sel = None 
+        del self.model.ews[self.cur_grid]
         if self.previous_sel is not None:
             self.model._new_glyph_color = self.previous_color
             self.model._single_glyph_to_recolor = self.previous_sel.asct()

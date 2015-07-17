@@ -60,6 +60,7 @@ check_params_return:
 
 # check for matlab
 set MATLAB = `getmatlab`;
+#set MATLAB = 'octave'
 if($status) then
   echo "ERROR: Matlab is required to run mris_compute_lgi!"
   exit 1;
@@ -101,12 +102,14 @@ set arg1 = ${tmpdir}/${input}.filled.mgz
 set arg2 = ${closespheresize}
 set arg3 =  ${tmpdir}/${input}-outer
 rm -f ${arg3}
-echo "make_outer_surface('${arg1}',${arg2},'${arg3}'); exit" > $MLF
+set fsmatlabpath = ${FREESURFER_HOME}/matlab
+echo "addpath ${fsmatlabpath}; make_outer_surface('${arg1}',${arg2},'${arg3}'); exit" > $MLF
 echo "================="
 echo "`cat $MLF`"
 echo "================="
 if ($RunIt) then
   cat $MLF | ${MATLAB} -display iconic -nojvm -nosplash
+  #octave --eval "`cat $MLF`"
 endif
 echo ""
 rm -f ${MLF}
