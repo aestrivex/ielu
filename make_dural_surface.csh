@@ -59,8 +59,8 @@ check_params_return:
 #---------
 
 # check for matlab
-set MATLAB = `getmatlab`;
-#set MATLAB = 'octave'
+#set MATLAB = `getmatlab`;
+set MATLAB = 'octave'
 if($status) then
   echo "ERROR: Matlab is required to run mris_compute_lgi!"
   exit 1;
@@ -97,22 +97,15 @@ endif
 # make_outer_surface.m
 #
 # create the outer surface from the filled volume
-set MLF = /tmp/mos"_$$_".m
 set arg1 = ${tmpdir}/${input}.filled.mgz
 set arg2 = ${closespheresize}
 set arg3 =  ${tmpdir}/${input}-outer
-rm -f ${arg3}
-set fsmatlabpath = ${FREESURFER_HOME}/matlab
-echo "addpath ${fsmatlabpath}; make_outer_surface('${arg1}',${arg2},'${arg3}'); exit" > $MLF
-echo "================="
-echo "`cat $MLF`"
+echo "./mkoutersurf.py ${arg1} ${arg2} ${arg3}"
 echo "================="
 if ($RunIt) then
-  cat $MLF | ${MATLAB} -display iconic -nojvm -nosplash
-  #octave --eval "`cat $MLF`"
+  ./mkoutersurf.py ${arg1} ${arg2} ${arg3}
 endif
 echo ""
-rm -f ${MLF}
 if ( $RunIt && ! -e ${arg3} ) then
   echo "ERROR: make_outer_surface did not create output file '${arg3}'!"
   exit 1
