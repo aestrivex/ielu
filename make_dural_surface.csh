@@ -93,6 +93,10 @@ if($status) then
   exit 1;
 endif
 
+if ! $?SCRIPTS_DIR then
+    setenv SCRIPTS_DIR ${PWD}
+endif
+
 #
 # make_outer_surface.m
 #
@@ -100,10 +104,11 @@ endif
 set arg1 = ${tmpdir}/${input}.filled.mgz
 set arg2 = ${closespheresize}
 set arg3 =  ${tmpdir}/${input}-outer
-echo "./mkoutersurf.py ${arg1} ${arg2} ${arg3}"
+echo "${SCRIPTS_DIR}/mkoutersurf.py ${arg1} ${arg2} ${arg3}"
 echo "================="
 if ($RunIt) then
-  ./mkoutersurf.py ${arg1} ${arg2} ${arg3}
+  pwd
+  ${SCRIPTS_DIR}/mkoutersurf.py ${arg1} ${arg2} ${arg3}
 endif
 echo ""
 if ( $RunIt && ! -e ${arg3} ) then

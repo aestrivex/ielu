@@ -1160,6 +1160,9 @@ def create_dural_surface(subjects_dir=None, subject=None):
     if subject is None or subject=='':
         subject = os.environ['SUBJECT']
 
+    scripts_dir = os.path.dirname(__file__)
+    os.environ['SCRIPTS_DIR'] = scripts_dir
+
     if (os.path.exists(os.path.join(subjects_dir,subject,'surf','lh.dural'))
             and os.path.exists(os.path.join(subjects_dir, subject,'surf',
             'rh.dural'))):
