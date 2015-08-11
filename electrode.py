@@ -19,7 +19,6 @@ class Electrode(HasTraits):
     #snap coords are an intermediate field used during snapping
     #pial coords are where the final result is stored
 
-    #these are typically nondifferent? i guess?
     snap_coords = Either(None, Instance(np.ndarray))
     pial_coords = Either(None, Instance(np.ndarray))
 
@@ -66,7 +65,9 @@ class Electrode(HasTraits):
             return cmp(str(self), str(other))
 
     def astuple(self):
-        return nparrayastuple(self.snap_coords)
+        #snap_coords is an intermediate variable. the final value of
+        #the snapped electrodes on the pial surface is held in pial coords
+        return nparrayastuple(self.pial_coords)
 
     def asras(self):
         return tuple(self.surf_coords)
