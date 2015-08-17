@@ -18,9 +18,11 @@ class Electrode(HasTraits):
 
     #snap coords are an intermediate field used during snapping
     #pial coords are where the final result is stored
+    #clin_coords is for creating clinical images, aesthetics only
 
     snap_coords = Either(None, Instance(np.ndarray))
     pial_coords = Either(None, Instance(np.ndarray))
+    clin_coords = Either(None, Instance(np.ndarray))
 
     special_name = Str
 

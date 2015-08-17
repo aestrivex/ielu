@@ -1364,6 +1364,21 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
     rh_dura, _ = nib.freesurfer.read_geometry(
         os.path.join(subjects_dir, subject, 'surf', 'rh.dural'))
 
+    lh_dura[:, 0] -= np.max(lh_dura[:, 0])
+    rh_dura[:, 0] -= np.min(rh_dura[:, 0])
+
+    #align the surfaces correctly
+    #in the tkRAS space
+    #orig = os.path.join( subjects_dir, subject, 'mri', 'orig.mgz' )
+    #ras2vox = np.linalg.inv(geo.get_vox2rasxfm( orig ))
+    #tkr = geo.get_vox2rasxfm(orig, 'vox2ras-tkr')
+    #lh_dura = np.array( geo.apply_affine( geo.apply_affine(lh_dura, ras2vox), 
+    #    tkr))
+    #rh_dura = np.array( geo.apply_affine( geo.apply_affine(rh_dura, ras2vox), 
+    #    tkr))
+    #lh_dura = geo.apply_affine( geo.apply_affine(lh_dura, ras2vox), tkr)
+    #rh_dura = geo.apply_affine( geo.apply_affine(rh_dura, ras2vox), tkr)
+
     dura = np.vstack((lh_dura, rh_dura))
 
     max_deformation = 3
@@ -1440,8 +1455,20 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
     #return the nearest vertex on the pial surface 
     lh_pia, _ = nib.freesurfer.read_geometry(
         os.path.join(subjects_dir, subject, 'surf', 'lh.pial'))
+    
     rh_pia, _ = nib.freesurfer.read_geometry(
         os.path.join(subjects_dir, subject, 'surf', 'rh.pial'))
+
+    #expand the pial surfaces slightly to better visualize the electrodes
+    #lh_pia =geo.expand_triangular_mesh(lh_pia, com_bias=(-2, 0, 0), offset=18)
+    #rh_pia = geo.expand_triangular_mesh(rh_pia, com_bias=(2, 0, 0), offset=18)
+
+
+    #adjust x-axis offsets as pysurfer illogically does as hard-coded step
+    lh_pia[:, 0] -= np.max(lh_pia[:, 0])
+    rh_pia[:, 0] -= np.min(rh_pia[:, 0])
+
+
     pia = np.vstack((lh_pia, rh_pia))
 
     e_pia = np.argmin(cdist(pia, emin), axis=0)

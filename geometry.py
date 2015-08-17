@@ -2,6 +2,7 @@ from __future__ import division
 import numpy as np
 from numpy.linalg import norm
 import math
+from scipy.spatial.distance import pdist
 
 ###########################
 # simple geometry functions
@@ -124,6 +125,43 @@ def rm_pts(P, coords):
     ind = np.setdiff1d(range(coords.shape[0]), ind)
     
     return coords[ind, :]
+
+############################
+# compound utility functions
+############################
+
+def expand_triangular_mesh(c, offset=2, com_bias=(0,0,0)):
+    #find center of mass of current points
+
+    #adding the bias doesn't really make a big effect unless the bias is very
+    #large which is not what we want
+    u, v, w = np.mean(c, axis=0) + com_bias
+
+    new_c = []
+
+    for pt in c:
+        #coordinates of point
+        a, b, c = pt
+        #distance from point to center, effective coordinates
+        x, y, z = a-u, b-v, c-w
+        #find (rho, theta, phi)
+        theta = np.arctan2(y, x)
+        h = pdist( ((a,b), (u,v)) )
+        phi = np.arctan2(z, h)
+        rho = pdist( ((a,b,c), (u,v,w)) )
+
+        # change rho and call it nu
+        nu = rho + offset
+        # find new effective coordinates of (nu, theta, phi)
+        f = nu*np.sin(phi)
+        g = nu*np.cos(phi)
+        e = g*np.sin(theta)
+        d = g*np.cos(theta)
+
+        #align new effective coordinates to center of mass
+        new_c.append( (u+d, v+e, w+f) )
+
+    return np.squeeze(new_c) 
 
 #########
 # utility

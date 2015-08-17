@@ -1139,6 +1139,7 @@ class SurfaceVisualizerPanel(HasTraits):
             return 'ct_coords'
         elif self.model._snapping_completed:
             return 'snap_coords'
+            #return 'pial_coords'
         else:
             return 'surf_coords'
 
@@ -1203,7 +1204,8 @@ class SurfaceVisualizerPanel(HasTraits):
         #unsorted
         if not self.model._noise_hidden:
             unsorted_coordtype = (self._viz_coordtype if 
-                self._viz_coordtype!='snap_coords' else 'surf_coords')
+                self._viz_coordtype not in ('pial_coords', 'snap_coords')
+                else 'surf_coords')
         
             unsorted_elecs = map((lambda x:getattr(x, unsorted_coordtype)),
                 self._unsorted_electrodes.values())
@@ -1219,7 +1221,7 @@ class SurfaceVisualizerPanel(HasTraits):
         #grids
         for i,key in enumerate(self._grids):
             grid_coordtype = (self._viz_coordtype if
-                (self._viz_coordtype!='snap_coords' or
+                (self._viz_coordtype not in ('snap_coords', 'pial_coords') or
                  self._grid_types[key]=='subdural') else 
                 'surf_coords')
 
