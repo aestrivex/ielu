@@ -7,6 +7,7 @@ from traits.api import HasTraits, Float, Int, Tuple
 from traitsui.api import View, Item, CSVListEditor
 
 from geometry import get_vox2rasxfm, apply_affine
+from utils import get_subjects_dir
 
 def coronal_slice(elecs, start=None, end=None, outfile=None, 
     subjects_dir=None,
@@ -48,12 +49,9 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
     '''
     print 'creating coronal slice with start electrodes %s' % str(start)
 
-    if subjects_dir is None or subjects_dir=='':
-        subjects_dir = os.environ['SUBJECTS_DIR']
-    if subject is None or subject=='':
-        subject = os.environ['SUBJECT']
-
-    orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
+    subjdir_subj = get_subjects_dir( subjects_dir=subjects_dir,
+                                     subject=subject )
+    orig = os.path.join(subjdir_subj, 'mri', 'orig.mgz')
 
     x_size, y_size, z_size = nib.load(orig).shape
 
@@ -121,7 +119,7 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
     #add data to coronal plane
     import pylab as pl
 
-    pl.figure()
+    fig = pl.figure()
 
     pl.imshow(slice, cmap='gray')
     pl.scatter(pix[0,:], pix[1,:], s=10, c='red', edgecolor='yellow',
@@ -135,3 +133,5 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
 
     if outfile is not None:
         pl.savefig(outfile, dpi=dpi)
+
+    return fig

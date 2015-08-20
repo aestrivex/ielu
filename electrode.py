@@ -8,6 +8,7 @@ from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor, VGroup,
     TextEditor, OKButton, CheckListEditor, Label, Action, ListStrEditor,
     MenuBar, Menu)
 from traitsui.message import error as error_dialog
+from utils import ask_user_for_savefile
 
 class Electrode(HasTraits):
 #    ct_coords = List(Float)
@@ -17,12 +18,12 @@ class Electrode(HasTraits):
     surf_coords = Tuple
 
     #snap coords are an intermediate field used during snapping
+    #the snap coords are on the dural surface and may also be more useful
+    #for visualization
     #pial coords are where the final result is stored
-    #clin_coords is for creating clinical images, aesthetics only
 
     snap_coords = Either(None, Instance(np.ndarray))
     pial_coords = Either(None, Instance(np.ndarray))
-    clin_coords = Either(None, Instance(np.ndarray))
 
     special_name = Str
 
@@ -94,14 +95,16 @@ class ElectrodeWindow(Handler):
    
     selected_ixes = Any
     swap_action = Action(name='Swap two electrodes', action='do_swap')
-    add_blank_action = Action(name='Add blank electrode', action='do_add_blank')
+    add_blank_action = Action(name='Add blank electrode', 
+        action='do_add_blank')
 
     previous_sel = Instance(Electrode)
     previous_color = Int
 
     distinct_prev_sel = Instance(Electrode)
     
-    save_montage_action = Action(name='Save montage file', action='do_montage')
+    save_montage_action = Action(name='Save montage file', 
+        action='do_montage')
 
     save_csv_action = Action(name='Save CSV file', action='do_csv')
 
@@ -189,16 +192,16 @@ class ElectrodeWindow(Handler):
                         Item( 'grid_type' ),
                     ),
                 ),
-                VGroup(
-                    Label( 'ROI identification parameters' ),
-                    Item('parcellation'),
-                    Item('error_radius'),
-                ),
-                VGroup(
-                    Label('Image parameters' ),
-                    Item('img_dpi', label='dpi'),
-                    Item('img_size', label='size', editor=CSVListEditor()),
-                ),
+                #VGroup(
+                #    Label( 'ROI identification parameters' ),
+                #    Item('parcellation'),
+                #    Item('error_radius'),
+                #),
+                #VGroup(
+                #    Label('Image parameters' ),
+                #    Item('img_dpi', label='dpi'),
+                #    Item('img_size', label='size', editor=CSVListEditor()),
+                #),
             ),
 
             resizable=True, kind='panel', title='modify electrodes',
@@ -318,7 +321,7 @@ class ElectrodeWindow(Handler):
         cur_geom = self.model._grid_geom[self.cur_grid]
         if cur_geom=='user-defined' and self.naming_convention != 'line':
             from color_utils import mayavi2traits_color
-            from utils import GeometryNameHolder, GeomGetterWindow
+            from name_holder import GeometryNameHolder, GeomGetterWindow
             nameholder = GeometryNameHolder(
                 geometry=cur_geom,
                 color=mayavi2traits_color(
@@ -485,67 +488,52 @@ class ElectrodeWindow(Handler):
         return new_e
 
     def do_montage(self, info):
-        self.model.save_montage_file_grid(target=self.cur_grid,
+        electrodes = self.model.get_electrodes_from_grid(
+            target=self.cur_grid,
             electrodes=self.electrodes)
+
+        if electrodes is None:
+            return
+
+        save_coordinates( electrodes, self.model._grid_types,
+            snapping_completed=self.model._snapping_completed,
+            file_type='montage')
 
     def do_csv(self, info):
-        self.model.save_csv_file_grid(target=self.cur_grid,
+        electrodes = self.model.get_electrodes_from_grid(
+            target=self.cur_grid,
             electrodes=self.electrodes)
 
-    def _find_surrounding_rois(self, elec):
-        if elec.snap_coords is not None:
-            pos = elec.snap_coords
-        else:
-            pos = elec.surf_coords
+        if electrodes is None:
+            return
 
-        import pipeline as pipe
-        #TODO incorporate subcortical structures into non-aparc
-        roi_hits = pipe.identify_roi_from_atlas( pos,
-            atlas = self.parcellation,
-            approx = self.error_radius,
-            subjects_dir = self.model.subjects_dir,
-            subject = self.model.subject)
-
-        if len(roi_hits) == 0:
-            roi_hits = ['None']
-
-        elec.roi_list = roi_hits
+        save_coordinates( electrodes, self.model._grid_types,
+            snapping_completed=self.model._snapping_completed,
+            file_type='csv')
 
     def do_rois(self, info):
-        self._find_surrounding_rois( self.cur_sel )
+        from electrode_group import get_nearby_rois_elec
+        get_nearby_rois_elec( self.cur_sel,
+            parcellation=self.parcellation,
+            error_radius=self.error_radius,
+            subjects_dir=self.subjects_dir, subject=self.subject )
 
     def do_all_rois(self, info):
-        for elec in self.electrodes:
-            try:
-                self._find_surrounding_rois( elec )
-            except:
-                print 'Failed to find ROIs for %s' % str(elec)
+        from electrode_group import get_nearby_rois_grid
+        get_nearby_rois_grid( self.electrodes,
+            parcellation=self.model.parcellation,
+            error_radius=self.model.error_radius,
+            subjects_dir=self.subjects_dir, subject=self.subject )
 
     def do_coronal_slice(self, info):
-        savefile = self.model._ask_user_for_savefile()
+        savefile = ask_user_for_savefile('save png file with slice image')
 
-        elecs_have_geom = True
-        for elec in self.electrodes:
-            if len(elec.geom_coords) != 2:
-                elecs_have_geom = False
-                break
-
-        # we assume that we are only looking at depth leads with appropriate
-        # 1xN geometry
-        if elecs_have_geom:
-            start = reduce( 
-                lambda x,y:x if x.geom_coords[1]<y.geom_coords[1] else y,
-                self.electrodes)
-            end = reduce(
-                lambda x,y:x if x.geom_coords[1]>y.geom_coords[1] else y,
-                self.electrodes)
-        else:
-            start, end = (None, None)
-
-        from plotting_utils import coronal_slice
-        coronal_slice(self.electrodes, start=start, end=end, outfile=savefile,
+        from electrode_group import coronal_slice_grid
+        coronal_slice_grid(self.electrodes, savefile=savefile,
             subjects_dir=self.model.subjects_dir, subject=self.model.subject,
-            dpi=self.img_dpi, size=tuple(self.img_size), title=self.name_stem)
+            dpi=self.model.coronal_dpi, 
+            size=tuple(self.model.coronal_size),
+            title=self.name_stem)
 
     def do_manual_reposition(self, info):
         if self.cur_sel is None:

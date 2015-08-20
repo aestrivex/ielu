@@ -1,5 +1,6 @@
 from __future__ import division
 import os
+import sys
 import numpy as np
 from mayavi.core.ui.api import MayaviScene, SceneEditor, MlabSceneModel
 from traits.api import (Bool, Button, cached_property, File, HasTraits,
@@ -8,20 +9,22 @@ from traits.api import (Bool, Button, cached_property, File, HasTraits,
     Color)
 from traitsui.api import (View, Item, Group, OKCancelButtons, ShellEditor,
     HGroup, VGroup, InstanceEditor, TextEditor, ListEditor, CSVListEditor,
-    Handler, Label, OKCancelButtons)
+    Handler, Label, OKCancelButtons, VSplit)
 from traitsui.message import error as error_dialog
+from traitsui.api import MenuBar, Menu, Action
 
 from custom_list_editor import CustomListEditor
 
 from electrode import Electrode
-from utils import (virtual_points3d, NameHolder, GeometryNameHolder,
-    crash_if_freesurfer_is_not_sourced, gensym, get_subjects_dir,
-    NameHolderDisplayer)
+from name_holder import NameHolder, GeometryNameHolder, NameHolderDisplayer
+from utils import (virtual_points3d, crash_if_freesurfer_is_not_sourced,
+    gensym, get_subjects_dir)
 from color_utils import mayavi2traits_color
 from geometry import load_affine
 from functools import partial
 
 class ElectrodePositionsModel(HasPrivateTraits):
+#class ElectrodePositionsModel(HasTraits):
     ct_scan = File
     t1_scan = File
     subjects_dir = Directory
@@ -48,7 +51,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
     electrode_geometry = List(List(Int), [[8,8]]) # Gx2 list
 
-    _electrodes = List(Electrode)
+    electrodes = List(Electrode)
     #interactive_mode = Instance(NameHolder)
     interactive_mode = Property
     def _get_interactive_mode(self):
@@ -71,26 +74,26 @@ class ElectrodePositionsModel(HasPrivateTraits):
     #    self._grid_named_objects = []
     #    self._grid_named_objects = swap
         
-    _sorted_electrodes = Dict # Tuple -> Electrode
-    _interpolated_electrodes = Dict # Tuple -> Electrode
-    _unsorted_electrodes = Dict # Tuple -> Electrode
-    _all_electrodes = Dict # Tuple -> Electrode
+    _sorted_electrodes = Dict() # Tuple -> Electrode
+    _interpolated_electrodes = Dict() # Tuple -> Electrode
+    _unsorted_electrodes = Dict() # Tuple -> Electrode
+    _all_electrodes = Dict() # Tuple -> Electrode
         # dictionary from surface coordinates (as hashable) to reused
         # electrode objects
 
-    _surf_to_ct_map = Dict
-    _ct_to_surf_map = Dict
+    _surf_to_ct_map = Dict()
+    _ct_to_surf_map = Dict()
 
-    _ct_to_grid_ident_map = Dict # Tuple -> Str
+    _ct_to_grid_ident_map = Dict() # Tuple -> Str
     
-    _points_to_cur_grid = Dict
-    _points_to_unsorted = Dict
+    _points_to_cur_grid = Dict()
+    _points_to_unsorted = Dict()
 
-    _single_glyph_to_recolor = Tuple
-    _new_glyph_color = Any
-    _new_ras_positions = Dict
+    _single_glyph_to_recolor = Tuple()
+    _new_glyph_color = Any()
+    _new_ras_positions = Dict()
 
-    _interactive_mode_snapshot = Str
+    _interactive_mode_snapshot = Str()
 
     _rebuild_vizpanel_event = Event
     _rebuild_guipanel_event = Event
@@ -98,24 +101,24 @@ class ElectrodePositionsModel(HasPrivateTraits):
     _update_single_glyph_event = Event
     _reorient_glyph_event = Event
 
-    _visualization_ready = Bool(False)
+    _visualization_ready = Bool(False, )
 
     _add_annotation_event = Event
     _add_label_event = Event
     _remove_labels_event = Event 
-    _label_file = Str
-    _label_borders = Bool(True)
-    _label_opacity = Range(0., 1., 1.)
-    _label_color = Color
-    _label_hemi = Enum('both','lh','rh')
+    _label_file = Str()
+    _label_borders = Bool(True, )
+    _label_opacity = Range(0., 1., 1., )
+    _label_color = Color()
+    _label_hemi = Enum('both','lh','rh', )
 
     _hide_noise_event = Event
-    _noise_hidden = Bool(False)
+    _noise_hidden = Bool(False, )
 
-    _colors = Any # OrderedDict(Grid -> Color)
-    _color_scheme = Any #Generator returning 3-tuples
-    _grid_geom = Dict # Grid -> Gx2 list
-    _grid_types = Dict # Grid -> Str
+    _colors = Any() # OrderedDict(Grid -> Color)
+    _color_scheme = Any(transient=True) #Generator returning 3-tuples
+    _grid_geom = Dict() # Grid -> Gx2 list
+    _grid_types = Dict() # Grid -> Str
 
     ct_registration = File
 
@@ -134,18 +137,25 @@ class ElectrodePositionsModel(HasPrivateTraits):
     rho_strict_recon = Float(30.)
     rho_loose_recon = Float(55.)
 
-    _snapping_completed = Bool(False)
+    roi_parcellation = Str('aparc')
+    roi_error_radius = Float(4.)
+
+    coronal_dpi = Float(125.)
+    coronal_size = List(Float)
+    def _coronal_size_default(self):
+        return [450., 450.]
+
+    _snapping_completed = Bool(False, )
     nr_steps = Int(2500)
     deformation_constant = Float(1.)
 
     #state-storing interactive labeling windows
-    #ew = Instance(HasTraits)
-    ews = Dict #str -> Instance(HasTraits)
-    alw = Instance(HasTraits)
-    raw = Instance(HasTraits)
+    ews = Dict(transient=True) #str -> Instance(HasTraits)
+    alw = Instance(HasTraits, transient=True)
+    #raw = Instance(HasTraits)
     
-    panel2d = Instance(HasTraits)
-    _cursor_tracker = Instance(Electrode)
+    panel2d = Instance(HasTraits, transient=True)
+    _cursor_tracker = Instance(Electrode, transient=True)
     
     def __grid_named_objects_default(self):
     #    return self._get__grid_named_objects()
@@ -320,6 +330,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 self.ct_scan, subjects_dir=self.subjects_dir, 
                 subject=self.subject, overwrite=overwrite)
 
+        #recommend that the user never do this
         elif self.registration_procedure == 'no registration':
             #aff = np.eye(4)
             aff = np.array(((-1., 0., 0., 128.),
@@ -327,10 +338,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
                             (0., -1., 0., 128.),
                             (0., 0., 0., 1.)))
 
-            aff = np.array(((1., 0., 0., 0.),
-                            (0., 0., -1., 0.),
-                            (0., 1., 0., 0.),
-                            (0., 0., 0., 1.)))
+            #aff = np.array(((1., 0., 0., 0.),
+            #                (0., 0., -1., 0.),
+            #                (0., 1., 0., 0.),
+            #                (0., 0., 0., 1.)))
 
             #from scipy.linalg import inv
             #aff = inv(aff)
@@ -441,11 +452,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         # make the electrodes translated way outside of the brain go away
         if ct_mask:
-            removals = pipe.identify_extracranial_electrodes_in_freesurfer_space(
+            removals=pipe.identify_extracranial_electrodes_in_freesurfer_space(
                 self._electrodes)
 
             for e in removals:
-                self._electrods.remove(e)
+                self._electrodes.remove(e)
             
         # previously we snapped here
 
@@ -468,15 +479,15 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         # store the unsorted points in a separate map for access
         for elec in self._electrodes:
-            sorted = False
+            is_sorted = False
             for key in self._grids:
-                if sorted:
+                if is_sorted:
                     break
                 for elec_other in self._grids[key]:
                     if elec is elec_other:
-                        sorted=True
+                        is_sorted = True
                         break
-            if not sorted:
+            if not is_sorted:
                 self._unsorted_electrodes[elec.asct()] = elec
 
                 self._ct_to_grid_ident_map[elec.asct()] = 'unsorted'
@@ -596,65 +607,65 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         self._draw_event = True
 
-    def open_registration_window(self):
-        cur_grid = self.interactive_mode_displayer.interactive_mode
-        #TODO WHY IS REGISTRATION DONE BY GRIDS? Shouldnt we adjust the
-        #entire image registration?
-        if cur_grid is None:
-            error_dialog('Registration is done gridwise')
-            return
-        if cur_grid.name in ('', 'unsorted'):
-            error_dialog('Regsitration is done gridwise')
-            return
-
-        from utils import RegistrationAdjustmentWindow
-        self.raw = RegistrationAdjustmentWindow(
-            model = self,
-            cur_grid = cur_grid.name)
-        self.raw.edit_traits()
-
-    # this an operation for the manual registration window
-    def reorient_glyph(self, target, matrix):
-        self._commit_grid_changes()
-
-        old_locs = map(lambda x:x.asras(), self._grids[target])
-
-        from geometry import apply_affine
-        new_locs = apply_affine(old_locs, matrix)
-
-        for oloc, nloc in zip(old_locs, new_locs):
-            self._new_ras_positions[tuple(oloc)] = tuple(nloc)
-
-        self._interactive_mode_snapshot = target
-
-        #draw the changes, no underlying state has yet been altered
-        self._reorient_glyph_event = True
-
-        #for unknown reason the operation causes the LUT to be destroyed
-        #we can recreate it easily
-        self._update_glyph_lut_event = True
-
-        #import pdb
-        #pdb.set_trace()
-
-        for oloc,nloc,elec in zip(old_locs, new_locs, self._grids[target]):
-
-            if tuple(oloc) == tuple(nloc):
-                continue
-
-            elec.surf_coords = tuple(nloc)
-            self._ct_to_surf_map[elec.asct()] = tuple(nloc)
-            del self._surf_to_ct_map[tuple(oloc)]
-            self._surf_to_ct_map[tuple(nloc)] = elec.asct()
-
-    def fit_changes(self):
-        #maybe this should be a different call which evaluates a single
-        #grid
-
-        #ceurrently we dont use this
-        _, _, self._grids = pipe.classify_electrodes(
-            self._electrodes, self.electrode_geometry,
-            fixed_points=self._grids.values())
+#    def open_registration_window(self):
+#        cur_grid = self.interactive_mode_displayer.interactive_mode
+#        #TODO WHY IS REGISTRATION DONE BY GRIDS? Shouldnt we adjust the
+#        #entire image registration?
+#        if cur_grid is None:
+#            error_dialog('Registration is done gridwise')
+#            return
+#        if cur_grid.name in ('', 'unsorted'):
+#            error_dialog('Regsitration is done gridwise')
+#            return
+#
+#        from utils import RegistrationAdjustmentWindow
+#        self.raw = RegistrationAdjustmentWindow(
+#            model = self,
+#            cur_grid = cur_grid.name)
+#        self.raw.edit_traits()
+#
+#    # this an operation for the manual registration window
+#    def reorient_glyph(self, target, matrix):
+#        self._commit_grid_changes()
+#
+#        old_locs = map(lambda x:x.asras(), self._grids[target])
+#
+#        from geometry import apply_affine
+#        new_locs = apply_affine(old_locs, matrix)
+#
+#        for oloc, nloc in zip(old_locs, new_locs):
+#            self._new_ras_positions[tuple(oloc)] = tuple(nloc)
+#
+#        self._interactive_mode_snapshot = target
+#
+#        #draw the changes, no underlying state has yet been altered
+#        self._reorient_glyph_event = True
+#
+#        #for unknown reason the operation causes the LUT to be destroyed
+#        #we can recreate it easily
+#        self._update_glyph_lut_event = True
+#
+#        #import pdb
+#        #pdb.set_trace()
+#
+#        for oloc,nloc,elec in zip(old_locs, new_locs, self._grids[target]):
+#
+#            if tuple(oloc) == tuple(nloc):
+#                continue
+#
+#            elec.surf_coords = tuple(nloc)
+#            self._ct_to_surf_map[elec.asct()] = tuple(nloc)
+#            del self._surf_to_ct_map[tuple(oloc)]
+#            self._surf_to_ct_map[tuple(nloc)] = elec.asct()
+#
+#    def fit_changes(self):
+#        #maybe this should be a different call which evaluates a single
+#        #grid
+#
+#        #ceurrently we dont use this
+#        _, _, self._grids = pipe.classify_electrodes(
+#            self._electrodes, self.electrode_geometry,
+#            fixed_points=self._grids.values())
 
     def examine_electrodes(self):
         self._commit_grid_changes()
@@ -678,7 +689,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
             model = self,
             cur_grid = cur_grid.name,
             name_stem = cur_grid.name,
-            electrodes = self._grids[cur_grid.name])
+            electrodes = self._grids[cur_grid.name],
+            grid_type = self._grid_types[cur_grid.name])
         self.ews[cur_grid.name] = ew
         ew.edit_traits()
 
@@ -714,7 +726,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
             snappable_electrodes.extend(self._grids[key])
 
         if len(snappable_electrodes) == 0:
-            print "Found no subdural electrodes to snap"
+            error_dialog("Found no subdural electrodes to snap")
             return
 
         pipe.snap_electrodes_to_surface(
@@ -761,8 +773,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
         '''
         Move the electrode to fix errors, or for postprocessing visualization.
         
+        This is done when the user goes into the electrode window, selects an
+        electrode, and clicks on the menu item "move this electrode."
+
         If done as postprocessing, ROIs are not reset and snapped coordinates
-        are updated to the new values from the RAS (even if these RAS values were just calculated
+        are updated to the new values from the RAS (even if these RAS values 
+        were just calculated
 
         This eliminates the effect of snapping and usually should be done
         before snapping, also resets ROIs.
@@ -879,22 +895,39 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         self._rebuild_vizpanel_event = True
 
-    @on_trait_change('track_cursor_deselection_event')
+    @on_trait_change('panel2d:track_cursor_deselection_event')
     def _removed_tracked_cursor(self):
+        self._commit_grid_changes()
+
         self._cursor_tracker = None
+        self._rebuild_vizpanel_event = True
 
-    def _ask_user_for_savefile(self):
-        #from traitsui.file_dialog import save_file
-        from pyface.api import FileDialog, OK
-        
-        dialog = FileDialog(action='save as')
-        dialog.open()
-        if dialog.return_code != OK:
-            return
+    def _ask_user_for_savefile(self, title=None):
+        from utils import ask_user_for_savefile
+        return ask_user_for_savefile(title=title)
 
-        return os.path.join( dialog.directory, dialog.filename )
+    def _ask_user_for_loadfile(self, title=None):
+        from utils import ask_user_for_loadfile
+        return ask_user_for_loadfile(title=title)
 
-    def _get_electrodes_generic_singlegrid(self, target, electrodes):
+    def add_annotation(self, annot_name, hemi='both', border=True, opacity=1.):
+        self._label_file = annot_name
+        self._label_borders = border
+        self._label_opacity = opacity
+        self._label_hemi = hemi
+        self._add_annotation_event = True
+
+    def add_label(self, label_file, border=True, opacity=1., color='blue'):
+        self._label_file = label_file
+        self._label_borders = border
+        self._label_opacity = opacity
+        self._label_color = color
+        self._add_label_event = True
+
+    def remove_labels(self):
+        self._remove_labels_event = True
+
+    def get_electrodes_from_grid(self, target=None, electrodes=None):
         if target is None:
             self._commit_grid_changes()
             if self.interactive_mode_displayer.interactive_mode is None:
@@ -916,113 +949,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         return sorted(electrodes)
 
-    def _get_electrodes_all(self):
+    def get_electrodes_all(self):
         return sorted(filter(lambda e:e.grid_name != 'unsorted', 
             self._all_electrodes.values()))
 
-    def save_montage_file_grid(self, target=None, electrodes=None):
-        electrodes = self._get_electrodes_generic_singlegrid(target, 
-            electrodes)
-        if electrodes is None:
-            return
-
-        savefile = self._ask_user_for_savefile()
-
-        self._save_montage_file(savefile, electrodes)
-
-    def save_montage_file_all(self):
-        electrodes = self._get_electrodes_all()
-        savefile = self._ask_user_for_savefile()
-        self._save_montage_file(savefile, electrodes)
-
-    def _save_montage_file(self, savefile, electrodes):
-        # write the montage file
-        with open( savefile, 'w' ) as fd:
-            for j, elec in enumerate(electrodes):
-                key = elec.grid_name
-                if elec.name != '':
-                    label_name = elec.name
-                else:
-                    elec_id = elec.geom_coords
-                    elec_2dcoord = ('unsorted%i'%j if len(elec_id)==0 else
-                        str(elec_id))
-                    label_name = '%s_elec_%s'%(key, elec_2dcoord)
-
-                if (self._snapping_completed and 
-                        self._grid_types[key]=='subdural'):
-                    pos = elec.pial_coords.tolist()
-                else:
-                    pos = tuple(elec.surf_coords)
-
-                x,y,z = ['%.4f'%i for i in pos]
-
-                line = '%s\t%s\t%s\t%s\n' % (label_name, x, y, z)
-
-                fd.write(line)
-
-    def save_csv_file_grid(self, target=None, electrodes=None):
-        electrodes = self._get_electrodes_generic_singlegrid(target, 
-            electrodes)
-        if electrodes is None:
-            return
-
-        savefile = self._ask_user_for_savefile()
-
-        self._save_csv_file(savefile, electrodes)
-
-    def save_csv_file_all(self):
-        electrodes = self._get_electrodes_all()
-        savefile = self._ask_user_for_savefile()
-        self._save_csv_file(savefile, electrodes)
-
-    def _save_csv_file(self, savefile, electrodes):
-        #write the csv file
-        import csv
-        with open( savefile, 'w' ) as fd:
-            writer = csv.writer(fd)
-
-            for j,elec in enumerate(electrodes):
-                key = elec.grid_name
-                if elec.name != '':
-                    label_name = elec.name
-                else:
-                    elec_id = elec.geom_coords
-                    elec_2dcoord = ('unsorted%i'%j if len(elec_id)==0 else
-                        str(elec_id))
-                    label_name = '%s_elec_%s'%(key, elec_2dcoord)
-
-                if (self._snapping_completed and
-                        self._grid_types[key]=='subdural'):
-                    pos = elec.pial_coords.tolist() 
-                else:
-                    pos = tuple(elec.surf_coords)
-
-                x,y,z = ['%.4f'%i for i in pos]
-
-                row = [label_name, x, y, z]
-                row.extend(elec.roi_list)
-    
-                writer.writerow(row)
-
-    def add_annotation(self, annot_name, hemi='both', border=True, opacity=1.):
-        self._label_file = annot_name
-        self._label_borders = border
-        self._label_opacity = opacity
-        self._label_hemi = hemi
-        self._add_annotation_event = True
-
-    def add_label(self, label_file, border=True, opacity=1., color='blue'):
-        self._label_file = label_file
-        self._label_borders = border
-        self._label_opacity = opacity
-        self._label_color = color
-        self._add_label_event = True
-
-    def remove_labels(self):
-        self._remove_labels_event = True
-
-
-class ParamsPanel(HasTraits):
+class ExtractionRegistrationSortingPanel(HasTraits):
     model = Instance(ElectrodePositionsModel)
 
     ct_threshold = DelegatesTo('model')
@@ -1104,8 +1035,37 @@ class ParamsPanel(HasTraits):
             Item('rho_strict'),
             Item('rho_loose'),
         ),
-        ),),
-    title='Edit parameters',
+        ),
+        ),
+        
+    title='Adjust extraction registration and sorting parameters',
+    buttons=OKCancelButtons,
+    )
+
+class VisualizationsOutputsPanel(HasTraits):
+    model = Instance(ElectrodePositionsModel)
+
+    roi_parcellation = DelegatesTo('model')
+    roi_error_radius = DelegatesTo('model')
+
+    coronal_dpi = DelegatesTo('model')
+    coronal_size = DelegatesTo('model')
+
+    traits_view = View(
+        HGroup(
+        VGroup(
+            Label('Identification of ROIs near electrodes'),
+            Item('roi_parcellation'),
+            Item('roi_error_radius'),
+        ),
+        VGroup(
+            Label('Coronal slices'),
+            Item('coronal_dpi', label='dpi'),
+            Item('coronal_size', label='size', editor=CSVListEditor()),
+        ),
+        ),
+        
+    title='Adjust clinical visualization and output parameters',
     buttons=OKCancelButtons,
     )
 
@@ -1138,6 +1098,7 @@ class SurfaceVisualizerPanel(HasTraits):
         if self.visualize_in_ctspace:
             return 'ct_coords'
         elif self.model._snapping_completed:
+            #plot points on dural surface better for visualization than pial
             return 'snap_coords'
             #return 'pial_coords'
         else:
@@ -1450,9 +1411,6 @@ class SurfaceVisualizerPanel(HasTraits):
 
             glyph.mlab_source.dataset.points = points
 
-        #glyph = self.gs_glyphs[self._model._interactive_mode_snapshot]
-
-        #not all of the desired points will be in this glyph.
         #it is necessary to either
             #1. redraw the scene (we are not doing this)
             #2. determine the electrode identities, by iterating through
@@ -1520,10 +1478,10 @@ class InteractivePanel(HasPrivateTraits):
                 Item('ct_scan'),
                 #Item('ct_registration', label='reg matrix\n(optional)')
                 #Item('adjust_registration_button', show_label=False),
-                HGroup(
-                    Item('visualize_ct_button', show_label=False),
-                    Item('hide_noise_button', show_label=False),
-                ),
+                #HGroup(
+                #    Item('visualize_ct_button', show_label=False),
+                #    Item('hide_noise_button', show_label=False),
+                #),
             ),
             VGroup(
                 Item('electrode_geometry', editor=CustomListEditor(
@@ -1531,11 +1489,11 @@ class InteractivePanel(HasPrivateTraits):
             ), 
             VGroup(
                 Item('run_pipeline_button', show_label=False),
-                Item('edit_parameters_button', show_label=False),
-                HGroup(
-                    Item('save_montage_button', show_label=False),
-                    Item('save_csv_button', show_label=False),
-                ),
+                #Item('edit_parameters_button', show_label=False),
+                #HGroup(
+                #    Item('save_montage_button', show_label=False),
+                #    Item('save_csv_button', show_label=False),
+                #),
             ),
         ),
         HGroup(
@@ -1554,15 +1512,16 @@ class InteractivePanel(HasPrivateTraits):
             VGroup(
                 Item('add_grid_button', show_label=False),
                 #Item('reconstruct_vizpanel_button', show_label=False),
-                Item('add_label_button', show_label=False)
-            ),
-            VGroup(
+                #Item('add_label_button', show_label=False)
+            #),
+            #VGroup(
                 Item('examine_electrodes_button', show_label=False),
-                Item('snap_electrodes_button', show_label=False),
+            #    Item('snap_electrodes_button', show_label=False),
             ),
         ),
 
                 Item('shell', show_label=False, editor=ShellEditor()),
+
         height=300, width=500, resizable=True
     )
 
@@ -1581,14 +1540,8 @@ class InteractivePanel(HasPrivateTraits):
     def _find_best_fit_button_fired(self):
         self.model.fit_changes()
 #
-    def _save_montage_button_fired(self):
-        self.model.save_montage_file_all()
-
-    def _save_csv_button_fired(self):
-        self.model.save_csv_file_all()
-
     def _edit_parameters_button_fired(self):
-        ParamsPanel(model=self.model).edit_traits()
+        ExtractionRegistrationSortingPanel(model=self.model).edit_traits()
 
     def _hide_noise_button_fired(self):
         self.model.hide_noise() 
@@ -1621,7 +1574,33 @@ class iEEGCoregistrationFrame(HasTraits):
     interactive_panel = Instance(InteractivePanel)
     surface_visualizer_panel = Instance(SurfaceVisualizerPanel)
     ct_visualizer_panel = Instance(SurfaceVisualizerPanel)
-    #viz_interface = Instance(IntermediateVizInterface)
+
+    load_pickle_action = Action(name='Load pickle', action='do_load_pickle' )
+    save_pickle_action = Action(name='Save pickle', action='do_save_pickle' )
+    quit_action = Action(name='Quit', action='do_quit')
+
+    run_pipeline_action = Action( name='Run pipeline', 
+        action='do_run_pipeline')
+    snap_action = Action( name='Snap electrodes to surface', action='do_snap')
+    hide_noise_action = Action( name='Hide noise', action='do_hide_noise')
+    examine_ct_action = Action( name='Examine CT', action='do_examine_ct')
+    display_pysurfer_labels_action = Action(name='Show labels or annotation',
+        action='do_display_pysurfer_labels')
+
+    find_rois_action = Action(name='Find neighboring ROIs', 
+        action='do_find_rois')
+    coronal_slices_action = Action(name='Save coronal slices',
+        action='do_coronal_slices')
+    save_montage_action = Action(name='Save montage', 
+        action='do_save_montage')
+    save_csv_action = Action(name='Save CSV', action='do_save_csv')
+
+    edit_extraction_sorting_parameters_action = Action(
+        name = 'Extraction/Registration/Sorting',
+        action = 'do_extraction_params')
+    edit_visualization_output_parameters_action = Action(
+        name = 'Visualization/Output',
+        action = 'do_visualization_params')
 
     traits_view = View(
         Group(
@@ -1636,6 +1615,28 @@ class iEEGCoregistrationFrame(HasTraits):
         show_labels=False, layout='split'),
         title=('llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch is'
             ' nice this time of year'),
+
+        menubar = MenuBar(
+            Menu( load_pickle_action,
+                  save_pickle_action,
+                  #quit_action,
+                name = 'File'),
+            Menu ( run_pipeline_action,
+                   snap_action, 
+                   examine_ct_action,
+                   hide_noise_action,
+                   display_pysurfer_labels_action,
+                name = 'Tools'),
+            Menu( find_rois_action,
+                  coronal_slices_action,
+                  save_montage_action,
+                  save_csv_action,
+                name = 'Electrode'),
+            Menu ( edit_extraction_sorting_parameters_action,
+                   edit_visualization_output_parameters_action,
+                name = 'Settings'),
+        ),
+
         height=800, width=800, resizable=True
     )
 
@@ -1648,6 +1649,108 @@ class iEEGCoregistrationFrame(HasTraits):
         self.interactive_panel = InteractivePanel(model,
             viz=self.surface_visualizer_panel,
             ctviz=self.ct_visualizer_panel)
+
+    def do_save_pickle(self):
+        self.model._commit_grid_changes()
+
+        savefile = self.model._ask_user_for_savefile(title='save pkl file')
+
+        from pickle import dump
+        with open(savefile, 'w') as fd:
+            dump(self.model, fd)
+
+    def do_load_pickle(self):
+        loadfile = self.model._ask_user_for_loadfile(title='load pkl file')
+
+        from pickle import load
+        with open(loadfile) as fd:
+            self.model = load(fd)
+
+        from utils import get_default_color_scheme
+        colors = get_default_color_scheme()
+        #get rid of the right number of colors
+        for i in xrange( len( self.model._grids)):
+            colors.next()
+
+        self.model._color_scheme = colors
+    
+        self.model._rebuild_guipanel_event = True
+        self.model._rebuild_vizpanel_event = True
+    
+    #def do_quit(self):
+    #    sys.exit(0)
+    # user can quit with window manager. makes less likely to misclick and
+    # exit accidentally
+
+    def do_run_pipeline(self):
+        self.model.run_pipeline()
+
+    def do_snap(self):
+        self.model.snap_all()
+
+    def do_examine_ct(self):
+        import panel2d
+        self.model.panel2d = pd = panel2d.TwoDimensionalPanel()
+        pd.load_img(self.model.ct_scan, image_name='ct')
+        pd.edit_traits()
+
+    def do_hide_noise(self):
+        self.model.hide_noise() 
+
+        if self.model._noise_hidden:
+            self.hide_noise_action.name = 'Unhide noise'
+        else:
+            self.hide_noise_action.name = 'Hide noise'
+
+    def do_display_pysurfer_labels(self):
+        self.model.open_add_label_window()
+
+    def do_find_rois(self):
+        self.model._commit_grid_changes()
+
+        from electrode_group import get_nearby_rois_all
+        get_nearby_rois_all( self.model._grids,
+                             subjects_dir=self.model.subjects_dir,
+                             subject=self.model.subject )
+        #additional parameters ought to be specified in the options window 
+        #and stuck on the model
+
+    def do_coronal_slices(self):
+        self.model._commit_grid_changes()
+
+        from electrode_group import coronal_slice_all
+        coronal_slice_all( self.model._grids,
+                           self.model._grid_types,
+                           subjects_dir=self.model.subjects_dir,
+                           subject=self.model.subject )
+        #additional parameters ought to be specified in the options window 
+        #and stuck on the model
+
+    def do_save_montage(self):
+        self.model._commit_grid_changes()
+
+        electrodes = self.model.get_electrodes_all()
+
+        from electrode_group import save_coordinates
+        save_coordinates( electrodes, self.model._grid_types,
+            snapping_completed=self.model._snapping_completed,
+            file_type='montage')
+    
+    def do_save_csv(self):
+        self.model._commit_grid_changes()
+
+        electrodes = self.model.get_electrodes_all()
+
+        from electrode_group import save_coordinates
+        save_coordinates( electrodes, self.model._grid_types,
+            snapping_completed=self.model._snapping_completed,
+            file_type='csv')
+
+    def do_extraction_params(self):
+        ExtractionRegistrationSortingPanel(model=self.model).edit_traits()
+
+    def do_visualization_params(self):
+        VisualizationsOutputsPanel(model=self.model).edit_traits()
 
     @on_trait_change('model:_rebuild_vizpanel_event')
     def _rebuild_vizpanel(self):

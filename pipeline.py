@@ -369,23 +369,7 @@ def classify_electrodes(electrodes, known_geometry,
     from collections import OrderedDict    
 
     if color_scheme is None:
-        def color_scheme():
-            predefined_colors = [(.2,.5,.8), #focal blue
-                                 (.6,.3,.9), #dark purple
-                                 (.8,.5,.9), #light purple
-                                 (1,.2,.5), #hot pink
-                                 (.7,.7,.9), #lavender
-                                 (.36,.58,.04), #dark green
-                                 (.22,.94,.64), #turquoise
-                                 (1,.6,.2), #orange
-                                 (.5,.9,.4), #semi-focal green
-                                 (0,.6,.8), #royal blue
-                                ]
-
-            for color in predefined_colors:
-                yield color
-            while True:
-                yield tuple(np.random.random(3))
+        from utils import get_default_color_scheme as color_scheme
 
     def name_generator():
         i=0

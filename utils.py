@@ -10,7 +10,6 @@ from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor,
 from traitsui.message import error as error_dialog
 
 from mayavi import mlab
-from electrode import Electrode
 
 def virtual_points3d(coords, figure=None, scale_factor=None, color=None, 
     name=None):
@@ -46,7 +45,7 @@ def clear_scene(scene):
 
     #mlab.clf(figure=scene)
 
-def get_subjects_dir(subject=None, subjects_dir=None):
+def get_subjects_dir(subjects_dir=None, subject=None):
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
     if subject is None or subject=='':
@@ -76,61 +75,47 @@ def crash_if_freesurfer_is_not_sourced():
 
         sys.exit(1)
 
-class NameHolder(HasTraits):
-    name = Str
-    traits_view = View()
-
-    def __str__(self):
-        return 'Grid: %s'%self.name
-
-class GeometryNameHolder(NameHolder):
-    geometry = Str
-    color = Color
-    previous_name = Str
-    traits_view = View( 
-        HGroup(
-            Item('name', show_label=False, 
-                editor=TextEditor(auto_set=False, enter_set=True), ),
-            Item('geometry', style='readonly'),
-            Item('color', style='readonly'),
-        ),
-    )
-
-    def __str__(self):
-        return 'Grid: %s, col:%s, geom:%s'%(self.name,self.color,
-            self.geometry)
-    def __repr__(self):
-        return str(self)
-
-class GeomGetterWindow(Handler):
-    #has to do the handler thing
-    #for now proof of concept and notimplementederror
-    geometry = List(Int)
-    holder = Instance(NameHolder)
+def ask_user_for_savefile(title=None):
+    #from traitsui.file_dialog import save_file
+    from pyface.api import FileDialog, OK
     
-    traits_view = View(
-        #Item('grid_representation', editor=InstanceEditor(), style='custom'),
-        Item('holder', editor=InstanceEditor(), style='custom', 
-            show_label=False),
-        Item('geometry', editor=CSVListEditor(), label='list geometry'),
-        title='Specify geometry',
-        kind='livemodal',
-        buttons=OKCancelButtons,
-    )
+    dialog = FileDialog(action='save as')
+    if title is not None:
+        dialog.title = title
+    dialog.open()
+    if dialog.return_code != OK:
+        return
 
-class NameHolderDisplayer(Handler):
-    name_holders = List(Instance(NameHolder))
-    interactive_mode = Instance(NameHolder)
-    _mode_changed_event = Event
+    return os.path.join( dialog.directory, dialog.filename )
 
-    @on_trait_change('interactive_mode')
-    def fire_event(self):
-        self._mode_changed_event = True
+def ask_user_for_loadfile(title=None):
+    from pyface.api import FileDialog, OK
+    dialog = FileDialog(action='open')
+    if title is not None:
+        dialog.title = title
+    dialog.open()
+    if dialog.return_code != OK:
+        return
 
-    traits_view = View(
-        Item('interactive_mode', editor=InstanceEditor(name='name_holders'),
-            style='custom', show_label=False),
-    )
+    return os.path.join( dialog.directory, dialog.filename )
+
+def get_default_color_scheme():
+    predefined_colors = [(.2,.5,.8), #focal blue
+                         (.6,.3,.9), #dark purple
+                         (.8,.5,.9), #light purple
+                         (1,.2,.5), #hot pink
+                         (.7,.7,.9), #lavender
+                         (.36,.58,.04), #dark green
+                         (.22,.94,.64), #turquoise
+                         (1,.6,.2), #orange
+                         (.5,.9,.4), #semi-focal green
+                         (0,.6,.8), #royal blue
+                        ]
+
+    for color in predefined_colors:
+        yield color
+    while True:
+        yield tuple(np.random.random(3))
 
 class AddLabelsWindow(Handler):
     model = Any
