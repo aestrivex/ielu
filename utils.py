@@ -9,6 +9,7 @@ from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor,
     VSplit, HSplit, VGroup)
 from traitsui.message import error as error_dialog
 
+from functools import partial
 from mayavi import mlab
 
 def virtual_points3d(coords, figure=None, scale_factor=None, color=None, 
@@ -24,6 +25,12 @@ def virtual_points3d(coords, figure=None, scale_factor=None, color=None,
 
     #return mlab.points3d( c[:,0], c[:,1], c[:,2],
     #    figure=figure, scale_factor=10*scale_factor, color=color, name=name)
+
+def intize( tuple_of_floats ):
+    return tuple( 
+        map ( int,
+        map ( lambda x:x*1e4, 
+        map( partial( round, ndigits=4 ), tuple_of_floats ))))
 
 def clear_scene(scene):
     #this bugs out for a reason I haven't figured out yet

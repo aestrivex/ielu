@@ -9,6 +9,7 @@ from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor, VGroup,
     MenuBar, Menu)
 from traitsui.message import error as error_dialog
 from utils import ask_user_for_savefile
+from functools import partial
 
 class Electrode(HasTraits):
 #    ct_coords = List(Float)
@@ -73,11 +74,10 @@ class Electrode(HasTraits):
         return nparrayastuple(self.pial_coords)
 
     def asras(self):
-        return tuple(self.surf_coords)
+        return self.surf_coords
 
     def asct(self):
-        return tuple(self.ct_coords)
-
+        return self.ct_coords
 
 def nparrayastuple(nparray):
     nparray = np.array(nparray)

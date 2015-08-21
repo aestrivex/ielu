@@ -18,10 +18,11 @@ from custom_list_editor import CustomListEditor
 from electrode import Electrode
 from name_holder import NameHolder, GeometryNameHolder, NameHolderDisplayer
 from utils import (virtual_points3d, crash_if_freesurfer_is_not_sourced,
-    gensym, get_subjects_dir)
+    gensym, get_subjects_dir, intize)
 from color_utils import mayavi2traits_color
 from geometry import load_affine
 from functools import partial
+import nibabel as nib
 
 class ElectrodePositionsModel(HasPrivateTraits):
 #class ElectrodePositionsModel(HasTraits):
@@ -59,7 +60,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     #def _set_interactive_mode(self, val):
     #    self.interactive_mode_displayer.interactive_mode = val
 
-    interactive_mode_displayer = Instance(NameHolderDisplayer, ())
+    interactive_mode_displayer = Instance(NameHolderDisplayer, (),
+        transient=False)
 
     _grids = Dict # Str -> List(Electrode)
     #_grid_named_objects = Property(depends_on='_grids')
@@ -73,6 +75,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     #    swap = self._grid_named_objects
     #    self._grid_named_objects = []
     #    self._grid_named_objects = swap
+
+    surface_opacity = Float(0.4)
         
     _sorted_electrodes = Dict() # Tuple -> Electrode
     _interpolated_electrodes = Dict() # Tuple -> Electrode
@@ -157,9 +161,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
     panel2d = Instance(HasTraits, transient=True)
     _cursor_tracker = Instance(Electrode, transient=True)
     
-    def __grid_named_objects_default(self):
+    def _create_default_name_holders(self):
     #    return self._get__grid_named_objects()
-        grid_names = [NameHolder(name=''), 
+        name_holders = [NameHolder(name=''), 
             GeometryNameHolder(name='unsorted',
                 geometry='n/a',
                 #TODO dont totally hardcode this color
@@ -170,9 +174,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
             for key in self._colors.keys():
                 if key in ('unsorted','selection'):
                     continue
-                grid_names.append( self._new_grid_name_holder(key) )
+                name_holders.append( self._new_grid_name_holder(key) )
 
-        return grid_names
+        return name_holders
 
     def _rebuild_interactive_mode_displayer(self, previous_holder=None):
         if previous_holder is not None:
@@ -182,7 +186,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self.interactive_mode_displayer = NameHolderDisplayer()
 
         self.interactive_mode_displayer.name_holders = (
-            self.__grid_named_objects_default())
+            self._create_default_name_holders())
 
         #self.interactive_mode_displayer.interactive_mode = (
         #    self.interactive_mode)
@@ -298,15 +302,16 @@ class ElectrodePositionsModel(HasPrivateTraits):
         
                 if old not in ('','unsorted','selection'):
                     self._grids[old].remove(elec)
-                    self._ct_to_grid_ident_map[elec.asct()] = 'unsorted'
+                    self._ct_to_grid_ident_map[ intize(elec.asct()) ] = ( 
+                        'unsorted')
                 elif old=='unsorted':
-                    del self._unsorted_electrodes[elec.asct()]
+                    del self._unsorted_electrodes[ intize(elec.asct()) ]
 
                 if new not in ('','unsorted','selection'):
                     self._grids[new].append(elec)
-                    self._ct_to_grid_ident_map[elec.asct()] = new
+                    self._ct_to_grid_ident_map[ intize(elec.asct()) ] = new
                 elif new=='unsorted':
-                    self._unsorted_electrodes[elec.asct()] = elec
+                    self._unsorted_electrodes[ intize(elec.asct()) ] = elec
 
         self._points_to_cur_grid = {}
         self._points_to_unsorted = {}
@@ -464,12 +469,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
         for key in self._grids:
             for elec in self._grids[key]:
                 if elec.is_interpolation:
-                    self._interpolated_electrodes[elec.asct()] = elec
+                    self._interpolated_electrodes[ intize(elec.asct()) ] = elec
                 else:
-                    self._sorted_electrodes[elec.asct()] = elec
+                    self._sorted_electrodes[ intize( elec.asct()) ] = elec
 
                 #save each electrode's grid identity
-                self._ct_to_grid_ident_map[elec.asct()] = key
+                self._ct_to_grid_ident_map[ intize( elec.asct()) ] = key
 
         #set the grid type to be subdural
         #any depth grids will not have been created by now since they have
@@ -488,9 +493,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
                         is_sorted = True
                         break
             if not is_sorted:
-                self._unsorted_electrodes[elec.asct()] = elec
+                self._unsorted_electrodes[ intize(elec.asct()) ] = elec
 
-                self._ct_to_grid_ident_map[elec.asct()] = 'unsorted'
+                self._ct_to_grid_ident_map[ intize(elec.asct()) ] = 'unsorted'
 
         self._all_electrodes.update(self._interpolated_electrodes)
         self._all_electrodes.update(self._unsorted_electrodes)
@@ -501,8 +506,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
             #snapping is never completed by this point anymore
             surf_coord = elec.asras()
 
-            self._ct_to_surf_map[elec.asct()] = surf_coord
-            self._surf_to_ct_map[surf_coord] = elec.asct()
+            self._ct_to_surf_map[ intize(elec.asct()) ] = surf_coord
+            self._surf_to_ct_map[ intize(surf_coord) ] = elec.asct()
 
         #manually trigger a change to grid_named_objects property
         #using an unlikely grid name
@@ -510,7 +515,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #del self._grids['test rice-a-roni']
 
         self.interactive_mode_displayer.name_holders = (
-            self.__grid_named_objects_default())
+            self._create_default_name_holders())
         
         self.interactive_mode_displayer.interactive_mode = (
             self.interactive_mode_displayer.name_holders[0])
@@ -560,33 +565,33 @@ class ElectrodePositionsModel(HasPrivateTraits):
     def add_electrode_to_grid(self, elec, target):
         self._grids[target].append(elec)
 
-        self._ct_to_surf_map[elec.asct()] = elec.asras()
-        self._surf_to_ct_map[elec.asras()] = elec.asct()
+        self._ct_to_surf_map[intize(elec.asct())] = elec.asras()
+        self._surf_to_ct_map[intize(elec.asras())] = elec.asct()
 
-        self._ct_to_grid_ident_map[elec.asct()] = target
-        self._interpolated_electrodes[elec.asct()] = elec
-        self._all_electrodes[elec.asct()] = elec
+        self._ct_to_grid_ident_map[ intize(elec.asct()) ] = target
+        self._interpolated_electrodes[ intize(elec.asct()) ] = elec
+        self._all_electrodes[ intize(elec.asct()) ] = elec
 
         self._rebuild_vizpanel_event = True
         elec.special_name = ''
 
     def change_single_glyph(self, xyz, elec, target, current_key):
         if elec in self._grids[target]:
-            if xyz in self._points_to_unsorted:
-                del self._points_to_unsorted[xyz]
+            if intize(xyz) in self._points_to_unsorted:
+                del self._points_to_unsorted[ intize(xyz) ]
                 elec.grid_transition_to = ''
                 self._new_glyph_color = self._colors.keys().index(current_key)
             else:
-                self._points_to_unsorted[xyz] = elec
+                self._points_to_unsorted[ intize(xyz) ] = elec
                 elec.grid_transition_to = 'unsorted'
                 self._new_glyph_color = self._colors.keys().index('unsorted')
         else:
-            if xyz in self._points_to_cur_grid:
-                del self._points_to_cur_grid[xyz]
+            if intize(xyz) in self._points_to_cur_grid:
+                del self._points_to_cur_grid[ intize(xyz) ]
                 elec.grid_transition_to = ''
                 self._new_glyph_color = self._colors.keys().index(current_key)
             else:
-                self._points_to_cur_grid[xyz] = elec
+                self._points_to_cur_grid[ intize(xyz) ] = elec
                 elec.grid_transition_to = target
                 self._new_glyph_color = self._colors.keys().index(target)
 
@@ -743,13 +748,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
                     surf_coord = elec.asras()
                     snap_coord = elec.astuple()
 
-                    self._ct_to_surf_map[elec.asct()] = snap_coord
-                    self._surf_to_ct_map[snap_coord] = elec.asct()
+                    self._ct_to_surf_map[ intize(elec.asct()) ] = snap_coord
+                    self._surf_to_ct_map[ intize(snap_coord) ] = elec.asct()
                     #TODO manage collisions in ct_to_surf mapping
                     
                     # could have been snapped before
                     try:
-                        del self._surf_to_ct_map[surf_coord]
+                        del self._surf_to_ct_map[ intize(surf_coord) ]
                     except KeyError:
                         pass
 
@@ -785,12 +790,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
         '''
 
         #remove old electrode position from dictionary data structures
-        del self._ct_to_surf_map[elec.asct()]
-        del self._surf_to_ct_map[elec.asras()]
+        del self._ct_to_surf_map[ intize(elec.asct()) ]
+        del self._surf_to_ct_map[ intize(elec.asras()) ]
 
-        target_grid = self._ct_to_grid_ident_map[elec.asct()]
-        del self._ct_to_grid_ident_map[elec.asct()]
-        del self._all_electrodes[elec.asct()]
+        target_grid = self._ct_to_grid_ident_map[ intize(elec.asct()) ]
+        del self._ct_to_grid_ident_map[ intize(elec.asct()) ]
+        del self._all_electrodes[ intize(elec.asct()) ]
 
         if not in_ras:
             elec.ct_coords = new_coords
@@ -816,11 +821,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
             elec.roi_list = []
 
         #repopulate dictionaries with new updated electrode
-        self._ct_to_surf_map[elec.asct()] = elec.asras()
-        self._surf_to_ct_map[elec.asras()] = elec.asct()
+        self._ct_to_surf_map[ intize( elec.asct()) ] = elec.asras()
+        self._surf_to_ct_map[ intize( elec.asras()) ] = elec.asct()
 
-        self._ct_to_grid_ident_map[elec.asct()] = target_grid
-        self._all_electrodes[elec.asct()] = elec
+        self._ct_to_grid_ident_map[ intize( elec.asct() )] = target_grid
+        self._all_electrodes[ intize(elec.asct()) ] = elec
 
         self._rebuild_vizpanel_event = True
 
@@ -855,12 +860,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #self._grids['unsorted'] = elec
         #self._grids['unsorted'].append(elec)
 
-        self._ct_to_surf_map[elec.asct()] = elec.asras()
-        self._surf_to_ct_map[elec.asras()] = elec.asct()
+        self._ct_to_surf_map[ intize(elec.asct()) ] = elec.asras()
+        self._surf_to_ct_map[ intize(elec.asras()) ] = elec.asct()
 
-        self._ct_to_grid_ident_map[elec.asct()] = 'unsorted'
-        self._all_electrodes[elec.asct()] = elec
-        self._unsorted_electrodes[elec.asct()] = elec
+        self._ct_to_grid_ident_map[ intize(elec.asct()) ] = 'unsorted'
+        self._all_electrodes[ intize(elec.asct()) ] = elec
+        self._unsorted_electrodes[ intize( elec.asct()) ] = elec
 
         self._rebuild_vizpanel_event = True
 
@@ -899,8 +904,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
     def _removed_tracked_cursor(self):
         self._commit_grid_changes()
 
+        cursor_snapshot = self._cursor_tracker
         self._cursor_tracker = None
-        self._rebuild_vizpanel_event = True
+
+        if cursor_snapshot is not None:
+            self._rebuild_vizpanel_event = True
 
     def _ask_user_for_savefile(self, title=None):
         from utils import ask_user_for_savefile
@@ -1108,6 +1116,21 @@ class SurfaceVisualizerPanel(HasTraits):
     gs_glyphs = Dict
     tracking_glyph = Any
 
+    _lh_pysurfer_offset = Float
+    _rh_pysurfer_offset = Float
+    def __lh_pysurfer_offset_default(self):
+        if self.visualize_in_ctspace:
+            return 0
+        lh_pia, _ = nib.freesurfer.read_geometry(
+            os.path.join(self.subjects_dir, self.subject, 'surf', 'lh.pial'))
+        return np.max(lh_pia[:, 0])
+    def __rh_pysurfer_offset_default(self):
+        if self.visualize_in_ctspace:
+            return 0
+        rh_pia, _ = nib.freesurfer.read_geometry(
+            os.path.join(self.subjects_dir, self.subject, 'surf', 'rh.pial'))
+        return np.min(rh_pia[:, 0])
+
     traits_view = View(
         Item('scene', editor=SceneEditor(scene_class=MayaviScene),
             show_label=False, resizable=True),
@@ -1155,12 +1178,20 @@ class SurfaceVisualizerPanel(HasTraits):
             #set the surface unpickable
             for srf in brain.brains:
                 srf._geo_surf.actor.actor.pickable=False
-                srf._geo_surf.actor.property.opacity = 0.4
+                srf._geo_surf.actor.property.opacity = (
+                    self.model.surface_opacity)
 
             scale_factor = 3.
         else:
             scale_factor = 5.
 
+        def fix_elec( elec, coordtype=None ):
+            init_coord = np.array(getattr(elec, coordtype))
+            if init_coord[0] < 0: 
+                init_coord[0] -= self._lh_pysurfer_offset
+            else:
+                init_coord[0] -= self._rh_pysurfer_offset
+            return init_coord
 
         #unsorted
         if not self.model._noise_hidden:
@@ -1168,8 +1199,9 @@ class SurfaceVisualizerPanel(HasTraits):
                 self._viz_coordtype not in ('pial_coords', 'snap_coords')
                 else 'surf_coords')
         
-            unsorted_elecs = map((lambda x:getattr(x, unsorted_coordtype)),
-                self._unsorted_electrodes.values())
+            unsorted_elecs = map(
+                partial(fix_elec, coordtype=unsorted_coordtype),
+                 self._unsorted_electrodes.values() )
             self.gs_glyphs['unsorted'] = glyph = virtual_points3d( 
                 unsorted_elecs, scale_factor=scale_factor, name='unsorted',
                 figure=self.scene.mayavi_scene, 
@@ -1186,9 +1218,10 @@ class SurfaceVisualizerPanel(HasTraits):
                  self._grid_types[key]=='subdural') else 
                 'surf_coords')
 
-            grid_elecs = map((lambda x:getattr(x, grid_coordtype)), 
+            grid_elecs = map(
+                partial(fix_elec, coordtype=grid_coordtype),
                 self._grids[key])
-
+                        
             if len(grid_elecs)==0:
                 continue
 
@@ -1261,13 +1294,18 @@ class SurfaceVisualizerPanel(HasTraits):
             if picker.actor in nodes.actor.actors:
                 pt = int(picker.point_id/nodes.glyph.glyph_source.
                     glyph_source.output.points.to_array().shape[0])
+                x,y,z = np.around(nodes.mlab_source.points[pt], 4)
                 x,y,z = nodes.mlab_source.points[pt]
 
                 #translate from CT to surf coords if necessary
                 if not self.visualize_in_ctspace:
-                    x,y,z = self._surf_to_ct_map[(x,y,z)]
+                    if x < 0:
+                        x += self._lh_pysurfer_offset
+                    else:
+                        x += self._rh_pysurfer_offset
+                    x,y,z = self._surf_to_ct_map[intize((x,y,z)) ]
 
-                elec = self._all_electrodes[(x,y,z)]
+                elec = self._all_electrodes[ intize((x,y,z))]
 
                 current_key = elec.grid_name
                 break
@@ -1295,7 +1333,11 @@ class SurfaceVisualizerPanel(HasTraits):
         #pdb.set_trace()
         xyz = self.model._single_glyph_to_recolor
         if not self.visualize_in_ctspace:
-            xyz = self._ct_to_surf_map[xyz]
+            xyz = np.array( self._ct_to_surf_map[ intize(xyz) ] )
+            if xyz[0] < 0:
+                xyz[0] -= self._lh_pysurfer_offset
+            else:
+                xyz[0] -= self._rh_pysurfer_offset
 
         for nodes in self.gs_glyphs.values():
             pt, = np.where( np.all(nodes.mlab_source.points == xyz, axis=1 ))
@@ -1313,18 +1355,8 @@ class SurfaceVisualizerPanel(HasTraits):
 
     @on_trait_change('model:_draw_event')
     def force_render(self):
-        from mayavi import mlab
-        self.scene.render()
-        mlab.draw(figure=self.scene.mayavi_scene)
-        #self.scene._renwin.render()
-        from pyface.api import GUI
-        _gui = GUI()
-        orig_val = _gui.busy
-        _gui.set_busy(busy=True)
-        _gui.process_events()
-        _gui.set_busy(busy=orig_val)
-        _gui.process_events()
-
+        from plotting_utils import force_render as fr
+        fr( figure=self.scene.mayavi_scene )
 
     @on_trait_change('model:_update_glyph_lut_event')
     def update_glyph_lut(self):
@@ -1393,23 +1425,23 @@ class SurfaceVisualizerPanel(HasTraits):
             annot['surface'].remove()
         self.brain.annot_list=[]
     
-    @on_trait_change('model:_reorient_glyph_event')
-    def update_orientation(self):
+    #@on_trait_change('model:_reorient_glyph_event')
+    #def update_orientation(self):
         #only do this for surface viz, do not adjust CT electrode positions
-        if self.visualize_in_ctspace:
-            return
-
-        target = self.model._interactive_mode_snapshot
-
-        for glyph in self.gs_glyphs.values():
-            points = np.array(glyph.mlab_source.dataset.points)
-
-            for i,point in enumerate(points):
-                surf_point = tuple(self.model._surf_to_ct_map[tuple(point)])
-                if self.model._ct_to_grid_ident_map[surf_point] == target:
-                    points[i] = self.model._new_ras_positions[tuple(point)] 
-
-            glyph.mlab_source.dataset.points = points
+    #    if self.visualize_in_ctspace:
+    #        return
+    #
+    #    target = self.model._interactive_mode_snapshot
+    #
+    #    for glyph in self.gs_glyphs.values():
+    #        points = np.array(glyph.mlab_source.dataset.points)
+    #
+    #        for i,point in enumerate(points):
+    #            surf_point = tuple(self.model._surf_to_ct_map[tuple(point)])
+    #            if self.model._ct_to_grid_ident_map[surf_point] == target:
+    #                points[i] = self.model._new_ras_positions[tuple(point)] 
+    #
+    #        glyph.mlab_source.dataset.points = points
 
         #it is necessary to either
             #1. redraw the scene (we are not doing this)
@@ -1430,7 +1462,15 @@ class SurfaceVisualizerPanel(HasTraits):
 
             #   so it is probably best to just to access each electrode
             #   directly from the model to get its updated coordinates
-                
+
+    @on_trait_change('model:surface_opacity')
+    def update_surface_opacity(self):
+        if not self.visualize_in_ctspace:
+            opc = self.model.surface_opacity
+            for srf in self.brain.brains:
+                srf._geo_surf.actor.property.opacity = opc
+            
+
 class InteractivePanel(HasPrivateTraits):
     model = Instance(ElectrodePositionsModel)
 
@@ -1591,6 +1631,9 @@ class iEEGCoregistrationFrame(HasTraits):
         action='do_find_rois')
     coronal_slices_action = Action(name='Save coronal slices',
         action='do_coronal_slices')
+    subdural_opaque_images_action = Action(
+        name='Save subdural clinical angles',
+        action='do_save_opaque')
     save_montage_action = Action(name='Save montage', 
         action='do_save_montage')
     save_csv_action = Action(name='Save CSV', action='do_save_csv')
@@ -1629,6 +1672,7 @@ class iEEGCoregistrationFrame(HasTraits):
                 name = 'Tools'),
             Menu( find_rois_action,
                   coronal_slices_action,
+                  subdural_opaque_images_action,
                   save_montage_action,
                   save_csv_action,
                 name = 'Electrode'),
@@ -1666,6 +1710,8 @@ class iEEGCoregistrationFrame(HasTraits):
         with open(loadfile) as fd:
             self.model = load(fd)
 
+        #color scheme is a generator and therefore can't be imported properly
+        #but we can recreate the correct generator state easily enough
         from utils import get_default_color_scheme
         colors = get_default_color_scheme()
         #get rid of the right number of colors
@@ -1674,6 +1720,13 @@ class iEEGCoregistrationFrame(HasTraits):
 
         self.model._color_scheme = colors
     
+        #the trait notifiers set up on the displayer are not reproduced
+        #after pickling since those are not defined in the NameHolder 
+        #initializer but by private method _new_grid_name_holder(grid_name)
+        #maybe they could be defined in the initializer instead but whatever
+        #here we just manually call our tools to rebuild the displayer safely
+        self.model._rebuild_interactive_mode_displayer()
+
         self.model._rebuild_guipanel_event = True
         self.model._rebuild_vizpanel_event = True
     
@@ -1711,9 +1764,9 @@ class iEEGCoregistrationFrame(HasTraits):
         from electrode_group import get_nearby_rois_all
         get_nearby_rois_all( self.model._grids,
                              subjects_dir=self.model.subjects_dir,
-                             subject=self.model.subject )
-        #additional parameters ought to be specified in the options window 
-        #and stuck on the model
+                             subject=self.model.subject,
+                             parcellation=self.model.parcellation,
+                             error_radius=self.model.error_radius )
 
     def do_coronal_slices(self):
         self.model._commit_grid_changes()
@@ -1722,9 +1775,25 @@ class iEEGCoregistrationFrame(HasTraits):
         coronal_slice_all( self.model._grids,
                            self.model._grid_types,
                            subjects_dir=self.model.subjects_dir,
-                           subject=self.model.subject )
-        #additional parameters ought to be specified in the options window 
-        #and stuck on the model
+                           subject=self.model.subject,
+                           dpi=self.model.coronal_dpi )
+
+    def do_save_opaque(self):
+        self.model._commit_grid_changes()
+
+        savefile = self.model._ask_user_for_savefile()
+
+        self.model.surface_opacity = 1.0
+        if not self.model._noise_hidden:
+            self.model.hide_noise()
+
+        from plotting_utils import save_opaque_clinical_sequence
+        save_opaque_clinical_sequence( savefile, 
+            self.surface_visualizer_panel.scene.mayavi_scene )
+
+        self.model.surface_opacity = 0.4
+        if self.model._noise_hidden:
+            self.model.hide_noise()
 
     def do_save_montage(self):
         self.model._commit_grid_changes()

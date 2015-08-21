@@ -9,6 +9,18 @@ from traitsui.api import View, Item, CSVListEditor
 from geometry import get_vox2rasxfm, apply_affine
 from utils import get_subjects_dir
 
+def force_render( figure=None ):
+    from mayavi import mlab
+    figure.scene.render()
+    mlab.draw(figure=figure)
+    from pyface.api import GUI
+    _gui = GUI()
+    orig_val = _gui.busy
+    _gui.set_busy(busy=True)
+    _gui.process_events()
+    _gui.set_busy(busy=orig_val)
+    _gui.process_events()
+
 def coronal_slice(elecs, start=None, end=None, outfile=None, 
     subjects_dir=None,
     subject=None, reorient2std=True, dpi=150, size=(200,200),
@@ -135,3 +147,29 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
         pl.savefig(outfile, dpi=dpi)
 
     return fig
+
+def sequence_3d_images( figure ):
+    from mayavi import mlab
+    views = [lambda:mlab.view( azimuth=0, elevation=90, figure=figure ),
+        lambda:mlab.view( azimuth=180, elevation=90, figure=figure ),
+        lambda:mlab.view( azimuth=0, elevation=0, figure=figure ),
+        lambda:mlab.view( azimuth=90, elevation=90, figure=figure ),
+        lambda:mlab.view( azimuth=270, elevation=90, figure=figure )]
+
+    for view in views:
+        yield view
+
+def save_opaque_clinical_sequence( savefile, mayavi_figure ):
+    import pylab as pl
+    from matplotlib.backends.backend_pdf import PdfPages
+    from mayavi import mlab
+
+    with PdfPages(savefile) as pdf:
+        for angle in sequence_3d_images( mayavi_figure ):
+            angle()
+            force_render( figure=mayavi_figure )
+            pixmap = mlab.screenshot( figure=mayavi_figure )
+            mpl_figure = pl.figure()
+            pl.imshow(pixmap, figure=mpl_figure)
+            pdf.savefig(mpl_figure)
+
