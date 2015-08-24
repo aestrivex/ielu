@@ -219,7 +219,10 @@ class InfoPanel(HasTraits):
 class TwoDimensionalPanel(Handler):
     images = Dict # Str -> Tuple(imgd, affine, tkr_affine)
 
+    #original_current_image = Any #np.ndarray XxYxZ
     current_image = Any # np.ndarray XxYxZ
+    #original_image is not allowed to be altered by thresholding.
+    #current_image may be reset by copying original whenever threshold change
     current_affine = Any
     current_tkr_affine = Any
 
@@ -283,14 +286,15 @@ class TwoDimensionalPanel(Handler):
         mcursor, = apply_affine([cursor], aff_to_use)
         return tuple(map(lambda x: truncate(x, 2), mcursor))
 
-    def cut_data(self, data, mcursor):
+    #def cut_data(self, data, mcursor):
+    def cut_data(self, ndata, mcursor):
         xm,ym,zm = [int(np.round(c)) for c in mcursor]
         #xm, ym, zm = mcursor
         #yz_cut = np.rot90(data[xm,:,:].T)
         #xz_cut = np.rot90(data[:,ym,:].T)
         #xy_cut = np.rot90(data[:,:,zm].T)
 
-        ndata = data.copy()
+        #ndata = data.copy()
         ndata[ndata < self.minimum_contrast] = self.minimum_contrast
         ndata[ndata > self.maximum_contrast] = self.maximum_contrast
 
@@ -345,8 +349,10 @@ class TwoDimensionalPanel(Handler):
 
     def show_image(self, image_name, xyz=None):
         # XYZ is given in pixel coordinates
-        self.current_image, self.current_affine, self.current_tkr_affine = (
+        cur_img_t, self.current_affine, self.current_tkr_affine = (
             self.images[image_name])
+
+        self.current_image = cur_img_t.copy()
 
         if xyz is None:
             xyz = tuple(np.array(self.current_image.shape) // 2)
@@ -462,7 +468,8 @@ class TwoDimensionalPanel(Handler):
         if not suppress_tkr:
             self.info_panel.cursor_tkr = self.map_cursor(self.cursor,
                 self.current_tkr_affine)
-        self.info_panel.cursor_intensity = truncate(self.current_image[x,y,z],3)
+        self.info_panel.cursor_intensity = truncate(
+            self.current_image[x,y,z],3)
 
         image_name = self.currently_showing.name
 
