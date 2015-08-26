@@ -975,6 +975,27 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
         #return geo.get_lta(lta)
         return np.loadtxt(lta)
 
+    #determine the file extension
+    file_ext = os.path.splitext(ct)[-1]
+    if file_ext in ('.gz', '.nii'):
+        image_factory = nib.Nifti1Image
+    else:
+    #elif file_ext in ('.mgz', '.mgh'):
+        #image_factory = nib.MGHImage
+
+    #use a hack to convert the file back to NIFTI. Even the MGH file type seems
+    #to be behaving erratically, always has the wrong slice thickness in the
+    #header and so on
+        image_factory = nib.Nifti1Image
+        new_ct = os.path.join(ct_register_dir, 'ct_as_nifti.nii.gz')
+        mri_convert_cmd = ['mri_convert', ct, new_ct]
+        subprocess.call(mri_convert_cmd)
+
+        ct = new_ct
+
+    #else:
+    #    raise ValueError('CT image has invalid type, must be NIFTI or MGH')
+
     # pick 2 slices an arbitrary distance apart
     cti = nib.load(ct)
     z = cti.shape[2]
@@ -1098,7 +1119,9 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
 
     resampled_ct = os.path.join(ct_register_dir, 'ct_resampled_zf.nii.gz')
 
-    resamp_img = nib.Nifti1Image(ct_zoom, affine=cti.get_affine(), 
+    #resamp_img = nib.Nifti1Image(ct_zoom, affine=cti.get_affine(), 
+    #    header=hdr)
+    resamp_img = image_factory(ct_zoom, affine=cti.get_affine(),
         header=hdr)
     nib.save(resamp_img, resampled_ct)
 
