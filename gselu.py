@@ -520,6 +520,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self.interactive_mode_displayer.interactive_mode = (
             self.interactive_mode_displayer.name_holders[0])
 
+        self._cursor_tracker = None
+
         #manually add the new grids to grid_named_objects
         #for key in self._grids:
             #self._grid_named_objects.append( self._new_grid_name_holder(key))
@@ -831,6 +833,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
     @on_trait_change('panel2d:add_electrode_event')
     def _create_new_electrode(self):
+        self._commit_grid_changes()
+
         if len(self._all_electrodes) == 0:
             error_dialog('No electrodes loaded')
             return
@@ -869,8 +873,14 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         self._rebuild_vizpanel_event = True
 
+    @on_trait_change('panel2d:untrack_cursor_event')
+    def _remove_tracked_cursor(self):
+        self._cursor_tracker = None
+
     @on_trait_change('panel2d:track_cursor_event')
     def _add_tracked_cursor(self):
+        self._commit_grid_changes()
+
         #if there is already a tracker and the user hits this button, it
         #becomes an undo function. remove the existing tracker and exit
         if self._cursor_tracker is not None:
@@ -900,14 +910,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         self._rebuild_vizpanel_event = True
 
-    @on_trait_change('panel2d:track_cursor_deselection_event')
+    @on_trait_change('panel2d:panel2d_closed_event')
     def _removed_tracked_cursor(self):
         self._commit_grid_changes()
 
-        cursor_snapshot = self._cursor_tracker
-        self._cursor_tracker = None
-
-        if cursor_snapshot is not None:
+        if self._cursor_tracker is not None:
             self._rebuild_vizpanel_event = True
 
     def _ask_user_for_savefile(self, title=None):
@@ -1193,11 +1200,17 @@ class SurfaceVisualizerPanel(HasTraits):
                 init_coord[0] -= self._rh_pysurfer_offset
             return init_coord
 
+        unsorted_coordtype = (self._viz_coordtype if 
+            self._viz_coordtype not in ('pial_coords', 'snap_coords')
+            else 'surf_coords')
+
+        grid_coordtype = (self._viz_coordtype if
+            (self._viz_coordtype not in ('snap_coords', 'pial_coords') or
+             self._grid_types[key]=='subdural') else 
+            'surf_coords')
+
         #unsorted
         if not self.model._noise_hidden:
-            unsorted_coordtype = (self._viz_coordtype if 
-                self._viz_coordtype not in ('pial_coords', 'snap_coords')
-                else 'surf_coords')
         
             unsorted_elecs = map(
                 partial(fix_elec, coordtype=unsorted_coordtype),
@@ -1213,10 +1226,6 @@ class SurfaceVisualizerPanel(HasTraits):
 
         #grids
         for i,key in enumerate(self._grids):
-            grid_coordtype = (self._viz_coordtype if
-                (self._viz_coordtype not in ('snap_coords', 'pial_coords') or
-                 self._grid_types[key]=='subdural') else 
-                'surf_coords')
 
             grid_elecs = map(
                 partial(fix_elec, coordtype=grid_coordtype),
@@ -1237,11 +1246,13 @@ class SurfaceVisualizerPanel(HasTraits):
 
         #panel tracking
         if self._cursor_tracker is not None:
-            tracked_coordinates = [self._cursor_tracker.asct() if 
-                self.visualize_in_ctspace else self._cursor_tracker.asras()]
+            tracker_elec = fix_elec(self._cursor_tracker,
+                coordtype=unsorted_coordtype)
 
-            self.tracking_glyph = virtual_points3d( tracked_coordinates,
-                scale_factor=scale_factor, name='tracking_glyph',
+            tracking_scale_factor = 6. if self.visualize_in_ctspace else 4.
+
+            self.tracking_glyph = virtual_points3d( [tracker_elec], 
+                scale_factor=tracking_scale_factor, name='tracking_glyph',
                 figure=self.scene.mayavi_scene, 
                 color=self._colors['selection'])
 

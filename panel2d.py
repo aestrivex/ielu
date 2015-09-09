@@ -13,7 +13,7 @@ from chaco.api import Plot, ArrayPlotData
 from chaco.api import bone as bone_cmap
 from chaco.api import RdBu as rdbu_cmap
 from chaco.api import reverse as reverse_cmap
-from chaco.tools.api import SelectTool
+from chaco.tools.api import SelectTool, ZoomTool, PanTool
 
 import nibabel as nib
 
@@ -157,6 +157,7 @@ class InfoPanel(HasTraits):
     confirm_movepin_internal_button = Button('Move elec here')
     confirm_movepin_postproc_button = Button('Move postproc')
     track_cursor_button = Button('Track cursor')
+    reset_image_button = Button('Center image')
 
     minimum_contrast = Float( -2000 )
     maximum_contrast = Float( 5000 )
@@ -177,6 +178,7 @@ class InfoPanel(HasTraits):
             HGroup(
             Item('add_electrode_button', show_label=False),
             Item('track_cursor_button', show_label=False),
+            Item('reset_image_button', show_label=False),
             ),
             HGroup(
             Item('confirm_movepin_internal_button', show_label=False),
@@ -244,7 +246,9 @@ class TwoDimensionalPanel(Handler):
     add_electrode_event = Event
     track_cursor_button = DelegatesTo('info_panel')
     track_cursor_event = Event
-    track_cursor_deselection_event = Event
+    untrack_cursor_event = Event
+    panel2d_closed_event = Event
+    reset_image_button = DelegatesTo('info_panel')
     
     info_panel = Instance(InfoPanel, ())
 
@@ -343,7 +347,8 @@ class TwoDimensionalPanel(Handler):
 
         self.show_image(image_name)
 
-    @on_trait_change('currently_showing, minimum_contrast, maximum_contrast')
+    @on_trait_change('currently_showing, minimum_contrast, maximum_contrast',
+        'reset_image_button')
     def switch_image(self):
         self.show_image(self.currently_showing.name)
 
@@ -367,6 +372,11 @@ class TwoDimensionalPanel(Handler):
         xy_plotdata.set_data('cursor_x', np.array((x,)))
         xy_plotdata.set_data('cursor_y', np.array((y,)))
 
+        from chaco.api import AbstractPlotData
+        xz_abstract_data = AbstractPlotData()
+        qu_data = np.zeros((512,512))
+        #xz_abstract_data.set_data('base_data', qu_data)
+
         xz_plotdata = ArrayPlotData()
         xz_plotdata.set_data('imagedata', xz_cut)
         xz_plotdata.set_data('cursor_x', np.array((x,)))
@@ -378,11 +388,14 @@ class TwoDimensionalPanel(Handler):
         yz_plotdata.set_data('cursor_z', np.array((z,)))
 
         self.xy_plane = Plot(xy_plotdata, bgcolor='black',
-            aspect_ratio=xsz/ysz)
+            #aspect_ratio=xsz/ysz)
+            )
         self.xz_plane = Plot(xz_plotdata, bgcolor='black',
-            aspect_ratio=xsz/zsz)
+            #aspect_ratio=xsz/zsz)
+            )
         self.yz_plane = Plot(yz_plotdata, bgcolor='black',
-            aspect_ratio=ysz/zsz)
+            #aspect_ratio=ysz/zsz)
+            )
 
         self.xy_plane.img_plot('imagedata',name='brain',colormap=bone_cmap)
         self.xz_plane.img_plot('imagedata',name='brain',colormap=bone_cmap)
@@ -398,6 +411,14 @@ class TwoDimensionalPanel(Handler):
         self.xy_plane.tools.append(Click2DPanelTool(self, 'xy'))
         self.xz_plane.tools.append(Click2DPanelTool(self, 'xz'))
         self.yz_plane.tools.append(Click2DPanelTool(self, 'yz'))
+
+        self.xy_plane.tools.append(ZoomTool( self.xy_plane ))
+        self.xz_plane.tools.append(ZoomTool( self.xz_plane ))
+        self.yz_plane.tools.append(ZoomTool( self.yz_plane ))
+
+        self.xy_plane.tools.append(PanTool( self.xy_plane ))
+        self.xz_plane.tools.append(PanTool( self.xz_plane ))
+        self.yz_plane.tools.append(PanTool( self.yz_plane ))
 
         self.info_panel.cursor = self.cursor
         self.info_panel.cursor_ras = self.map_cursor(self.cursor, 
@@ -438,6 +459,8 @@ class TwoDimensionalPanel(Handler):
         cursor = x,y,z
 
         if self.cursor_outside_image_dimensions(cursor):
+            print ('Cursor %.2f %.2f %.2f outside image dimensions, doing '
+                'nothing'%(x,y,z))
             return
 
         self.cursor = cursor
@@ -477,6 +500,8 @@ class TwoDimensionalPanel(Handler):
             for pin in self.pins[image_name]:
                 px, py, pz, pcolor = self.pins[image_name][pin]
                 self.drop_pin(px,py,pz, name=pin, color=pcolor)
+
+        self.untrack_cursor_event = True
 
     def redraw(self):
         self.xz_plane.request_redraw()
@@ -560,7 +585,7 @@ class TwoDimensionalPanel(Handler):
         self.track_cursor_event = True
 
     def closed(self, info, is_ok):
-        self.track_cursor_deselection_event = True
+        self.panel2d_closed_event = True
 
     #because these calls all call map_cursor, which changes the listener
     #variables they end up infinite looping.
@@ -569,7 +594,7 @@ class TwoDimensionalPanel(Handler):
     #so that move_cursor is only called once when any listener is triggered
     @on_trait_change('info_panel:cursor_csvlist')
     def _listen_cursor(self):
-        if self._finished_plotting:
+        if self._finished_plotting and len(self.info_panel.cursor) == 3:
             self._finished_plotting = False
             x,y,z = self.info_panel.cursor
             self.move_cursor(x,y,z, suppress_cursor=True)
@@ -577,7 +602,7 @@ class TwoDimensionalPanel(Handler):
 
     @on_trait_change('info_panel:cursor_ras_csvlist')
     def _listen_cursor_ras(self):
-        if self._finished_plotting:
+        if self._finished_plotting and len(self.info_panel.cursor_ras) == 3:
             self._finished_plotting = False
             x,y,z = self.map_cursor(self.info_panel.cursor_ras,
                 self.current_affine, invert=True)
@@ -586,7 +611,7 @@ class TwoDimensionalPanel(Handler):
 
     @on_trait_change('info_panel:cursor_tkr_csvlist')
     def _listen_cursor_tkr(self):
-        if self._finished_plotting:
+        if self._finished_plotting and len(self.info_panel.cursor_tkr) == 3:
             self._finished_plotting = False
             x,y,z = self.map_cursor(self.info_panel.cursor_tkr,
                 self.current_tkr_affine, invert=True)

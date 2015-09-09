@@ -182,7 +182,7 @@ def save_coordinates( electrodes, grid_types, snapping_completed=False,
     elif file_type == 'montage':
         save_file_continuation = _save_montage_file
 
-    save_file_continuation(savefile, electrodes, grid_type,
+    save_file_continuation(savefile, electrodes, grid_types,
         snapping_completed=snapping_completed)
 
 def save_coordinates_all( *args, **kwargs):
