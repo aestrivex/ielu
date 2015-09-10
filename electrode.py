@@ -521,7 +521,7 @@ class ElectrodeWindow(Handler):
     def do_all_rois(self, info):
         from electrode_group import get_nearby_rois_grid
         get_nearby_rois_grid( self.electrodes,
-            parcellation=self.model.parcellation,
+            parcellation=self.model.roi_parcellation,
             error_radius=self.model.error_radius,
             subjects_dir=self.subjects_dir, subject=self.subject )
 

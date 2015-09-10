@@ -1776,7 +1776,7 @@ class iEEGCoregistrationFrame(HasTraits):
         get_nearby_rois_all( self.model._grids,
                              subjects_dir=self.model.subjects_dir,
                              subject=self.model.subject,
-                             parcellation=self.model.parcellation,
+                             parcellation=self.model.roi_parcellation,
                              error_radius=self.model.error_radius )
 
     def do_coronal_slices(self):
