@@ -1777,7 +1777,7 @@ class iEEGCoregistrationFrame(HasTraits):
                              subjects_dir=self.model.subjects_dir,
                              subject=self.model.subject,
                              parcellation=self.model.roi_parcellation,
-                             error_radius=self.model.error_radius )
+                             error_radius=self.model.roi_error_radius )
 
     def do_coronal_slices(self):
         self.model._commit_grid_changes()

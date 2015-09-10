@@ -514,15 +514,15 @@ class ElectrodeWindow(Handler):
     def do_rois(self, info):
         from electrode_group import get_nearby_rois_elec
         get_nearby_rois_elec( self.cur_sel,
-            parcellation=self.parcellation,
-            error_radius=self.error_radius,
+            parcellation=self.roi_parcellation,
+            error_radius=self.roi_error_radius,
             subjects_dir=self.subjects_dir, subject=self.subject )
 
     def do_all_rois(self, info):
         from electrode_group import get_nearby_rois_grid
         get_nearby_rois_grid( self.electrodes,
             parcellation=self.model.roi_parcellation,
-            error_radius=self.model.error_radius,
+            error_radius=self.model.roi_error_radius,
             subjects_dir=self.subjects_dir, subject=self.subject )
 
     def do_coronal_slice(self, info):
