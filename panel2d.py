@@ -372,11 +372,6 @@ class TwoDimensionalPanel(Handler):
         xy_plotdata.set_data('cursor_x', np.array((x,)))
         xy_plotdata.set_data('cursor_y', np.array((y,)))
 
-        from chaco.api import AbstractPlotData
-        xz_abstract_data = AbstractPlotData()
-        qu_data = np.zeros((512,512))
-        #xz_abstract_data.set_data('base_data', qu_data)
-
         xz_plotdata = ArrayPlotData()
         xz_plotdata.set_data('imagedata', xz_cut)
         xz_plotdata.set_data('cursor_x', np.array((x,)))
@@ -570,7 +565,8 @@ class TwoDimensionalPanel(Handler):
             self.current_affine)
         self.info_panel.mouse_tkr = self.map_cursor(mouse, 
             self.current_tkr_affine)
-        self.info_panel.mouse_intensity = truncate(self.current_image[x,y,z], 3)
+        self.info_panel.mouse_intensity = truncate(
+            self.current_image[x,y,z], 3)
 
     def _confirm_movepin_internal_button_fired(self):
         self.move_electrode_internally_event = True
