@@ -160,8 +160,7 @@ def _save_csv_file( savefile, electrodes, grid_types,
                     str(elec_id))
                 label_name = '%s_elec_%s'%(key, elec_2dcoord)
 
-            if (self._snapping_completed and
-                    self._grid_types[key]=='subdural'):
+            if (snapping_completed and grid_types[key]=='subdural'):
                 pos = elec.pial_coords.tolist() 
             else:
                 pos = tuple(elec.surf_coords)
