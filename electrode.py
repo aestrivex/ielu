@@ -495,6 +495,7 @@ class ElectrodeWindow(Handler):
         if electrodes is None:
             return
 
+        from electrode_group import save_coordinates
         save_coordinates( electrodes, self.model._grid_types,
             snapping_completed=self.model._snapping_completed,
             file_type='montage')
@@ -507,6 +508,7 @@ class ElectrodeWindow(Handler):
         if electrodes is None:
             return
 
+        from electrode_group import save_coordinates
         save_coordinates( electrodes, self.model._grid_types,
             snapping_completed=self.model._snapping_completed,
             file_type='csv')

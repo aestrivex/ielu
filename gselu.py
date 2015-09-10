@@ -1204,11 +1204,6 @@ class SurfaceVisualizerPanel(HasTraits):
             self._viz_coordtype not in ('pial_coords', 'snap_coords')
             else 'surf_coords')
 
-        grid_coordtype = (self._viz_coordtype if
-            (self._viz_coordtype not in ('snap_coords', 'pial_coords') or
-             self._grid_types[key]=='subdural') else 
-            'surf_coords')
-
         #unsorted
         if not self.model._noise_hidden:
         
@@ -1226,6 +1221,11 @@ class SurfaceVisualizerPanel(HasTraits):
 
         #grids
         for i,key in enumerate(self._grids):
+
+            grid_coordtype = (self._viz_coordtype if
+                (self._viz_coordtype not in ('snap_coords', 'pial_coords') or
+                 self._grid_types[key]=='subdural') else 
+                'surf_coords')
 
             grid_elecs = map(
                 partial(fix_elec, coordtype=grid_coordtype),
