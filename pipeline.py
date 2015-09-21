@@ -1188,6 +1188,26 @@ def create_dural_surface(subjects_dir=None, subject=None):
 
     os.chdir(curdir)
 
+def get_rawavg_to_orig_xfm(subjects_dir=None, subject=None):
+    if subjects_dir is None or subjects_dir=='':
+        subjects_dir = os.environ['SUBJECTS_DIR']
+    if subject is None or subject=='':
+        subject = os.environ['SUBJECT']
+
+    rawavg = os.path.join(subjects_dir, subject, 'mri', 'rawavg.mgz')
+    orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
+    lta = os.path.join(subjects_dir, subject, 'mri', 'transforms',
+        'raw2orig.lta')
+
+    if not os.path.exists(lta) and not skip_rawavg_to_orig:
+        import subprocess
+        mri_robustreg_cmd = ['mri_robust_register','--mov',rawavg,'--dst',
+            orig,'--lta',lta,'--satit','--vox2vox']
+        p = subprocess.call(mri_robustreg_cmd)
+
+    rawavg2orig = geo.get_lta(lta)
+    return rawavg2orig
+
 def translate_electrodes_to_surface_space(electrodes, ct2mr,
     subjects_dir=None, subject=None, affine=None):
     '''
@@ -1206,6 +1226,10 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
     subject : Str | None
         The freesurfer subject. If this is None, it is assumed to be the
         $SUBJECT environment variable.
+    skip_rawavg_to_orig : bool
+        Do not register rawavg to orig. Suitable for manual registration
+        directly to orig, excluding rawavg as intermediate step. Not
+        recommended in automated registration.
 
     There is no return value. The 'surf_coords' attribute will be used to
     store the surface locations of the electrodes
@@ -1220,18 +1244,14 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
     electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
     orig_elecs = geo.apply_affine(electrode_arr, ct2mr)
 
-    rawavg = os.path.join(subjects_dir, subject, 'mri', 'rawavg.mgz')
     orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
-    lta = os.path.join(subjects_dir, subject, 'mri', 'transforms',
-        'raw2orig.lta')
 
-    if not os.path.exists(lta):
-        import subprocess
-        mri_robustreg_cmd = ['mri_robust_register','--mov',rawavg,'--dst',
-            orig,'--lta',lta,'--satit','--vox2vox']
-        p = subprocess.call(mri_robustreg_cmd)
-
-    nas2ras = geo.get_lta(lta)
+    #if skip_rawavg_to_orig:
+    #    nas2ras = np.eye(4)
+    #else:
+    if True:
+        nas2ras = get_rawavg_to_orig_xfm(subject=subject, 
+                                         subjects_dir=subjects_dir)
 
     nas_locs = geo.apply_affine(orig_elecs, nas2ras)
 

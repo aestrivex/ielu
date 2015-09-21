@@ -338,18 +338,23 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #recommend that the user never do this
         elif self.registration_procedure == 'no registration':
             #aff = np.eye(4)
-            aff = np.array(((-1., 0., 0., 128.),
-                            (0., 0., 1., -128.),
-                            (0., -1., 0., 128.),
-                            (0., 0., 0., 1.)))
+
+            aff = pipe.get_rawavg_to_orig_xfm(
+                subjects_dir=self.subjects_dir,
+                subject=self.subject)
+
+            #aff = np.array(((-1., 0., 0., 128.),
+            #                (0., 0., 1., -128.),
+            #                (0., -1., 0., 128.),
+            #                (0., 0., 0., 1.)))
 
             #aff = np.array(((1., 0., 0., 0.),
             #                (0., 0., -1., 0.),
             #                (0., 1., 0., 0.),
             #                (0., 0., 0., 1.)))
 
-            #from scipy.linalg import inv
-            #aff = inv(aff)
+            from scipy.linalg import inv
+            aff = inv(aff)
 
         else:
             raise ValueError("Bad registration procedure type")
