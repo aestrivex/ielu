@@ -9,6 +9,7 @@ from traitsui.api import (View, Item, HGroup, VGroup, Group, NullEditor,
     InstanceEditor, CSVListEditor, Spring, Handler, TextEditor)
 
 from enable.component_editor import ComponentEditor
+from enable.api import Pointer
 from chaco.api import Plot, ArrayPlotData
 from chaco.api import bone as bone_cmap
 from chaco.api import RdBu as rdbu_cmap
@@ -43,16 +44,26 @@ def get_orig2std(orig):
 
     return reorient_orig2std_mat
 
-class Click2DPanelTool(SelectTool):
+class Click2DPanelTool(PanTool):
+
+    event_state = Enum('normal', 'deciding', 'panning')
+    drag_pointer = Pointer('arrow')
     
     panel2d = Any #Instance(TwoDimensionalPanel)
     panel_id = Enum('xy','xz','yz')
 
     def __init__(self, panel2d, panel_id):
+        super(PanTool, self).__init__(
+            component=getattr(panel2d, '{0}_plane'.format(panel_id)))
         self.panel2d = panel2d
         self.panel_id = panel_id
 
     def normal_left_down(self, event):
+        self.event_state = 'deciding'
+        self._original_xy = event.x, event.y
+
+    def deciding_left_up(self, event):
+        self.event_state = 'normal'
         x,y,z = self.panel2d.cursor            
 
         #if the panel is not in the image (e.g. click on the axis), ignore it
@@ -81,10 +92,14 @@ class Click2DPanelTool(SelectTool):
             raise NotImplementedError('FailFish')
 
     def normal_right_down(self, event):
+        pin_name = self.panel2d.current_pin
+        if pin_name is None:
+            print 'Nothing currently pinned'
+            return
+
         x,y,z = self.panel2d.cursor
 
         image_name = self.panel2d.currently_showing.name
-        pin_name = self.panel2d.current_pin
 
         px,py,pz,pcolor = self.panel2d.pins[image_name][pin_name]
 
@@ -113,6 +128,14 @@ class Click2DPanelTool(SelectTool):
             raise NotImplementedError('BabyRage')
 
     def normal_mouse_move(self, event):
+        self._move_mouse(event)
+
+    def deciding_mouse_move(self, event):
+        self._move_mouse(event)
+        self.event_state = 'panning'
+        return self.panning_mouse_move(event)
+
+    def _move_mouse(self, event):
         x,y,z = self.panel2d.cursor    
 
         if self.panel_id == 'xy':
@@ -237,7 +260,7 @@ class TwoDimensionalPanel(Handler):
     minimum_contrast = DelegatesTo('info_panel')
     maximum_contrast = DelegatesTo('info_panel')
 
-    current_pin = Str('pin')
+    current_pin = Str(None)
     confirm_movepin_postproc_button = DelegatesTo('info_panel')
     confirm_movepin_internal_button = DelegatesTo('info_panel')
     add_electrode_button = DelegatesTo('info_panel')
@@ -343,15 +366,25 @@ class TwoDimensionalPanel(Handler):
         self.currently_showing = self.currently_showing_list[-1]
 
         self.pins[image_name] = {}
-        self.current_pin = image_name
+        #self.current_pin = image_name
 
         self.show_image(image_name)
 
-    @on_trait_change('currently_showing, minimum_contrast, maximum_contrast',
-        'reset_image_button')
+    @on_trait_change('currently_showing, minimum_contrast, maximum_contrast')
     def switch_image(self):
         self.show_image(self.currently_showing.name)
 
+    @on_trait_change('reset_image_button')
+    def center_image(self):
+        x, y, z = self.current_image.shape
+
+        for plane, (r,c) in zip((self.xy_plane, self.xz_plane, self.yz_plane),
+                                ((x,y), (x,z), (y,z))):
+            plane.index_mapper.range.low = 0
+            plane.value_mapper.range.low = 0
+            plane.index_mapper.range.high = r
+            plane.value_mapper.range.high = c
+    
     def show_image(self, image_name, xyz=None):
         # XYZ is given in pixel coordinates
         cur_img_t, self.current_affine, self.current_tkr_affine = (
@@ -411,9 +444,9 @@ class TwoDimensionalPanel(Handler):
         self.xz_plane.tools.append(ZoomTool( self.xz_plane ))
         self.yz_plane.tools.append(ZoomTool( self.yz_plane ))
 
-        self.xy_plane.tools.append(PanTool( self.xy_plane ))
-        self.xz_plane.tools.append(PanTool( self.xz_plane ))
-        self.yz_plane.tools.append(PanTool( self.yz_plane ))
+        #self.xy_plane.tools.append(PanTool( self.xy_plane ))
+        #self.xz_plane.tools.append(PanTool( self.xz_plane ))
+        #self.yz_plane.tools.append(PanTool( self.yz_plane ))
 
         self.info_panel.cursor = self.cursor
         self.info_panel.cursor_ras = self.map_cursor(self.cursor, 
