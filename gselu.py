@@ -752,14 +752,22 @@ class ElectrodePositionsModel(HasPrivateTraits):
             if self._grid_types[key] == 'subdural':
                 for elec in self._grids[key]: 
                     
+                    # we snap to the pial surface in terms of returning results
+                    # which is pial_coords. but we use the dural surface
+                    # coords *specifically for visualization only*.
+                    # so the map which is for visualization effects translating
+                    # between the two has to use the dural coordinate.
+    
+                    #snap_coord = elec.astuple()
+                    snap_coord = elec.snap_coords
                     surf_coord = elec.asras()
-                    snap_coord = elec.astuple()
+                    ct_coord = elec.asct()
 
-                    self._ct_to_surf_map[ intize(elec.asct()) ] = snap_coord
-                    self._surf_to_ct_map[ intize(snap_coord) ] = elec.asct()
+                    self._ct_to_surf_map[ intize(ct_coord) ] = snap_coord
+                    self._surf_to_ct_map[ intize(snap_coord) ] = ct_coord
                     #TODO manage collisions in ct_to_surf mapping
                     
-                    # could have been snapped before
+                    # could have been snapped before (in which case we should also get rid of the previous snapped coord in this map)
                     try:
                         del self._surf_to_ct_map[ intize(surf_coord) ]
                     except KeyError:
@@ -1157,8 +1165,8 @@ class SurfaceVisualizerPanel(HasTraits):
         #import pdb
         #pdb.set_trace()
         if self.model._visualization_ready:
-            print self.model._cursor_tracker
-            print self._cursor_tracker
+            #print self.model._cursor_tracker
+            #print self._cursor_tracker
             self.show_grids_on_surface()
 
     def show_grids_on_surface(self):
@@ -1312,7 +1320,7 @@ class SurfaceVisualizerPanel(HasTraits):
             if picker.actor in nodes.actor.actors:
                 pt = int(picker.point_id/nodes.glyph.glyph_source.
                     glyph_source.output.points.to_array().shape[0])
-                x,y,z = np.around(nodes.mlab_source.points[pt], 4)
+                #x,y,z = np.around(nodes.mlab_source.points[pt], 4)
                 x,y,z = nodes.mlab_source.points[pt]
 
                 #translate from CT to surf coords if necessary
@@ -1322,6 +1330,7 @@ class SurfaceVisualizerPanel(HasTraits):
                     else:
                         x += self._rh_pysurfer_offset
                     x,y,z = self._surf_to_ct_map[intize((x,y,z)) ]
+                    #x,y,z = self._ct_to_surf_map[intize((x,y,z)) ]
 
                 elec = self._all_electrodes[ intize((x,y,z))]
 
@@ -1647,10 +1656,10 @@ class iEEGCoregistrationFrame(HasTraits):
 
     find_rois_action = Action(name='Find neighboring ROIs', 
         action='do_find_rois')
-    coronal_slices_action = Action(name='Save coronal slices',
+    coronal_slices_action = Action(name='Save coronal slices (depths)',
         action='do_coronal_slices')
     subdural_opaque_images_action = Action(
-        name='Save subdural clinical angles',
+        name='Save snapshots (grids)',
         action='do_save_opaque')
     save_montage_action = Action(name='Save montage', 
         action='do_save_montage')
