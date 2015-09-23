@@ -1157,6 +1157,8 @@ class SurfaceVisualizerPanel(HasTraits):
         #import pdb
         #pdb.set_trace()
         if self.model._visualization_ready:
+            print self.model._cursor_tracker
+            print self._cursor_tracker
             self.show_grids_on_surface()
 
     def show_grids_on_surface(self):
@@ -1798,6 +1800,9 @@ class iEEGCoregistrationFrame(HasTraits):
         self.model._commit_grid_changes()
 
         savefile = self.model._ask_user_for_savefile()
+
+        if savefile is None:
+            return
 
         self.model.surface_opacity = 1.0
         if not self.model._noise_hidden:

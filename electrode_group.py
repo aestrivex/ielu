@@ -48,6 +48,9 @@ def coronal_slice_all( grids, grid_types, subjects_dir=None, subject=None,
     '''
     pdf_file = ask_user_for_savefile('save pdf file with coronal slice images')
 
+    if pdf_file is None:
+        return
+
     from matplotlib.backends.backend_pdf import PdfPages
 
     with PdfPages(pdf_file) as pdf:
@@ -175,6 +178,9 @@ def _save_csv_file( savefile, electrodes, grid_types,
 def save_coordinates( electrodes, grid_types, snapping_completed=False,
                            file_type='csv'):
     savefile = ask_user_for_savefile(title='save %s file'%file_type)
+
+    if savefile is None:
+        return
 
     if file_type == 'csv':
         save_file_continuation = _save_csv_file
