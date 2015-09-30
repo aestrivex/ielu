@@ -400,6 +400,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
         else:
             ct_mask = None
 
+        self._electrodes = pipe.remove_large_negative_values_from_ct(
+            self.ct_scan, subjects_dir=self.subjects_dir, subject=self.subject)
+
         self._electrodes = pipe.identify_electrodes_in_ctspace(
             self.ct_scan, mask=ct_mask, threshold=self.ct_threshold,
             use_erosion=(not self.disable_erosion)) 
@@ -1734,8 +1737,14 @@ class iEEGCoregistrationFrame(HasTraits):
         loadfile = self.model._ask_user_for_loadfile(title='load pkl file')
 
         from pickle import load
-        with open(loadfile) as fd:
-            self.model = load(fd)
+        try:
+            with open(loadfile) as fd:
+                self.model = load(fd)
+        except (KeyError, AttributeError) as e:
+            error_dialog('Failed to load ElectrodePositionsModel object from\n'
+                'provided pickle file.\n\n'
+                'Are you sure that was a correct pickle file?')
+            return
 
         #color scheme is a generator and therefore can't be imported properly
         #but we can recreate the correct generator state easily enough

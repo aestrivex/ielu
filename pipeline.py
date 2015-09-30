@@ -850,6 +850,53 @@ def classify_electrodes(electrodes, known_geometry,
 # 
 #    return found_grids
 
+def remove_large_negative_values_from_ct(ct, subjects_dir=None,
+    subject=None, threshold=-200):
+    '''
+    Opens the CT, checks for values less than threshold. Sets all values less than
+    threshold to threshold instead. This is helpful for registration as extremely 
+    large negative values present in the CT but not in the MR skew the mutual
+    information algorithm.
+
+    Parameters
+    ----------
+    ct : Str
+        The filename containing the CT scan
+    subjects_dir : Str | None
+        The freesurfer subjects_dir. If this is None, it is assumed to be the
+        $SUBJECTS_DIR environment variable.
+    subject : Str | None
+        The freesurfer subject. If this is None, it is assumed to be the
+        $SUBJECT environment variable.
+    '''
+    print 'removing negative values from CT'
+
+    if subjects_dir is None or subjects_dir=='':
+        subjects_dir = os.environ['SUBJECTS_DIR']
+    if subject is None or subject=='':
+        subject = os.environ['SUBJECT']
+
+    cti = nib.load(ct)   
+    ctd = cti.get_data()
+
+    if np.min(ctd) > threshold:
+        print 'No large negative values in CT image'
+        return
+
+    ct_unaltered = os.path.join(subjects_dir, subject, 'mri', 
+        'ct_unaltered.nii.gz')
+
+    if os.path.exists(ct_unaltered):
+        return
+    else:
+        nib.save(cti, ct_unaltered)
+
+    ctd[ctd < threshold] = threshold
+
+    ct_new = nib.Nifti1Image(ctd, header=cti.get_header(), 
+        affine=cti.get_affine())
+    nib.save(ct_new, ct)
+
 def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     subject=None, overwrite=False):
     '''
