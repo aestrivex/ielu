@@ -18,6 +18,8 @@ class Electrode(HasTraits):
     ct_coords = Tuple
     surf_coords = Tuple
 
+    iso_coords = Tuple
+
     #snap coords are an intermediate field used during snapping
     #the snap coords are on the dural surface and may also be more useful
     #for visualization
@@ -78,6 +80,9 @@ class Electrode(HasTraits):
 
     def asct(self):
         return self.ct_coords
+
+    def asiso(self):
+        return self.iso_coords
 
 def nparrayastuple(nparray):
     nparray = np.array(nparray)
@@ -389,16 +394,16 @@ class ElectrodeWindow(Handler):
             xh = x_hi.geom_coords[0]
             ratio = (x - xl) / (xh - xl)
         
-            loc = np.array(x_low.ct_coords) + (np.array(x_hi.ct_coords)-
-                np.array(x_low.ct_coords))*ratio
+            loc = np.array(x_low.iso_coords) + (np.array(x_hi.iso_coords)-
+                np.array(x_low.iso_coords))*ratio
 
         elif y_low is not None and y_hi is not None:
             yl = y_low.geom_coords[1]
             yh = y_hi.geom_coords[1]
             ratio = (y - yl) / (yh - yl)
         
-            loc = np.array(y_low.ct_coords) + (np.array(y_hi.ct_coords)-
-                np.array(y_low.ct_coords))*ratio
+            loc = np.array(y_low.iso_coords) + (np.array(y_hi.iso_coords)-
+                np.array(y_low.iso_coords))*ratio
 
         #handle poorer case of electrode on end of line
         if x_low is not None and loc is None:
@@ -406,16 +411,16 @@ class ElectrodeWindow(Handler):
             xl = x_low.geom_coords[0]
             xll = x_lower.geom_coords[0]
             if xl == xll+1:
-                loc = 2*np.array(x_low.ct_coords) - np.array(
-                    x_lower.ct_coords)
+                loc = 2*np.array(x_low.iso_coords) - np.array(
+                    x_lower.iso_coords)
 
         if x_hi is not None and loc is None:
             x_higher = self._find_closest_neighbor(x_hi, 'x', '+')
             xh = x_hi.geom_coords[0]
             xhh = x_higher.geom_coords[0]
             if xh == xhh-1:
-                loc = 2*np.array(x_hi.ct_coords) - np.array(
-                    x_higher.ct_coords)
+                loc = 2*np.array(x_hi.iso_coords) - np.array(
+                    x_higher.iso_coords)
 
         #import pdb
         #pdb.set_trace()
@@ -425,19 +430,19 @@ class ElectrodeWindow(Handler):
             yl = y_low.geom_coords[1]
             yll = y_lower.geom_coords[1]
             if yl == yll+1:
-                loc = 2*np.array(y_low.ct_coords) - np.array(
-                    y_lower.ct_coords)
+                loc = 2*np.array(y_low.iso_coords) - np.array(
+                    y_lower.iso_coords)
         
         if y_hi is not None and loc is None:
             y_higher = self._find_closest_neighbor(y_hi, 'y', '+')
             yh = y_hi.geom_coords[1]
             yhh = y_higher.geom_coords[1]
             if yh == yhh-1:
-                loc = 2*np.array(y_hi.ct_coords) - np.array(
-                    y_higher.ct_coords)
+                loc = 2*np.array(y_hi.iso_coords) - np.array(
+                    y_higher.iso_coords)
     
         if loc is not None:
-            self.cur_sel.ct_coords = tuple(loc)
+            self.cur_sel.iso_coords = tuple(loc)
             self.cur_sel.special_name = 'Linearly interpolated electrode'
         else:
             error_dialog('No line for simple linear interpolation\n'
@@ -449,6 +454,11 @@ class ElectrodeWindow(Handler):
         aff = self.model.acquire_affine()
         pipe.translate_electrodes_to_surface_space( [self.cur_sel], aff,
             subjects_dir=self.model.subjects_dir, subject=self.model.subject)
+
+        pipe.linearly_transform_electrodes_to_isotropic_coordinate_space(
+            [self.cur_sel], self.model.ct_scan,
+            isotropization_type = ('deisotropize' if self.model.isotropize
+                else 'copy_to_ct'))
 
         # add this electrode to the grid model so that it can be visualized
         self.model.add_electrode_to_grid(self.cur_sel, self.cur_grid)

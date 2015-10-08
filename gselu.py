@@ -141,6 +141,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     rho_strict_recon = Float(30.)
     rho_loose_recon = Float(55.)
 
+    isotropize = Bool(True)
+
     roi_parcellation = Str('aparc')
     roi_error_radius = Float(4.)
 
@@ -401,11 +403,24 @@ class ElectrodePositionsModel(HasPrivateTraits):
             ct_mask = None
 
         self._electrodes = pipe.remove_large_negative_values_from_ct(
-            self.ct_scan, subjects_dir=self.subjects_dir, subject=self.subject)
+            self.ct_scan, subjects_dir=self.subjects_dir, 
+            subject=self.subject)
 
         self._electrodes = pipe.identify_electrodes_in_ctspace(
             self.ct_scan, mask=ct_mask, threshold=self.ct_threshold,
-            use_erosion=(not self.disable_erosion)) 
+            use_erosion=(not self.disable_erosion),
+            isotropize=self.isotropize) 
+
+        print 'WEEBLE'
+        print self._electrodes[0].asiso()
+
+        pipe.linearly_transform_electrodes_to_isotropic_coordinate_space(
+            self._electrodes, self.ct_scan, 
+            isotropization_type=('deisotropize' if self.isotropize else
+                'copy_to_iso'))
+
+        print 'WIBBLE'
+        print self._electrodes[0].asct()
 
         #I considered allowing the user to manually specify a different
         #registration but we don't currently do this
@@ -427,6 +442,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 self._electrodes, 
                 dilation_iterations=self.dilation_iterations,
                 subjects_dir=self.subjects_dir, subject=self.subject))
+
+            print len(removals)
 
             for e in removals:
                 self._electrodes.remove(e)
@@ -453,10 +470,19 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 elec.grid_name = key
 
         # add interpolated points to overall list
+        interps = []
         for key in self._grids:
             for elec in self._grids[key]:
                 if elec.is_interpolation:
-                    self._electrodes.append(elec)
+                    interps.append(elec)
+
+        self._electrodes.extend(interps)
+
+        # add isotropization for interpolated points
+        pipe.linearly_transform_electrodes_to_isotropic_coordinate_space(
+            interps, self.ct_scan,
+            isotropization_type = ('deisotropize' if self.isotropize else 
+                'copy_to_ct'))
 
         # translate any new electrodes to surface space as well
         pipe.translate_electrodes_to_surface_space(
@@ -465,8 +491,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         # make the electrodes translated way outside of the brain go away
         if ct_mask:
-            removals=pipe.identify_extracranial_electrodes_in_freesurfer_space(
-                self._electrodes)
+            removals=(
+                pipe.identify_extracranial_electrodes_in_freesurfer_space(
+                    self._electrodes))
 
             for e in removals:
                 self._electrodes.remove(e)
@@ -477,12 +504,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
         for key in self._grids:
             for elec in self._grids[key]:
                 if elec.is_interpolation:
-                    self._interpolated_electrodes[ intize(elec.asct()) ] = elec
+                    self._interpolated_electrodes[ intize(elec.asct()) ]=elec
                 else:
                     self._sorted_electrodes[ intize( elec.asct()) ] = elec
 
                 #save each electrode's grid identity
                 self._ct_to_grid_ident_map[ intize( elec.asct()) ] = key
+
 
         #set the grid type to be subdural
         #any depth grids will not have been created by now since they have
@@ -872,8 +900,14 @@ class ElectrodePositionsModel(HasPrivateTraits):
         elif image_name == 'ct':
             aff = self.acquire_affine()
             import pipeline as pipe
+
             pipe.translate_electrodes_to_surface_space( [elec], aff,
                 subjects_dir=self.subjects_dir, subject=self.subject)
+
+            pipe.linearly_transform_electrodes_to_isotropic_coordinate_space(
+                [elec], self.ct_scan,
+                isotropization_type = ('isotropize' if self.model.isotropize
+                    else 'copy_to_iso'))
         else:
             raise ValueError("Internal error: bad image type")
 
@@ -1008,6 +1042,7 @@ class ExtractionRegistrationSortingPanel(HasTraits):
     shapereg_slice_diff = DelegatesTo('model')
     zoom_factor_override = DelegatesTo('model')
     dilation_iterations = DelegatesTo('model')
+    isotropize = DelegatesTo('model')
 
     traits_view = View(
         Group(
@@ -1065,6 +1100,9 @@ class ExtractionRegistrationSortingPanel(HasTraits):
             Item('rho'),
             Item('rho_strict'),
             Item('rho_loose'),
+            Label('Convert electrode locations to isotropic coordinate'
+                'space\nbefore sorting'),
+            Item('isotropize'),
         ),
         ),
         ),

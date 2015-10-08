@@ -83,7 +83,7 @@ def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None,
     return ct_brain
 
 def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500, 
-    use_erosion=True):
+    use_erosion=True, isotropize=False):
     '''
     Given a CT image, identify the electrode locations in CT space.
     Includes locations of high image intensity that are not electrodes.
@@ -114,6 +114,9 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
         When using CT images of very high slice thickness, it may be
         necessary to turn off the binary erosion but these images are 
         probably not usable with our algorithm anyway.
+    isotropize : bool
+        If true, convert CT image to isotropic coordinates using linear
+        transform and ignore skew.
 
     Returns
     -------
@@ -125,120 +128,177 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
     from scipy import ndimage
     import sys
 
-    cti = nib.load(ct)   
-    ctd = cti.get_data()
+    def get_centerofmass(isotropize=False):
+        cti = nib.load(ct)   
+        ctd = cti.get_data()
 
-    if mask is not None and type(mask)==str:
-        maski = nib.load(mask)
-        maskd = maski.get_data()
-        maskd = np.around(maskd)    #eliminate noise in registration
-        maskd = ndimage.binary_dilation(maskd, iterations=10)
-    else:
-        maskd = ctd.copy()
-        maskd[:] = 1
+        if isotropize:
+            max_axis = np.max(ctd.shape)
+            zf = np.array([max_axis, max_axis, max_axis]) / ctd.shape
+            print 'DOING THE ISOTROPIC LINEARIZATION'
+            ctd = ndimage.interpolation.zoom(ctd, zf)
+            print 'FINISHED ISOTROPIC LINEARIZATION'
 
-    mask_test = ctd[np.where(maskd)]
-    print np.mean(mask_test), 'MASK MEAN'
-    print np.std(mask_test), 'MASK STDEV'
-    print np.mean(ctd), 'CT MEAN'
-    print np.std(ctd), 'CT STDEV'
+#        if mask is not None and type(mask)==str:
+#            maski = nib.load(mask)
+#            maskd = maski.get_data()
+#            maskd = np.around(maskd)    #eliminate noise in registration
+#            maskd = ndimage.binary_dilation(maskd, iterations=10)
+#        else:
+#        maskd = ctd.copy()
+#        maskd[:] = 1
 
-    #threshold = np.mean(mask_test)+3*np.std(mask_test)
-    print threshold, 'COMPROMISE'
+#        mask_test = ctd[np.where(maskd)]
+#        print np.mean(mask_test), 'MASK MEAN'
+#        print np.std(mask_test), 'MASK STDEV'
+        print np.mean(ctd), 'CT MEAN'
+        print np.std(ctd), 'CT STDEV'
 
-    supthresh_locs = np.where(np.logical_and(ctd > threshold, maskd))
+        #threshold = np.mean(mask_test)+3*np.std(mask_test)
+        print threshold, 'COMPROMISE'
 
-    ecs = np.zeros(cti.shape)
-    ecs[supthresh_locs]=1
+        #supthresh_locs = np.where(np.logical_and(ctd > threshold, maskd))
+        supthresh_locs = np.where( ctd > threshold )
 
-    if use_erosion:
-        cte = ndimage.binary_erosion(ecs)
-    else:
-        cte = ecs
+        ecs = np.zeros(ctd.shape)
+        ecs[supthresh_locs]=1
 
-    ctpp = np.zeros(cti.shape)
-    ctpp[np.where(cte)] = ctd[np.where(cte)]
+        if use_erosion:
+            cte = ndimage.binary_erosion(ecs)
+        else:
+            cte = ecs
 
-    class Component():
-        def __init__(self):
-            self.coor = []
-            self.intensity = []
-        def add(self, coor, intensity):
-            self.coor.append(coor)
-            self.intensity.append(intensity)
-        def center_of_mass(self):
-            M, Rx, Ry, Rz = 0,0,0,0
-            for r,m in zip(self.coor, self.intensity):
-                M+=m
-                Rx+=m*r[0]
-                Ry+=m*r[1]
-                Rz+=m*r[2]
-            return round(Rx/M), round(Ry/M), round(Rz/M)
+        ctpp = np.zeros(ctd.shape)
+        ctpp[np.where(cte)] = ctd[np.where(cte)]
 
-    def dfs(x,y,z,im,c):
-        try:
-            if im[x,y,z]==0:
+        class Component():
+            def __init__(self):
+                self.coor = []
+                self.intensity = []
+            def add(self, coor, intensity):
+                self.coor.append(coor)
+                self.intensity.append(intensity)
+            def center_of_mass(self):
+                M, Rx, Ry, Rz = 0,0,0,0
+                for r,m in zip(self.coor, self.intensity):
+                    M+=m
+                    Rx+=m*r[0]
+                    Ry+=m*r[1]
+                    Rz+=m*r[2]
+                return round(Rx/M), round(Ry/M), round(Rz/M)
+
+        def dfs(x,y,z,im,c):
+            try:
+                if im[x,y,z]==0:
+                    return
+            except IndexError:
                 return
-        except IndexError:
-            return
-        if x<0 or y<0:
-            return 
+            if x<0 or y<0:
+                return 
 
-        c.add((x,y,z), im[x,y,z])
-        im[x,y,z]=0
-        dfs(x-1,y,z,im,c)
-        dfs(x+1,y,z,im,c)
-        dfs(x,y-1,z,im,c)
-        dfs(x,y+1,z,im,c)
-        dfs(x,y,z-1,im,c)
-        dfs(x,y,z+1,im,c)
+            c.add((x,y,z), im[x,y,z])
+            im[x,y,z]=0
+            dfs(x-1,y,z,im,c)
+            dfs(x+1,y,z,im,c)
+            dfs(x,y-1,z,im,c)
+            dfs(x,y+1,z,im,c)
+            dfs(x,y,z-1,im,c)
+            dfs(x,y,z+1,im,c)
 
-        dfs(x-1, y-1, z, im, c)
-        dfs(x-1, y+1, z, im, c)
-        dfs(x-1, y, z-1, im, c)
-        dfs(x-1, y, z+1, im, c)
-        dfs(x+1, y-1, z, im, c)
-        dfs(x+1, y+1, z, im, c)
-        dfs(x+1, y, z-1, im, c)
-        dfs(x+1, y, z+1, im, c)
-        dfs(x, y-1, z-1, im, c)
-        dfs(x, y-1, z+1, im, c)
-        dfs(x, y+1, z-1, im, c)
-        dfs(x, y+1, z+1, im, c)
+            dfs(x-1, y-1, z, im, c)
+            dfs(x-1, y+1, z, im, c)
+            dfs(x-1, y, z-1, im, c)
+            dfs(x-1, y, z+1, im, c)
+            dfs(x+1, y-1, z, im, c)
+            dfs(x+1, y+1, z, im, c)
+            dfs(x+1, y, z-1, im, c)
+            dfs(x+1, y, z+1, im, c)
+            dfs(x, y-1, z-1, im, c)
+            dfs(x, y-1, z+1, im, c)
+            dfs(x, y+1, z-1, im, c)
+            dfs(x, y+1, z+1, im, c)
 
-        dfs(x-1, y-1, z-1, im, c)
-        dfs(x-1, y-1, z+1, im, c)
-        dfs(x-1, y+1, z-1, im, c)
-        dfs(x-1, y+1, z+1, im, c)
-        dfs(x+1, y-1, z-1, im, c)
-        dfs(x+1, y-1, z+1, im, c)
-        dfs(x+1, y+1, z-1, im, c)
-        dfs(x+1, y+1, z+1, im, c)
+            dfs(x-1, y-1, z-1, im, c)
+            dfs(x-1, y-1, z+1, im, c)
+            dfs(x-1, y+1, z-1, im, c)
+            dfs(x-1, y+1, z+1, im, c)
+            dfs(x+1, y-1, z-1, im, c)
+            dfs(x+1, y-1, z+1, im, c)
+            dfs(x+1, y+1, z-1, im, c)
+            dfs(x+1, y+1, z+1, im, c)
 
-    def isolate_components(image):
-        im = image.copy()
+        def isolate_components(image):
+            im = image.copy()
 
-        clusters=[]
-        #print np.shape(im), 'gabif'
-        for x,y,z in zip(*np.where(im)):
-            if im[x,y,z]==0:
-                continue
-            else:
-                c = Component()
-                clusters.append(c)
-                dfs(x,y,z,im,c) 
-            
-        return clusters
+            clusters=[]
+            #print np.shape(im), 'gabif'
+            for x,y,z in zip(*np.where(im)):
+                if im[x,y,z]==0:
+                    continue
+                else:
+                    c = Component()
+                    clusters.append(c)
+                    dfs(x,y,z,im,c) 
+                
+            return clusters
 
-    recursionlimit = sys.getrecursionlimit()
-    sys.setrecursionlimit(3000000)
+        recursionlimit = sys.getrecursionlimit()
+        sys.setrecursionlimit(3000000)
 
-    electrode_clusters = isolate_components(ctpp)
+        electrode_clusters = isolate_components(ctpp)
 
-    sys.setrecursionlimit(recursionlimit)
+        sys.setrecursionlimit(recursionlimit)
 
-    return [Electrode(ct_coords=cluster.center_of_mass()) 
-            for cluster in electrode_clusters]
+        return [cluster.center_of_mass() for cluster in electrode_clusters]
+
+    ret_elecs = []
+    if isotropize:
+        return [Electrode(iso_coords=i) for i in 
+            get_centerofmass(isotropize=True)]
+    else:
+        return [Electrode(ct_coords=c) for c in
+            get_centerofmass(isotropize=False)]
+
+def linearly_transform_electrodes_to_isotropic_coordinate_space(electrodes,
+    ct, isotropization_type='isotropize'):
+    '''
+    Execute a simple linear transformation to expand the electrode locations
+    to an isotropic coordinate space of maximal size
+
+    Parameters
+    ----------
+    electrodes : List(Electrode)
+        A list of electrodes with ct_coords set
+    ct : str
+        The filename of the ct image to use
+    disable_isotropization : Bool
+        If true, copy CT locations instead of isotropizing
+    isotropization_type : 'copy_to_ct' | 'copy_to_iso' | 'isotropize' |
+                          'deisotropize'
+        copy_to_ct: copies value in iso_coords to ct_coords
+        copy_to_iso: copies value in ct_coords to iso_coords
+        isotropize: convert nonisotropic ct to isotropic iso
+        deisotropize: convert isotropic iso to nonisotropic ct
+    '''
+
+    cti = nib.load(ct)
+    cts_max = np.max(cti.shape)
+
+    for elec in electrodes:
+        if isotropization_type == 'copy_to_iso':
+            elec.iso_coords = elec.asct()
+        elif isotropization_type == 'copy_to_ct':
+            elec.ct_coords = elec.asiso()
+        elif isotropization_type == 'isotropize':
+            za, zb, zc = cti.shape / np.array( [cts_max, cts_max, cts_max] )
+            ca, cb, cc = elec.asct()
+            elec.iso_coords = ( ca*za, cb*zb, cc*zc )
+        elif isotropization_type == 'deisotropize':
+            za, zb, zc = cti.shape / np.array( [cts_max, cts_max, cts_max] )
+            ia, ib, ic = elec.asiso()
+            elec.ct_coords = ( ia*za, ib*zb, ic*zc )
+        else:
+            raise ValueError('Invalid isotropization parameter')
 
 def identify_extracranial_electrodes_in_freesurfer_space(electrodes, 
     dilation_iterations=5, subjects_dir=None, subject=None):
@@ -380,7 +440,8 @@ def classify_electrodes(electrodes, known_geometry,
     colors = color_scheme()
     names = name_generator()
 
-    electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
+    #electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
+    electrode_arr = map((lambda x:getattr(x, 'iso_coords')), electrodes)
 
     found_grids = {}
     grid_colors = OrderedDict()
@@ -444,7 +505,10 @@ def classify_electrodes(electrodes, known_geometry,
                     except IndexError:
                         raise ValueError("multiple electrodes at same point")
                 else:
-                    elec = Electrode(ct_coords=tuple(p), is_interpolation=True)
+                    #elec = Electrode(ct_coords=tuple(p), 
+                    #    is_interpolation=True)
+                    elec = Electrode(iso_coords=tuple(p),
+                        is_interpolation=True)
                     found_grids[pog.name].append(elec)
 
                 #add corner information
@@ -1288,6 +1352,9 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
     if subject is None or subject=='':
         subject = os.environ['SUBJECT']
 
+    if len(electrodes) == 0:
+        raise ValueError('No electrodes to translate to surface space')
+
     electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
     orig_elecs = geo.apply_affine(electrode_arr, ct2mr)
 
@@ -1577,7 +1644,8 @@ def fit_grid_to_line(electrodes, c1, c2, c3, geom=None, mindist=0, maxdist=36,
     c2 = np.array(c2)
     c3 = np.array(c3)
 
-    electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
+    #electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
+    electrode_arr = map((lambda x:getattr(x, 'iso_coords')), electrodes)
 
     pog = gl.Grid(c2, c3, c1, np.array(electrode_arr), delta=delta,
         rho=rho, rho_strict=rho_strict, rho_loose=rho_loose, is_line=True)
@@ -1595,12 +1663,14 @@ def fit_grid_to_line(electrodes, c1, c2, c3, geom=None, mindist=0, maxdist=36,
 
     miny=-1
     for elec in electrodes:
-        y = pog.connectivity[gl.GridPoint(elec.ct_coords)][1]
+        #y = pog.connectivity[gl.GridPoint(elec.ct_coords)][1]
+        y = pog.connectivity[gl.GridPoint(elec.iso_coords)][1]
         if y<miny:
             miny=y
 
     for elec in electrodes:
-        conn = pog.connectivity[gl.GridPoint(elec.ct_coords)]
+        #conn = pog.connectivity[gl.GridPoint(elec.ct_coords)]
+        conn = pog.connectivity[gl.GridPoint(elec.iso_coords)]
         elec.geom_coords = [0, conn[1]-miny]
 
 def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
@@ -1659,8 +1729,9 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
     #assign the electrodes to the nearest plane point greedily
     pp = {}
     for elec in electrodes:
-        e_greedy = np.argmin(cdist([elec.asct()], plane_points))
-        pp[elec.ct_coords] = plane_points[e_greedy]
+        e_greedy = np.argmin(cdist([elec.asiso()], plane_points))
+        #pp[elec.ct_coords] = plane_points[e_greedy]
+        pp[elec.iso_coords] = plane_points[e_greedy]
         plane_points = np.delete(plane_points, e_greedy, axis=0)
 
     pp_min = pp.copy()
@@ -1690,21 +1761,30 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
         T=T0*(Texp**h)
 
         e1 = np.random.randint(len(pp))
-        cand_pt = np.argmin(cdist([electrodes[e1].asct()], pp.values()))
+        #cand_pt = np.argmin(cdist([electrodes[e1].asct()], pp.values()))
+        cand_pt = np.argmin(cdist([electrodes[e1].asiso()], pp.values()))
 
         if cand_pt==e1:
             continue
-        eg = plane[tuple(pp[electrodes[e1].asct()])]
-        cg = plane[tuple(pp[electrodes[cand_pt].asct()])]
+        #eg = plane[tuple(pp[electrodes[e1].asct()])]
+        #cg = plane[tuple(pp[electrodes[cand_pt].asct()])]
+        eg = plane[tuple(pp[electrodes[e1].asiso()])]
+        cg = plane[tuple(pp[electrodes[cand_pt].asiso()])]
         if np.abs(eg[0]-cg[0]) > 1 or np.abs(eg[1]-cg[1]) > 1:
             continue
 
         pp_tmp = pp.copy()
-        old_e1 = pp_tmp[electrodes[e1].asct()]
-        old_cp = pp_tmp[electrodes[cand_pt].asct()]
+        #old_e1 = pp_tmp[electrodes[e1].asct()]
+        #old_cp = pp_tmp[electrodes[cand_pt].asct()]
 
-        pp_tmp[electrodes[cand_pt].asct()]=old_e1
-        pp_tmp[electrodes[e1].asct()]=old_cp
+        #pp_tmp[electrodes[cand_pt].asct()]=old_e1
+        #pp_tmp[electrodes[e1].asct()]=old_cp
+
+        old_e1 = pp_tmp[electrodes[e1].asiso()]
+        old_cp = pp_tmp[electrodes[cand_pt].asiso()]
+
+        pp_tmp[electrodes[cand_pt].asiso()]=old_e1
+        pp_tmp[electrodes[e1].asiso()]=old_cp
 
         cost = globalcost(pp_tmp)
         if cost < lowcost or np.random.random()<np.exp(-(cost-lowcost)/T):
@@ -1717,8 +1797,8 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
                 print 'step %i in plane fitting, cost %f' %(h, mincost)
                 
     for elec in electrodes:
-        #elec.plane_coords = plane[pp[elec.ct_coords]]
-        elec.geom_coords = list(plane[tuple(pp[elec.ct_coords])])
+        #elec.geom_coords = list(plane[tuple(pp[elec.ct_coords])])
+        elec.geom_coords = list(plane[tuple(pp[elec.iso_coords])])
 
 def identify_roi_from_atlas( pos, approx=4, atlas=None, subjects_dir=None,
     subject=None ):
