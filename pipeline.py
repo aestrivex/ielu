@@ -83,7 +83,7 @@ def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None,
     return ct_brain
 
 def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500, 
-    use_erosion=True, isotropize=False):
+    use_erosion=True, isotropization_type=None, iso_vector_override=None):
     '''
     Given a CT image, identify the electrode locations in CT space.
     Includes locations of high image intensity that are not electrodes.
@@ -114,9 +114,15 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
         When using CT images of very high slice thickness, it may be
         necessary to turn off the binary erosion but these images are 
         probably not usable with our algorithm anyway.
-    isotropize : bool
-        If true, convert CT image to isotropic coordinates using linear
-        transform and ignore skew.
+    isotropization_type : str | None
+        None : do nothing
+        By voxel : Isotropize such that the image is aligned with the
+            longest dimension in number of voxels 
+        By header : Isotropize such that the image has
+            isotropic coordinate space according to affine matrix
+        Manual override : Provide a manual zoom vector
+    iso_vector_override : List(Float)
+        User specifies in manual override isotropization setting.
 
     Returns
     -------
@@ -128,29 +134,60 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
     from scipy import ndimage
     import sys
 
-    def get_centerofmass(isotropize=False):
+    def get_centerofmass(isotropize=None):
         cti = nib.load(ct)   
         ctd = cti.get_data()
 
-        if isotropize:
+        if isotropization_type == 'By voxel':
+            initial_shape = ctd.shape
+
             max_axis = np.max(ctd.shape)
-            zf = np.array([max_axis, max_axis, max_axis]) / ctd.shape
+
+            #WARNING: this is not the true isotropization
+            #factor. To get the true isotropization factor we would have to
+            #trust the image to tell us its correct slice thickness.
+            #But this is usually a good approximation of the shitty slice
+            #thickness scans we have been getting.
+
+            zf = np.array([max_axis, max_axis, max_axis]) // ctd.shape
             print 'DOING THE ISOTROPIC LINEARIZATION'
             ctd = ndimage.interpolation.zoom(ctd, zf)
             print 'FINISHED ISOTROPIC LINEARIZATION'
 
-#        if mask is not None and type(mask)==str:
-#            maski = nib.load(mask)
-#            maskd = maski.get_data()
-#            maskd = np.around(maskd)    #eliminate noise in registration
-#            maskd = ndimage.binary_dilation(maskd, iterations=10)
-#        else:
-#        maskd = ctd.copy()
-#        maskd[:] = 1
+            new_shape = ctd.shape
 
-#        mask_test = ctd[np.where(maskd)]
-#        print np.mean(mask_test), 'MASK MEAN'
-#        print np.std(mask_test), 'MASK STDEV'
+            print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(initial_shape,
+                new_shape)
+
+        elif isotropization_type == 'By header':
+            initial_shape = ctd.shape
+            aff = np.abs(np.diag(cti.get_affine())[:3])
+
+            min_axis = np.min( aff )
+            zf = aff / min_axis
+
+            print 'DOING THE ISOTROPIC LINEARIZATION'
+            ctd = ndimage.interpolation.zoom(ctd, zf)
+            print 'FINISHED ISOTROPIC LINEARIZATION'
+            new_shape = ctd.shape
+
+            print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(initial_shape,
+                new_shape)
+
+        elif isotropization_type == 'Manual override':
+            initial_shape = ctd.shape
+            zf = np.array(iso_vector_override)
+
+            print 'DOING THE ISOTROPIC LINEARIZATION'
+            ctd = ndimage.interpolation.zoom(ctd, zf)
+            print 'FINISHED ISOTROPIC LINEARIZATION'
+            new_shape = ctd.shape
+
+            print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(initial_shape,
+                new_shape)
+
+        #istropization done
+
         print np.mean(ctd), 'CT MEAN'
         print np.std(ctd), 'CT STDEV'
 
@@ -252,15 +289,18 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
         return [cluster.center_of_mass() for cluster in electrode_clusters]
 
     ret_elecs = []
-    if isotropize:
+    if isotropization_type!='Isotropization off':
         return [Electrode(iso_coords=i) for i in 
-            get_centerofmass(isotropize=True)]
+            get_centerofmass(isotropize=isotropization_type)]
     else:
         return [Electrode(ct_coords=c) for c in
-            get_centerofmass(isotropize=False)]
+            get_centerofmass(isotropize=isotropization_type)]
 
 def linearly_transform_electrodes_to_isotropic_coordinate_space(electrodes,
-    ct, isotropization_type='isotropize'):
+    ct, isotropization_direction_on=None,
+    isotropization_direction_off=None,
+    isotropization_strategy=None,
+    iso_vector_override=None):
     '''
     Execute a simple linear transformation to expand the electrode locations
     to an isotropic coordinate space of maximal size
@@ -273,32 +313,50 @@ def linearly_transform_electrodes_to_isotropic_coordinate_space(electrodes,
         The filename of the ct image to use
     disable_isotropization : Bool
         If true, copy CT locations instead of isotropizing
-    isotropization_type : 'copy_to_ct' | 'copy_to_iso' | 'isotropize' |
-                          'deisotropize'
+    isotropization_direction_off : 'copy_to_ct' | 'copy_to_iso'
         copy_to_ct: copies value in iso_coords to ct_coords
         copy_to_iso: copies value in ct_coords to iso_coords
+    isotropization_direction_on : 'isotropize' | 'deisotropize'
         isotropize: convert nonisotropic ct to isotropic iso
         deisotropize: convert isotropic iso to nonisotropic ct
+    isotropization_strategy : 'Header' | 'Voxel' | 'Manual' | 'Off'
+    iso_vector_override: List(Float)
+        provided for manual isotropization_strategy
+        
     '''
 
     cti = nib.load(ct)
-    cts_max = np.max(cti.shape)
 
     for elec in electrodes:
-        if isotropization_type == 'copy_to_iso':
-            elec.iso_coords = elec.asct()
-        elif isotropization_type == 'copy_to_ct':
-            elec.ct_coords = elec.asiso()
-        elif isotropization_type == 'isotropize':
-            za, zb, zc = cti.shape / np.array( [cts_max, cts_max, cts_max] )
+        if isotropization_strategy == 'Isotropization off':
+            if isotropization_direction_off == 'copy_to_iso':
+                elec.iso_coords = elec.asct()
+            elif isotropization_direction_off == 'copy_to_ct':
+                elec.ct_coords = elec.asiso()
+
+            return
+
+        elif isotropization_strategy == 'By voxel':
+            cts_max = np.max(cti.shape)
+            za, zb, zc = np.array([cts_max, cts_max, cts_max]) / cti.shape
+        elif isotropization_strategy == 'By header':
+            aff = np.abs(np.diag(cti.get_affine())[:3])
+            za, zb, zc = aff / np.min(aff)
+        elif isotropization_strategy == 'Manual override':
+            za, zb, zc = np.array(iso_vector_override)
+        else:
+            raise ValueError('Invalid isotropization strategy')
+
+        print 'ISO ZOOM ({0} {1} {2})'.format(za, zb, zc)
+
+        if isotropization_direction_on == 'isotropize':
             ca, cb, cc = elec.asct()
             elec.iso_coords = ( ca*za, cb*zb, cc*zc )
-        elif isotropization_type == 'deisotropize':
-            za, zb, zc = cti.shape / np.array( [cts_max, cts_max, cts_max] )
+        elif isotropization_direction_on == 'deisotropize':
             ia, ib, ic = elec.asiso()
-            elec.ct_coords = ( ia*za, ib*zb, ic*zc )
+            elec.ct_coords = ( ia/za, ib/zb, ic/zc )
         else:
-            raise ValueError('Invalid isotropization parameter')
+            raise ValueError('Invalid isotropization direction')
 
 def identify_extracranial_electrodes_in_freesurfer_space(electrodes, 
     dilation_iterations=5, subjects_dir=None, subject=None):
@@ -1023,7 +1081,7 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     return affine
 
 def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
-    cm_dist=5, overwrite=False, zf_override=0):
+    cm_dist=5, overwrite=False, zf_override=None):
     '''
     Performs a sophisticated and somewhat specific hack to register a
     high resolution CT image with an awkward slice thickness and skewed
@@ -1131,7 +1189,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
     rawavg = os.path.join(subjects_dir, subject, 'mri', 'rawavg.mgz')
 
-    if zf_override == 0:
+    if zf_override == None:
         center_slice = np.zeros(cti.shape)
         center_slice[:,:,center_z] = ctd[:,:,center_z]
         upper_slice = np.zeros(cti.shape)
@@ -1217,7 +1275,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
         #coordinates of the translation using the qform matrix
         x = iso_sz * cm_dist * 10
 
-        zoom_factor = (x+n)/x
+        zoom_factor = (1, 1, (x+n)/x )
 
     else:
         zoom_factor = zf_override
@@ -1226,7 +1284,8 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
 
     from scipy.ndimage.interpolation import zoom
     print 'resampling image with zoom_factor %.2f'%zoom_factor
-    ct_zoom = zoom( ctd, (1,1,zoom_factor))
+    #ct_zoom = zoom( ctd, (1,1,zoom_factor))
+    ct_zoom = zoom( ctd, zoom_factor )
 
     resampled_ct = os.path.join(ct_register_dir, 'ct_resampled_zf.nii.gz')
 
@@ -1871,6 +1930,7 @@ def identify_roi_from_atlas( pos, approx=4, atlas=None, subjects_dir=None,
             regions.append(str(parcel.name))
        
     subcortical_regions = identify_roi_from_aparc(pos, approx=approx,
+        
         subjects_dir=subjects_dir, subject=subject, subcortical_only=True)
 
     regions.extend(subcortical_regions)

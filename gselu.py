@@ -48,7 +48,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     registration_procedure = Enum('experimental shape correction',
         'uncorrected MI registration', 'no registration')
     shapereg_slice_diff = Float(5.0)
-    zoom_factor_override = Float(0.)
+    zoom_factor_override = List(Float, [1.0, 1.0, 1.4], transient=True )
 
     electrode_geometry = List(List(Int), [[8,8]]) # Gx2 list
 
@@ -141,7 +141,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
     rho_strict_recon = Float(30.)
     rho_loose_recon = Float(55.)
 
-    isotropize = Bool(True)
+    isotropize = Enum('By header', 'By voxel', 'Manual override',
+        'Isotropization off')
+    isotropization_override = List(Float, [1.0, 1.0, 2.5], transient=True )
 
     roi_parcellation = Str('aparc')
     roi_error_radius = Float(4.)
@@ -409,18 +411,15 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._electrodes = pipe.identify_electrodes_in_ctspace(
             self.ct_scan, mask=ct_mask, threshold=self.ct_threshold,
             use_erosion=(not self.disable_erosion),
-            isotropize=self.isotropize) 
-
-        print 'WEEBLE'
-        print self._electrodes[0].asiso()
+            isotropization_type=self.isotropize,
+            iso_vector_override=self.isotropization_override) 
 
         pipe.linearly_transform_electrodes_to_isotropic_coordinate_space(
             self._electrodes, self.ct_scan, 
-            isotropization_type=('deisotropize' if self.isotropize else
-                'copy_to_iso'))
-
-        print 'WIBBLE'
-        print self._electrodes[0].asct()
+            isotropization_direction_off = 'copy_to_iso',
+            isotropization_direction_on = 'deisotropize',
+            isotropization_strategy = self.isotropize,
+            iso_vector_override=self.isotropization_override)
 
         #I considered allowing the user to manually specify a different
         #registration but we don't currently do this
@@ -443,7 +442,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 dilation_iterations=self.dilation_iterations,
                 subjects_dir=self.subjects_dir, subject=self.subject))
 
-            print len(removals)
+            print 'removed %i electrodes' % len(removals)
 
             for e in removals:
                 self._electrodes.remove(e)
@@ -481,8 +480,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
         # add isotropization for interpolated points
         pipe.linearly_transform_electrodes_to_isotropic_coordinate_space(
             interps, self.ct_scan,
-            isotropization_type = ('deisotropize' if self.isotropize else 
-                'copy_to_ct'))
+            isotropization_direction_off = 'copy_to_ct',
+            isotropization_direction_on = 'deisotropize',
+            isotropization_strategy = self.isotropize,
+            iso_vector_override = self.isotropization_override)
 
         # translate any new electrodes to surface space as well
         pipe.translate_electrodes_to_surface_space(
@@ -906,8 +907,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
             pipe.linearly_transform_electrodes_to_isotropic_coordinate_space(
                 [elec], self.ct_scan,
-                isotropization_type = ('isotropize' if self.model.isotropize
-                    else 'copy_to_iso'))
+                isotropization_direction_off = 'copy_to_iso',
+                isotropization_direction_on = 'isotropize',
+                isotropization_strategy = self.isotropize,
+                iso_vector_override = self.isotropization_override)
         else:
             raise ValueError("Internal error: bad image type")
 
@@ -1043,6 +1046,7 @@ class ExtractionRegistrationSortingPanel(HasTraits):
     zoom_factor_override = DelegatesTo('model')
     dilation_iterations = DelegatesTo('model')
     isotropize = DelegatesTo('model')
+    isotropization_override = DelegatesTo('model')
 
     traits_view = View(
         Group(
@@ -1078,7 +1082,7 @@ class ExtractionRegistrationSortingPanel(HasTraits):
                 ),
                 VGroup(
                 Label('Override zoom factor'),
-                Item('zoom_factor_override',
+                Item('zoom_factor_override', editor =CSVListEditor(),
                 enabled_when='registration_procedure==\'experimental shape '
                 'correction\'', show_label=False),
                 ),
@@ -1100,9 +1104,14 @@ class ExtractionRegistrationSortingPanel(HasTraits):
             Item('rho'),
             Item('rho_strict'),
             Item('rho_loose'),
-            Label('Convert electrode locations to isotropic coordinate'
+            Label('Convert electrode locations to isotropic coordinate '
                 'space\nbefore sorting'),
-            Item('isotropize'),
+            HGroup(
+                Item('isotropize', show_label=False),
+                Item('isotropization_override', editor=CSVListEditor(),
+                    enabled_when='isotropize==\'Manual override\'',
+                    show_label=False),
+            ),
         ),
         ),
         ),
@@ -1165,7 +1174,8 @@ class SurfaceVisualizerPanel(HasTraits):
     _viz_coordtype = Property#(depends_on='visualize_in_ctspace')
     def _get__viz_coordtype(self):
         if self.visualize_in_ctspace:
-            return 'ct_coords'
+            #return 'ct_coords'
+            return 'iso_coords'
         elif self.model._snapping_completed:
             #plot points on dural surface better for visualization than pial
             return 'snap_coords'
