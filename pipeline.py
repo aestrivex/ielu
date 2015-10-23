@@ -398,8 +398,6 @@ def linearly_transform_electrodes_to_isotropic_coordinate_space(electrodes,
         else:
             raise ValueError('Invalid isotropization strategy')
 
-        print 'ISO ZOOM ({0} {1} {2})'.format(za, zb, zc)
-
         if isotropization_direction_on == 'isotropize':
             ca, cb, cc = elec.asct()
             elec.iso_coords = ( ca*za, cb*zb, cc*zc )
