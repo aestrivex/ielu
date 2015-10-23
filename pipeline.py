@@ -224,6 +224,57 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
                     Rz+=m*r[2]
                 return round(Rx/M), round(Ry/M), round(Rz/M)
 
+        def iter_bfs(x,y,z,im,c):
+            from Queue import Queue
+            queue = Queue()
+
+            queue.put( (x,y,z) )
+
+            while not queue.empty():
+
+                cx, cy, cz = queue.get_nowait()
+
+                try:
+                    if im[cx,cy,cz]==0:
+                        continue
+                except IndexError:
+                    continue
+
+                if cx < 0 or cy < 0:
+                    continue
+                
+                c.add((cx,cy,cz), im[cx,cy,cz])
+                im[cx,cy,cz]=0
+            
+                queue.put((cx-1, cy, cz))
+                queue.put((cx+1, cy, cz))
+                queue.put((cx, cy-1, cz))
+                queue.put((cx, cy+1, cz))
+                queue.put((cx, cy, cz-1))
+                queue.put((cx, cy, cz+1))
+
+                queue.put((cx-1, cy-1, cz))
+                queue.put((cx-1, cy+1, cz))
+                queue.put((cx-1, cy, cz-1))
+                queue.put((cx-1, cy, cz+1))
+                queue.put((cx+1, cy-1, cz))
+                queue.put((cx+1, cy+1, cz))
+                queue.put((cx+1, cy, cz-1))
+                queue.put((cx+1, cy, cz+1))
+                queue.put((cx, cy-1, cz-1))
+                queue.put((cx, cy-1, cz+1))
+                queue.put((cx, cy+1, cz-1))
+                queue.put((cx, cy+1, cz+1))
+                
+                queue.put((cx-1, cy-1, cz-1))
+                queue.put((cx-1, cy-1, cz+1))
+                queue.put((cx-1, cy+1, cz-1))
+                queue.put((cx-1, cy+1, cz+1))
+                queue.put((cx+1, cy-1, cz-1))
+                queue.put((cx+1, cy-1, cz+1))
+                queue.put((cx+1, cy+1, cz-1))
+                queue.put((cx+1, cy+1, cz+1))
+
         def dfs(x,y,z,im,c):
             try:
                 if im[x,y,z]==0:
@@ -275,7 +326,7 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
                 else:
                     c = Component()
                     clusters.append(c)
-                    dfs(x,y,z,im,c) 
+                    iter_bfs(x,y,z,im,c) 
                 
             return clusters
 
