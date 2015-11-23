@@ -1408,7 +1408,24 @@ def create_dural_surface(subjects_dir=None, subject=None):
 
     os.chdir(curdir)
 
-def get_rawavg_to_orig_xfm(subjects_dir=None, subject=None):
+def get_rawavg_to_orig_xfm(subjects_dir=None, subject=None, 
+        skip_rawavg_to_orig=False):
+    '''
+    Collect the transformation
+
+    Parameters
+    ----------
+    subjects_dir : Str | None
+        The freesurfer subjects_dir. If this is None, it is assumed to be the 
+        $SUBJECTS_DIR environment variable.
+    subject : Str | None
+        The freesurfer subject. If this is None, it is assumed to be the
+        $SUBJECT environment variable.
+    skip_rawavg_to_orig : bool
+        Do not register rawavg to orig. Suitable for manual registration
+        directly to orig, excluding rawavg as intermediate step. Not
+        recommended in automated registration.
+    '''
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
     if subject is None or subject=='':
@@ -1424,6 +1441,8 @@ def get_rawavg_to_orig_xfm(subjects_dir=None, subject=None):
         mri_robustreg_cmd = ['mri_robust_register','--mov',rawavg,'--dst',
             orig,'--lta',lta,'--satit','--vox2vox']
         p = subprocess.call(mri_robustreg_cmd)
+    elif not os.path.exists(lta) and skip_rawavg_to_orig:
+        raise NotImplementedError("Please contact the developer with this error")
 
     rawavg2orig = geo.get_lta(lta)
     return rawavg2orig
@@ -1475,6 +1494,7 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
     if True:
         nas2ras = get_rawavg_to_orig_xfm(subject=subject, 
                                          subjects_dir=subjects_dir)
+                                         skip_rawavg_to_orig=skip_rawavg_to_orig)
 
     nas_locs = geo.apply_affine(orig_elecs, nas2ras)
 
