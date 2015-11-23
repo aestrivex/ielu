@@ -1494,7 +1494,6 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
     if True:
         nas2ras = get_rawavg_to_orig_xfm(subject=subject, 
                                          subjects_dir=subjects_dir)
-                                         skip_rawavg_to_orig=skip_rawavg_to_orig)
 
     nas_locs = geo.apply_affine(orig_elecs, nas2ras)
 
