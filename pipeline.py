@@ -1353,7 +1353,8 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
 
     skew_aff = geo.get_lta(skewed_lta)
     unskew_aff = np.eye(4)
-    unskew_aff[2,2] = zoom_factor
+    for j in xrange(3):
+        unskew_aff[j,j] = zoom_factor[j]
     aff = np.dot(skew_aff, unskew_aff)
     np.savetxt(lta, aff)
 
