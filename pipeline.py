@@ -444,7 +444,8 @@ def identify_extracranial_electrodes_in_freesurfer_space(electrodes,
 
     removals = []
 
-    mask_aff = maski.get_affine()
+    #mask_aff = maski.get_affine()
+    mask_aff = geo.get_vox2rasxfm(brain, stem='vox2ras-tkr')
 
     for e in electrodes:
         #find nearest voxel in voxel space
