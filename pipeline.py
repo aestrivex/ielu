@@ -380,7 +380,6 @@ def linearly_transform_electrodes_to_isotropic_coordinate_space(electrodes,
     for elec in electrodes:
         if isotropization_strategy == 'Isotropization off':
             if isotropization_direction_off == 'copy_to_iso':
-                print 'WMEEHER'
                 elec.iso_coords = elec.asct()
             elif isotropization_direction_off == 'copy_to_ct':
                 elec.ct_coords = elec.asiso()
