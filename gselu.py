@@ -1260,6 +1260,7 @@ class SurfaceVisualizerPanel(HasTraits):
 
         def fix_elec( elec, coordtype=None ):
             init_coord = np.array(getattr(elec, coordtype))
+
             if init_coord[0] < 0: 
                 init_coord[0] -= self._lh_pysurfer_offset
             else:
