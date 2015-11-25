@@ -85,10 +85,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
         # dictionary from surface coordinates (as hashable) to reused
         # electrode objects
 
-    _surf_to_ct_map = Dict()
-    _ct_to_surf_map = Dict()
+    _surf_to_iso_map = Dict()
+    _iso_to_surf_map = Dict()
 
-    _ct_to_grid_ident_map = Dict() # Tuple -> Str
+    _iso_to_grid_ident_map = Dict() # Tuple -> Str
     
     _points_to_cur_grid = Dict()
     _points_to_unsorted = Dict()
@@ -306,16 +306,16 @@ class ElectrodePositionsModel(HasPrivateTraits):
         
                 if old not in ('','unsorted','selection'):
                     self._grids[old].remove(elec)
-                    self._ct_to_grid_ident_map[ intize(elec.asct()) ] = ( 
+                    self._iso_to_grid_ident_map[ intize(elec.asiso()) ] = ( 
                         'unsorted')
                 elif old=='unsorted':
-                    del self._unsorted_electrodes[ intize(elec.asct()) ]
+                    del self._unsorted_electrodes[ intize(elec.asiso()) ]
 
                 if new not in ('','unsorted','selection'):
                     self._grids[new].append(elec)
-                    self._ct_to_grid_ident_map[ intize(elec.asct()) ] = new
+                    self._iso_to_grid_ident_map[ intize(elec.asiso()) ] = new
                 elif new=='unsorted':
-                    self._unsorted_electrodes[ intize(elec.asct()) ] = elec
+                    self._unsorted_electrodes[ intize(elec.asiso()) ] = elec
 
         self._points_to_cur_grid = {}
         self._points_to_unsorted = {}
@@ -386,8 +386,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._sorted_electrodes = {}
         self._interpolated_electrodes = {}
 
-        self._ct_to_surf_map = {}
-        self._surf_to_ct_map = {}
+        self._iso_to_surf_map = {}
+        self._surf_to_iso_map = {}
 
         self._snapping_completed = False
         self._noise_hidden = False
@@ -505,12 +505,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
         for key in self._grids:
             for elec in self._grids[key]:
                 if elec.is_interpolation:
-                    self._interpolated_electrodes[ intize(elec.asct()) ]=elec
+                    self._interpolated_electrodes[ intize(elec.asiso()) ]=elec
                 else:
-                    self._sorted_electrodes[ intize( elec.asct()) ] = elec
+                    self._sorted_electrodes[ intize( elec.asiso()) ] = elec
 
                 #save each electrode's grid identity
-                self._ct_to_grid_ident_map[ intize( elec.asct()) ] = key
+                self._iso_to_grid_ident_map[ intize( elec.asiso()) ] = key
 
 
         #set the grid type to be subdural
@@ -530,9 +530,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
                         is_sorted = True
                         break
             if not is_sorted:
-                self._unsorted_electrodes[ intize(elec.asct()) ] = elec
+                self._unsorted_electrodes[ intize(elec.asiso()) ] = elec
 
-                self._ct_to_grid_ident_map[ intize(elec.asct()) ] = 'unsorted'
+                self._iso_to_grid_ident_map[intize(elec.asiso())] = 'unsorted'
 
         self._all_electrodes.update(self._interpolated_electrodes)
         self._all_electrodes.update(self._unsorted_electrodes)
@@ -543,8 +543,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
             #snapping is never completed by this point anymore
             surf_coord = elec.asras()
 
-            self._ct_to_surf_map[ intize(elec.asct()) ] = surf_coord
-            self._surf_to_ct_map[ intize(surf_coord) ] = elec.asct()
+            self._iso_to_surf_map[ intize(elec.asiso()) ] = surf_coord
+            self._surf_to_iso_map[ intize(surf_coord) ] = elec.asiso()
 
         #manually trigger a change to grid_named_objects property
         #using an unlikely grid name
@@ -604,12 +604,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
     def add_electrode_to_grid(self, elec, target):
         self._grids[target].append(elec)
 
-        self._ct_to_surf_map[intize(elec.asct())] = elec.asras()
-        self._surf_to_ct_map[intize(elec.asras())] = elec.asct()
+        self._iso_to_surf_map[intize(elec.asiso())] = elec.asras()
+        self._surf_to_iso_map[intize(elec.asras())] = elec.asiso()
 
-        self._ct_to_grid_ident_map[ intize(elec.asct()) ] = target
-        self._interpolated_electrodes[ intize(elec.asct()) ] = elec
-        self._all_electrodes[ intize(elec.asct()) ] = elec
+        self._iso_to_grid_ident_map[ intize(elec.asiso()) ] = target
+        self._interpolated_electrodes[ intize(elec.asiso()) ] = elec
+        self._all_electrodes[ intize(elec.asiso()) ] = elec
 
         self._rebuild_vizpanel_event = True
         elec.special_name = ''
@@ -698,9 +698,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
 #                continue
 #
 #            elec.surf_coords = tuple(nloc)
-#            self._ct_to_surf_map[elec.asct()] = tuple(nloc)
-#            del self._surf_to_ct_map[tuple(oloc)]
-#            self._surf_to_ct_map[tuple(nloc)] = elec.asct()
+#            self._iso_to_surf_map[elec.asiso()] = tuple(nloc)
+#            del self._surf_to_iso_map[tuple(oloc)]
+#            self._surf_to_iso_map[tuple(nloc)] = elec.asiso()
 #
 #    def fit_changes(self):
 #        #maybe this should be a different call which evaluates a single
@@ -793,15 +793,15 @@ class ElectrodePositionsModel(HasPrivateTraits):
                     #snap_coord = elec.astuple()
                     snap_coord = elec.snap_coords
                     surf_coord = elec.asras()
-                    ct_coord = elec.asct()
+                    iso_coord = elec.asiso()
 
-                    self._ct_to_surf_map[ intize(ct_coord) ] = snap_coord
-                    self._surf_to_ct_map[ intize(snap_coord) ] = ct_coord
+                    self._iso_to_surf_map[ intize(iso_coord) ] = snap_coord
+                    self._surf_to_iso_map[ intize(snap_coord) ] = iso_coord
                     #TODO manage collisions in ct_to_surf mapping
                     
                     # could have been snapped before (in which case we should also get rid of the previous snapped coord in this map)
                     try:
-                        del self._surf_to_ct_map[ intize(surf_coord) ]
+                        del self._surf_to_iso_map[ intize(surf_coord) ]
                     except KeyError:
                         pass
 
@@ -837,12 +837,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
         '''
 
         #remove old electrode position from dictionary data structures
-        del self._ct_to_surf_map[ intize(elec.asct()) ]
-        del self._surf_to_ct_map[ intize(elec.asras()) ]
+        del self._iso_to_surf_map[ intize(elec.asiso()) ]
+        del self._surf_to_iso_map[ intize(elec.asras()) ]
 
-        target_grid = self._ct_to_grid_ident_map[ intize(elec.asct()) ]
-        del self._ct_to_grid_ident_map[ intize(elec.asct()) ]
-        del self._all_electrodes[ intize(elec.asct()) ]
+        target_grid = self._iso_to_grid_ident_map[ intize(elec.asiso()) ]
+        del self._iso_to_grid_ident_map[ intize(elec.asiso()) ]
+        del self._all_electrodes[ intize(elec.asiso()) ]
 
         if not in_ras:
             elec.ct_coords = new_coords
@@ -868,11 +868,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
             elec.roi_list = []
 
         #repopulate dictionaries with new updated electrode
-        self._ct_to_surf_map[ intize( elec.asct()) ] = elec.asras()
-        self._surf_to_ct_map[ intize( elec.asras()) ] = elec.asct()
+        self._iso_to_surf_map[ intize( elec.asiso()) ] = elec.asras()
+        self._surf_to_iso_map[ intize( elec.asras()) ] = elec.asiso()
 
-        self._ct_to_grid_ident_map[ intize( elec.asct() )] = target_grid
-        self._all_electrodes[ intize(elec.asct()) ] = elec
+        self._iso_to_grid_ident_map[ intize( elec.asiso() )] = target_grid
+        self._all_electrodes[ intize(elec.asiso()) ] = elec
 
         self._rebuild_vizpanel_event = True
 
@@ -917,12 +917,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #self._grids['unsorted'] = elec
         #self._grids['unsorted'].append(elec)
 
-        self._ct_to_surf_map[ intize(elec.asct()) ] = elec.asras()
-        self._surf_to_ct_map[ intize(elec.asras()) ] = elec.asct()
+        self._iso_to_surf_map[ intize(elec.asiso()) ] = elec.asras()
+        self._surf_to_iso_map[ intize(elec.asras()) ] = elec.asiso()
 
-        self._ct_to_grid_ident_map[ intize(elec.asct()) ] = 'unsorted'
-        self._all_electrodes[ intize(elec.asct()) ] = elec
-        self._unsorted_electrodes[ intize( elec.asct()) ] = elec
+        self._iso_to_grid_ident_map[ intize(elec.asiso()) ] = 'unsorted'
+        self._all_electrodes[ intize(elec.asiso()) ] = elec
+        self._unsorted_electrodes[ intize( elec.asiso()) ] = elec
 
         self._rebuild_vizpanel_event = True
 
@@ -1164,8 +1164,8 @@ class SurfaceVisualizerPanel(HasTraits):
 
     _all_electrodes = DelegatesTo('model')
     _unsorted_electrodes = DelegatesTo('model')
-    _ct_to_surf_map = DelegatesTo('model')
-    _surf_to_ct_map = DelegatesTo('model')
+    _iso_to_surf_map = DelegatesTo('model')
+    _surf_to_iso_map = DelegatesTo('model')
     _grid_types = DelegatesTo('model')
 
     _cursor_tracker = DelegatesTo('model')
@@ -1381,8 +1381,8 @@ class SurfaceVisualizerPanel(HasTraits):
                         x += self._lh_pysurfer_offset
                     else:
                         x += self._rh_pysurfer_offset
-                    x,y,z = self._surf_to_ct_map[intize((x,y,z)) ]
-                    #x,y,z = self._ct_to_surf_map[intize((x,y,z)) ]
+                    x,y,z = self._surf_to_iso_map[intize((x,y,z)) ]
+                    #x,y,z = self._iso_to_surf_map[intize((x,y,z)) ]
 
                 elec = self._all_electrodes[ intize((x,y,z))]
 
@@ -1412,7 +1412,7 @@ class SurfaceVisualizerPanel(HasTraits):
         #pdb.set_trace()
         xyz = self.model._single_glyph_to_recolor
         if not self.visualize_in_ctspace:
-            xyz = np.array( self._ct_to_surf_map[ intize(xyz) ] )
+            xyz = np.array( self._iso_to_surf_map[ intize(xyz) ] )
             if xyz[0] < 0:
                 xyz[0] -= self._lh_pysurfer_offset
             else:
@@ -1516,8 +1516,8 @@ class SurfaceVisualizerPanel(HasTraits):
     #        points = np.array(glyph.mlab_source.dataset.points)
     #
     #        for i,point in enumerate(points):
-    #            surf_point = tuple(self.model._surf_to_ct_map[tuple(point)])
-    #            if self.model._ct_to_grid_ident_map[surf_point] == target:
+    #            surf_point = tuple(self.model._surf_to_iso_map[tuple(point)])
+    #            if self.model._iso_to_grid_ident_map[surf_point] == target:
     #                points[i] = self.model._new_ras_positions[tuple(point)] 
     #
     #        glyph.mlab_source.dataset.points = points
