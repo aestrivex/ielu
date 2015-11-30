@@ -1693,13 +1693,13 @@ class InteractivePanel(HasPrivateTraits):
     def _adjust_registration_button_fired(self):
         self.model.open_registration_window()
 
-    def _visualize_ct_button_fired(self):
-        import panel2d
-        self.model.panel2d = pd = panel2d.TwoDimensionalPanel()
-        #pd.on_trait_change(self.model._create_new_electrode, 
-        #    'add_electrode_event')
-        pd.load_img(self.ct_scan, image_name='ct')
-        pd.edit_traits()
+#    def _visualize_ct_button_fired(self):
+#        import panel2d
+#        self.model.panel2d = pd = panel2d.TwoDimensionalPanel()
+#        #pd.on_trait_change(self.model._create_new_electrode, 
+#        #    'add_electrode_event')
+#        pd.load_img(self.ct_scan, image_name='ct')
+#        pd.edit_traits()
 
 class iEEGCoregistrationFrame(HasTraits):
     model = Instance(ElectrodePositionsModel)
@@ -1841,8 +1841,11 @@ class iEEGCoregistrationFrame(HasTraits):
 
     def do_examine_ct(self):
         import panel2d
-        self.model.panel2d = pd = panel2d.TwoDimensionalPanel()
-        pd.load_img(self.model.ct_scan, image_name='ct')
+
+        pd = self.construct_panel2d()
+
+        #self.model.panel2d = pd = panel2d.TwoDimensionalPanel()
+        #pd.load_img(self.model.ct_scan, image_name='ct')
         pd.edit_traits()
 
     def do_hide_noise(self):
