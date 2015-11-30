@@ -246,7 +246,7 @@ class ElectrodeWindow(Handler):
 
         if self.previous_sel is not None:
             self.model._new_glyph_color = self.previous_color
-            self.model._single_glyph_to_recolor = self.previous_sel.asct()
+            self.model._single_glyph_to_recolor = self.previous_sel.asiso()
             self.model._update_single_glyph_event = True
 
         if self.distinct_prev_sel != self.previous_sel:
@@ -258,7 +258,7 @@ class ElectrodeWindow(Handler):
         selection_color = (self.model._colors.keys().index('selection'))
 
         self.model._new_glyph_color = selection_color
-        self.model._single_glyph_to_recolor = self.cur_sel.asct()
+        self.model._single_glyph_to_recolor = self.cur_sel.asiso()
         self.model._update_single_glyph_event = True
 
     #whenever the window closes, it no longer has a valid cur_sel to listen to
@@ -267,7 +267,7 @@ class ElectrodeWindow(Handler):
         del self.model.ews[self.cur_grid]
         if self.previous_sel is not None:
             self.model._new_glyph_color = self.previous_color
-            self.model._single_glyph_to_recolor = self.previous_sel.asct()
+            self.model._single_glyph_to_recolor = self.previous_sel.asiso()
             self.model._update_single_glyph_event = True
 
     @on_trait_change('grid_type')
@@ -341,8 +341,8 @@ class ElectrodeWindow(Handler):
 
         import pipeline as pipe
         if self.naming_convention == 'line':
-            pipe.fit_grid_to_line(self.electrodes, c1.asct(), c2.asct(),
-                c3.asct(), cur_geom, delta=self.model.delta,
+            pipe.fit_grid_to_line(self.electrodes, c1.asiso(), c2.asiso(),
+                c3.asiso(), cur_geom, delta=self.model.delta,
                 rho_loose=self.model.rho_loose)
             #do actual labeling
             for elec in self.model._grids[self.cur_grid]:
@@ -351,8 +351,8 @@ class ElectrodeWindow(Handler):
                 elec.name = '%s%i'%(self.name_stem, index)
 
         else:
-            pipe.fit_grid_to_plane(self.electrodes, c1.asct(), c2.asct(), 
-                c3.asct(), cur_geom)
+            pipe.fit_grid_to_plane(self.electrodes, c1.asiso(), c2.asiso(), 
+                c3.asiso(), cur_geom)
 
             #do actual labeling
             for elec in self.model._grids[self.cur_grid]:
@@ -556,7 +556,6 @@ class ElectrodeWindow(Handler):
         pd = self.model.construct_panel2d()
         #import panel2d
 
-        #x,y,z = self.cur_sel.asras()
         x,y,z = self.cur_sel.asct()
         pd.move_cursor(x,y,z)
         pd.drop_pin(x,y,z, color='cyan', name='electrode', image_name='ct')
