@@ -48,7 +48,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
     registration_procedure = Enum('experimental shape correction',
         'uncorrected MI registration', 'no registration')
     shapereg_slice_diff = Float(5.0)
-    zoom_factor_override = List(Float, [1.0, 1.0, 1.4], transient=True )
+
+    #this was previously marked as transient which did not cause any problem
+    #is there a reason it needed to be transient?
+    zoom_factor_override = List(Float, [1.0, 1.0, 1.4] )
 
     electrode_geometry = List(List(Int), [[8,8]]) # Gx2 list
 
@@ -143,7 +146,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
     isotropize = Enum('By header', 'By voxel', 'Manual override',
         'Isotropization off')
-    isotropization_override = List(Float, [1.0, 1.0, 2.5], transient=True )
+
+    #this was previously marked as transient which caused a problem with
+    #adding new points after load. is there a reason it needs to be transient?
+    isotropization_override = List(Float, [1.0, 1.0, 2.5] )
 
     roi_parcellation = Str('aparc')
     roi_error_radius = Float(4.)
@@ -955,6 +961,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
             
             aff = self.acquire_affine()
             import pipeline as pipe
+            pipe.linearly_transform_electrodes_to_isotropic_coordinate_space(
+                [elec], self.ct_scan,
+                isotropization_direction_off = 'copy_to_iso',
+                isotropization_direction_on = 'isotropize',
+                isotropization_strategy = self.isotropize,
+                iso_vector_override = self.isotropization_override)
+
             pipe.translate_electrodes_to_surface_space( [elec], aff,
                 subjects_dir=self.subjects_dir, subject=self.subject)
 
