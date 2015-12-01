@@ -7,4 +7,17 @@ This is a GUI utility to assist in preprocessing tasks for electrocorticography 
 1. Snapping electrode locations to a freesurfer cortical surface model
 1. Exporting to montage files suitable for use in MNE-python
 
+# Dependencies
+* A scientific python distribution such as anaconda or canopy
+* pysurfer
+* nibabel
+* mne-python
+* pymcubes
+
+Note - you can easily install these dependencies with tools such as pip and easy-install.
+
+# Quick start
+Simply clone this repository, then evoke the `run` script in the main folder. e.g., `cd gselu; ./run`
+
+# More info
 For more information about this package and how it works, see the [wiki](https://github.com/aestrivex/gselu/wiki).
