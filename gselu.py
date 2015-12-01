@@ -1842,7 +1842,7 @@ class iEEGCoregistrationFrame(HasTraits):
     def do_examine_ct(self):
         import panel2d
 
-        pd = self.construct_panel2d()
+        pd = self.model.construct_panel2d()
 
         #self.model.panel2d = pd = panel2d.TwoDimensionalPanel()
         #pd.load_img(self.model.ct_scan, image_name='ct')
