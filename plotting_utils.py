@@ -67,14 +67,20 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
 
     x_size, y_size, z_size = nib.load(orig).shape
 
+    # vox2ras and ras2vox shouldnt have different procedures for 
+    # getting the different dimensions. the matrix showing those
+    # dimensions has the correct dimensions by inversion beforehand
+    # in the complex 3-way case
     vox2ras = get_vox2rasxfm(orig, stem='vox2ras')
     ras2vox = np.linalg.inv(vox2ras)
 
     ras2vox[0:3,3] = (x_size/2, y_size/2, z_size/2)
 
-    rd, = np.where(np.abs(ras2vox[:,0]) == np.max(np.abs(ras2vox[:,0])))
-    ad, = np.where(np.abs(ras2vox[:,1]) == np.max(np.abs(ras2vox[:,1])))
-    sd, = np.where(np.abs(ras2vox[:,2]) == np.max(np.abs(ras2vox[:,2])))
+    rd, ad, sd = geo.get_std_orientation(ras2vox)
+
+#    rd, = np.where(np.abs(ras2vox[:,0]) == np.max(np.abs(ras2vox[:,0])))
+#    ad, = np.where(np.abs(ras2vox[:,1]) == np.max(np.abs(ras2vox[:,1])))
+#    sd, = np.where(np.abs(ras2vox[:,2]) == np.max(np.abs(ras2vox[:,2])))
 
     r_size = [x_size, y_size, z_size][rd]
     a_size = [x_size, y_size, z_size][ad]

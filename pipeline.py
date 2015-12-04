@@ -149,42 +149,64 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
             #But this is usually a good approximation of the shitty slice
             #thickness scans we have been getting.
 
-            zf = np.array([max_axis, max_axis, max_axis]) // ctd.shape
-            print 'DOING THE ISOTROPIC LINEARIZATION'
-            ctd = ndimage.interpolation.zoom(ctd, zf)
-            print 'FINISHED ISOTROPIC LINEARIZATION'
+            if np.all(zf == 1):
+                print 'IMAGE HEADER IS ISOTROPIC, NO LINEARIZATION TO DO'
+            else:
+                zf = np.array([max_axis, max_axis, max_axis]) // ctd.shape
+                print 'DOING THE ISOTROPIC LINEARIZATION'
+                ctd = ndimage.interpolation.zoom(ctd, zf)
+                print 'FINISHED ISOTROPIC LINEARIZATION'
 
-            new_shape = ctd.shape
+                new_shape = ctd.shape
 
-            print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(initial_shape,
-                new_shape)
+                print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(initial_shape,
+                    new_shape)
 
         elif isotropization_type == 'By header':
             initial_shape = ctd.shape
-            aff = np.abs(np.diag(cti.get_affine())[:3])
 
-            min_axis = np.min( aff )
-            zf = aff / min_axis
+            #these are the same thing
+            vox2ras = cti.get_affine()
+            #vox2ras = geo.get_vox2rasxfm(ct, stem='vox2ras')
 
-            print 'DOING THE ISOTROPIC LINEARIZATION'
-            ctd = ndimage.interpolation.zoom(ctd, zf)
-            print 'FINISHED ISOTROPIC LINEARIZATION'
-            new_shape = ctd.shape
+            #check orientation
+            rd, ad, sd = geo.get_std_orientation(vox2ras)
 
-            print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(initial_shape,
-                new_shape)
+            vox2ras_rstd = np.array(
+                map( lambda ix: np.squeeze( vox2ras[ix, :3] ),
+                     (rd, ad, sd) ))
+
+            vox2ras_dg = np.abs(np.diag(vox2ras_rstd)[:3])
+
+            min_axis = np.min( vox2ras_dg )
+            zf = vox2ras_dg / min_axis
+
+            if np.all(zf == 1):
+                print 'IMAGE HEADER IS ISOTROPIC, NO LINEARIZATION TO DO'
+            else:
+
+                print 'DOING THE ISOTROPIC LINEARIZATION'
+                ctd = ndimage.interpolation.zoom(ctd, zf)
+                print 'FINISHED ISOTROPIC LINEARIZATION'
+                new_shape = ctd.shape
+
+                print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(
+                    initial_shape, new_shape)
 
         elif isotropization_type == 'Manual override':
             initial_shape = ctd.shape
             zf = np.array(iso_vector_override)
 
-            print 'DOING THE ISOTROPIC LINEARIZATION'
-            ctd = ndimage.interpolation.zoom(ctd, zf)
-            print 'FINISHED ISOTROPIC LINEARIZATION'
-            new_shape = ctd.shape
+            if np.all(zf == 1):
+                print 'IMAGE HEADER IS ISOTROPIC, NO LINEARIZATION TO DO'
+            else:
+                print 'DOING THE ISOTROPIC LINEARIZATION'
+                ctd = ndimage.interpolation.zoom(ctd, zf)
+                print 'FINISHED ISOTROPIC LINEARIZATION'
+                new_shape = ctd.shape
 
-            print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(initial_shape,
-                new_shape)
+                print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(
+                    initial_shape, new_shape)
 
         #istropization done
 
@@ -224,6 +246,10 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
                     Rz+=m*r[2]
                 return round(Rx/M), round(Ry/M), round(Rz/M)
 
+        #in principle it is possible to alter the algorithm by removing
+        #some of the subsequent categories of diagonals. in practice
+        #this makes very little difference compared to choosing an
+        #appropriate threshold and having good quality images
         def iter_bfs(x,y,z,im,c):
             from Queue import Queue
             queue = Queue()
@@ -275,6 +301,8 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
                 queue.put((cx+1, cy+1, cz-1))
                 queue.put((cx+1, cy+1, cz+1))
 
+        #this recursive function occasionally caused memory problems
+        #it also caused stack size problems
         def dfs(x,y,z,im,c):
             try:
                 if im[x,y,z]==0:
@@ -390,8 +418,11 @@ def linearly_transform_electrodes_to_isotropic_coordinate_space(electrodes,
             cts_max = np.max(cti.shape)
             za, zb, zc = np.array([cts_max, cts_max, cts_max]) / cti.shape
         elif isotropization_strategy == 'By header':
-            aff = np.abs(np.diag(cti.get_affine())[:3])
-            za, zb, zc = aff / np.min(aff)
+            aff = cti.get_affine()
+            aff_rstd = np.array( map( lambda ix: aff[ix, :3],
+                                      geo.get_std_orientation(aff)))
+            aff_dg = np.abs(np.diag(aff_rstd)[:3])
+            za, zb, zc = aff_dg / np.min(aff_dg)
         elif isotropization_strategy == 'Manual override':
             za, zb, zc = np.array(iso_vector_override)
         else:

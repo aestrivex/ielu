@@ -240,6 +240,13 @@ def get_xfm(xfm_file):
 
     return xfm
 
+def get_std_orientation(affine):
+    rd, = np.where(np.abs(affine[:,0]) == np.max(np.abs(affine[:,0])))
+    ad, = np.where(np.abs(affine[:,1]) == np.max(np.abs(affine[:,1])))
+    sd, = np.where(np.abs(affine[:,2]) == np.max(np.abs(affine[:,2])))
+
+    return (rd[0], ad[0], sd[0])
+
 def apply_affine(locs, affine):
     new_locs = []
     for loc in locs:
