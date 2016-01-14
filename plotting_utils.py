@@ -102,10 +102,8 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
         start_coord = np.squeeze(apply_affine([start.asras()], ras2vox))
         end_coord = np.squeeze(apply_affine([end.asras()], ras2vox))
 
-        #start_coord = pd.map_cursor( start.asras(), ras2vox,
-        #    invert=True)
-        #end_coord = pd.map_cursor( end.asras(), ras2vox,
-        #    invert=True )
+        if start_coord[rd] == end_coord[rd]:
+            raise ValueError('This lead has no variation in the X axis. It shouldnt be displayed coronally')
         
         slice = np.zeros((s_size, r_size))
         
@@ -117,10 +115,13 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
         alower = np.floor(anew)
         afrac = np.mod(anew, 1)
 
-        for rvox in rnew:
-            slice[:, rvox] = (vol[rvox, alower[rvox], :] * 
-                (1-afrac[rvox])+vol[rvox, alower[rvox]+1, :] *
-                afrac[rvox])
+        try:
+            for rvox in rnew:
+                slice[:, rvox] = (vol[rvox, alower[rvox], :] * 
+                    (1-afrac[rvox])+vol[rvox, alower[rvox]+1, :] *
+                    afrac[rvox])
+        except IndexError:
+            raise ValueError('This lead has minimal variation in the X axis. It shouldnt be displayed coronally')
 
     else:
         slice_nr = np.mean(electrodes[:,ad])
