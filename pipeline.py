@@ -651,7 +651,7 @@ def classify_electrodes(electrodes, known_geometry,
 
                 #add corner information
                 for corner in corners:
-                    if np.all(corner==np.array(elec.asct())):
+                    if np.all(corner==np.array(elec.asiso())):
                         elec.corner = ['corner 1']
                     
             break
