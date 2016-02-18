@@ -121,6 +121,15 @@ class ElectrodeWindow(Handler):
     label_auto_action = Action(name='Automatic labeling',
         action='do_label_automatically')
 
+    rotate_grid_left_action = Action(name='Rotate left 90 deg',
+        action='do_rotate_left')
+    rotate_grid_right_action = Action(name='Rotate right 90 deg',
+        action='do_rotate_right')
+    rotate_grid_180_action = Action(name='Rotate 180 deg',
+        action='do_rotate_180')
+    reflect_grid_action = Action(name='Reflect',
+        action='do_reflect')
+
     name_stem = Str
     c1, c2, c3 = 3*(Instance(Electrode),)
 
@@ -167,9 +176,6 @@ class ElectrodeWindow(Handler):
 
                      ObjectColumn(label='geometry',
                                   editor=CSVListEditor(),
-                                  #editor=TextEditor(),
-                                  #style='readonly',
-                                  #editable=False,
                                   name='geom_coords'),
                                   
                      ObjectColumn(label='channel name',
@@ -183,7 +189,6 @@ class ElectrodeWindow(Handler):
                      ],
                     selected='cur_sel',
                     deletable=True,
-                    #row_factory=electrode_factory,
                     row_factory=self.electrode_factory,
                     ),
                 show_label=False, height=350, width=700),
@@ -215,15 +220,24 @@ class ElectrodeWindow(Handler):
 
             buttons = [self.label_auto_action, self.swap_action, OKButton],
             menubar = MenuBar(
-                Menu( self.label_auto_action, self.add_blank_action,
-                    self.interpolate_action, self.find_rois_action, 
-                    self.find_all_rois_action,
-                    self.manual_reposition_action,
-                    name='Operations',
+                Menu( self.label_auto_action,
+                      self.rotate_grid_left_action,
+                      self.rotate_grid_right_action,
+                      self.rotate_grid_180_action,
+                      self.reflect_grid_action,
+                      name='Labeling',
                 ),
-                Menu( self.save_montage_action, self.save_csv_action,
-                    self.save_coronal_slice_action,
-                    name='Save Output',
+                Menu( self.add_blank_action,
+                      self.interpolate_action, 
+                      self.find_rois_action, 
+                      self.find_all_rois_action,
+                      self.manual_reposition_action,
+                      name='Operations',
+                ),
+                Menu( self.save_montage_action, 
+                      self.save_csv_action,
+                      self.save_coronal_slice_action,
+                      name='Save Output',
                 ),
             )
         )
@@ -496,6 +510,83 @@ class ElectrodeWindow(Handler):
                     new_ix = ey
 
         return new_e
+
+    def do_rotate_left(self, info):
+        electrodes = self.model.get_electrodes_from_grid(
+            target=self.cur_grid,
+            electrodes=self.electrodes)
+
+        # brute force check geom coords from actual data
+        # getting geom coords from the model wouldn't ensure the order
+        geom_x, geom_y = -1, -1
+        for elec in electrodes:
+            curx, cury = elec.geom_coords
+            if curx > geom_x:
+                geom_x = curx
+            if cury > geom_y:
+                geom_y = cury
+            
+        # now change the coordinates
+        for elec in electrodes:
+            curx, cury = elec.geom_coords
+            newx = cury
+            newy = geom_x - curx
+            elec.geom_coords = [newx, newy]
+   
+    def do_rotate_right(self, info):
+        electrodes = self.model.get_electrodes_from_grid(
+            target=self.cur_grid,
+            electrodes=self.electrodes)
+
+        # brute force check geom coords from actual data
+        # getting geom coords from the model wouldn't ensure the order
+        geom_x, geom_y = -1, -1
+        for elec in electrodes:
+            curx, cury = elec.geom_coords
+            if curx > geom_x:
+                geom_x = curx
+            if cury > geom_y:
+                geom_y = cury
+            
+        # now change the coordinates
+        for elec in electrodes:
+            curx, cury = elec.geom_coords
+            newx = geom_y - cury
+            newy = curx
+            elec.geom_coords = [newx, newy]
+
+    def do_rotate_180(self, info):
+        electrodes = self.model.get_electrodes_from_grid(
+            target=self.cur_grid,
+            electrodes=self.electrodes)
+
+        # brute force check geom coords from actual data
+        # getting geom coords from the model wouldn't ensure the order
+        geom_x, geom_y = -1, -1
+        for elec in electrodes:
+            curx, cury = elec.geom_coords
+            if curx > geom_x:
+                geom_x = curx
+            if cury > geom_y:
+                geom_y = cury
+            
+        # now change the coordinates
+        for elec in electrodes:
+            curx, cury = elec.geom_coords
+            newx = geom_x - curx
+            newy = geom_y - cury
+            elec.geom_coords = [newx, newy]
+
+    def do_reflect(self, info):
+        electrodes = self.model.get_electrodes_from_grid(
+            target=self.cur_grid,
+            electrodes=self.electrodes)
+
+        for elec in electrodes:
+            curx, cury = elec.geom_coords
+            newx = cury
+            newy = curx
+            elec.geom_coords = [newx, newy]
 
     def do_montage(self, info):
         electrodes = self.model.get_electrodes_from_grid(

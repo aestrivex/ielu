@@ -612,7 +612,7 @@ def classify_electrodes(electrodes, known_geometry,
             pog.extend_grid_arbitrarily()
 
             try:
-                sp, corners = pog.extract_strip(*dims)
+                sp, corners, final_connectivity = pog.extract_strip(*dims)
             except gl.StripError as e:
                 print 'Rejected this initialization'
                 if j==len(ba)-1:
@@ -653,6 +653,14 @@ def classify_electrodes(electrodes, known_geometry,
                 for corner in corners:
                     if np.all(corner==np.array(elec.asiso())):
                         elec.corner = ['corner 1']
+
+                #add experimental full geometry information
+
+                try:
+                    elec.geom_coords = list(final_connectivity[
+                        elec.asiso()])
+                except KeyError:
+                    pass
                     
             break
 
@@ -1867,6 +1875,7 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
     c4 = c2+c3-c1
 
     plane = {}
+    reverse_plane = {}
     xg = max(geom)-1
     ng = min(geom)-1
     for i in xrange(max(geom)):
@@ -1882,6 +1891,7 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
                 s2 = c2*j/ng + c1*(ng-j)/ng
                 pN = s1+s2-c1
             plane[tuple(pN)]=(i,j)
+            reverse_plane[(i,j)] = pN
 
     plane_points = np.array(plane.keys())
 
@@ -1889,17 +1899,35 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
     pp = {}
     for elec in electrodes:
         e_greedy = np.argmin(cdist([elec.asiso()], plane_points))
-        #pp[elec.ct_coords] = plane_points[e_greedy]
         pp[elec.iso_coords] = plane_points[e_greedy]
         plane_points = np.delete(plane_points, e_greedy, axis=0)
 
     pp_min = pp.copy()
 
+    deformation_constant = 1
+    adjacency_constant = 1
+
     def globalcost(pp):
         c=0
+    
+        #deformation term
         for e in pp:
             pe = pp[e]
-            c += pdist((pe,e))**2
+            c += deformation_constant*pdist((pe,e))**2
+
+        #adjacency term
+        for i in xrange(max(geom)):
+            for j in xrange(min(geom)):
+
+                pij = reverse_plane[(i,j)]
+                if i+1 < max(geom):
+                    px = reverse_plane[(i+1,j)]
+                    c += adjacency_constant*pdist((pij,px))**2
+
+                if j+1 > max(geom):
+                    py = reverse_plane[(i,j+1)]
+                    c += adjacency_constant*pdist((pij,py))**2
+
         return c
 
     # H determines maximal number of steps
@@ -1919,6 +1947,11 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
 
         T=T0*(Texp**h)
 
+        #this doesnt even really allow for an search space
+        #since the set of possible changes is hopelessly constrained to 
+        #nearby swaps
+
+
         e1 = np.random.randint(len(pp))
         #cand_pt = np.argmin(cdist([electrodes[e1].asct()], pp.values()))
         cand_pt = np.argmin(cdist([electrodes[e1].asiso()], pp.values()))
@@ -1929,7 +1962,7 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
         #cg = plane[tuple(pp[electrodes[cand_pt].asct()])]
         eg = plane[tuple(pp[electrodes[e1].asiso()])]
         cg = plane[tuple(pp[electrodes[cand_pt].asiso()])]
-        if np.abs(eg[0]-cg[0]) > 1 or np.abs(eg[1]-cg[1]) > 1:
+        if np.abs(eg[0]-cg[0]) > 2 or np.abs(eg[1]-cg[1]) > 2:
             continue
 
         pp_tmp = pp.copy()
@@ -1955,6 +1988,8 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
                 mincost = cost
                 print 'step %i in plane fitting, cost %f' %(h, mincost)
                 
+    print 'Finished plane fitting, final cost %f' % mincost
+
     for elec in electrodes:
         #elec.geom_coords = list(plane[tuple(pp[elec.ct_coords])])
         elec.geom_coords = list(plane[tuple(pp[elec.iso_coords])])

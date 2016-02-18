@@ -199,6 +199,7 @@ def get_vox2rasxfm(volume, stem='vox2ras'):
     ps = subprocess.Popen(['mri_info','--%s'%stem,volume], 
         stdout=subprocess.PIPE)
 
+    ps.wait()
     vox2ras = np.zeros((4,4))
 
     #with open(subprocess.PIPE) as fd:

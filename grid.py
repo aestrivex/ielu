@@ -666,10 +666,12 @@ class Grid():
 
         corners = self.determine_corners( best_loc, M, N, best_locs )
 
+        final_connectivity = self.finalize_connectivity( best_loc, M, N )
+
         print ('Decided that the %i by %i strip at %s is the best fit' % 
             (M,N,best_loc))
 
-        return points, corners
+        return points, corners, final_connectivity
 
     def disambiguate_best_fit_strips(self, potential_strip_locs, M, N):
         '''
@@ -924,6 +926,31 @@ class Grid():
             (M-1+c-v, N-1+r-w) )
         
         return (c1, c2, c3, c4)
+
+    def finalize_connectivity(self, best_loc, M, N):
+        graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
+
+        final_connectivity = {}
+
+        r, c, orient = best_loc
+
+        origin = v,w = zip(*np.where(graph==2))[0]
+
+        if orient=='horiz': 
+            for xn in xrange(N):
+                for ym in xrange(M):
+
+                    p = self.get_3d_point( (xn+r-v, ym+c-w) )
+                    final_connectivity[tuple(p)] = (xn, ym)
+
+        else:
+            for xm in xrange(M):
+                for yn in xrange(N):
+                
+                    p = self.get_3d_point( (xm+c-v, yn+r-w) )
+                    final_connectivity[tuple(p)] = (xm, yn)
+
+        return final_connectivity
 
 ##########################
 # initialization point API
