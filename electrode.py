@@ -263,7 +263,7 @@ class ElectrodeWindow(Handler):
         # it has no change of being in the image yet so just pass
         if self.cur_sel.special_name == 'Electrode for linear interpolation':
             self.previous_sel = None 
-            self.distinct_previous_sel = None
+            self.distinct_prev_sel = None
             return
 
         if self.distinct_prev_sel != self.previous_sel:
@@ -470,8 +470,10 @@ class ElectrodeWindow(Handler):
 
         pipe.linearly_transform_electrodes_to_isotropic_coordinate_space(
             [self.cur_sel], self.model.ct_scan,
-            isotropization_type = ('deisotropize' if self.model.isotropize
-                else 'copy_to_ct'))
+            isotropization_strategy = self.model.isotropize,
+            isotropization_direction_off = 'copy_to_ct',
+            isotropization_direction_on = 'deisotropize',
+            iso_vector_override = self.model.isotropization_override)
         
         aff = self.model.acquire_affine()
 

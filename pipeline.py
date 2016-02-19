@@ -1497,7 +1497,7 @@ def fit_grid_by_fixed_points(electrodes, known_geometry,
         that we are not using this function.
     '''
     electrode_arr = map((lambda x:getattr(x, 'iso_coords')), electrodes)
-    all_elecs = np.array(electrode_arr)
+    elecs = np.array(electrode_arr)
 
 
     angles, _, neighbs = gl.find_init_angles(elecs, mindist=mindist,
