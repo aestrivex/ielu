@@ -250,11 +250,6 @@ class ElectrodeWindow(Handler):
         if self.cur_sel is None:
             return
 
-        # if this electrode has just been created and not interpolated yet
-        # it has no change of being in the image yet so just pass
-        if self.cur_sel.special_name == 'Electrode for linear interpolation':
-            return
-
         #import pdb
         #pdb.set_trace()
 
@@ -262,6 +257,14 @@ class ElectrodeWindow(Handler):
             self.model._new_glyph_color = self.previous_color
             self.model._single_glyph_to_recolor = self.previous_sel.asiso()
             self.model._update_single_glyph_event = True
+
+
+        # if this electrode has just been created and not interpolated yet
+        # it has no change of being in the image yet so just pass
+        if self.cur_sel.special_name == 'Electrode for linear interpolation':
+            self.previous_sel = None 
+            self.distinct_previous_sel = None
+            return
 
         if self.distinct_prev_sel != self.previous_sel:
             self.distinct_prev_sel = self.previous_sel
@@ -464,15 +467,16 @@ class ElectrodeWindow(Handler):
 
         # translate the electrode into RAS space
         import pipeline as pipe
-        
-        aff = self.model.acquire_affine()
-        pipe.translate_electrodes_to_surface_space( [self.cur_sel], aff,
-            subjects_dir=self.model.subjects_dir, subject=self.model.subject)
 
         pipe.linearly_transform_electrodes_to_isotropic_coordinate_space(
             [self.cur_sel], self.model.ct_scan,
             isotropization_type = ('deisotropize' if self.model.isotropize
                 else 'copy_to_ct'))
+        
+        aff = self.model.acquire_affine()
+
+        pipe.translate_electrodes_to_surface_space( [self.cur_sel], aff,
+            subjects_dir=self.model.subjects_dir, subject=self.model.subject)
 
         # add this electrode to the grid model so that it can be visualized
         self.model.add_electrode_to_grid(self.cur_sel, self.cur_grid)
