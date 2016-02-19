@@ -1448,9 +1448,9 @@ def fit_grid_to_line(electrodes, c1, c2, c3, geom=None, mindist=0, maxdist=36,
         conn = pog.connectivity[gl.GridPoint(elec.iso_coords)]
         elec.geom_coords = [0, conn[1]-miny]
 
-def fit_grid_by_fixed_points(electrodes, known_geometry, 
+def fit_grid_by_fixed_points(electrodes, geom, 
     delta=.35, rho=35, rho_strict=20, rho_loose=50, 
-    epsilon=10, max_cost=.4):
+    epsilon=10, mindist=0, maxdist=36):
     '''
     Sort the given electrodes (generally in the space of the CT scan) into
     grids and strips matching the specified geometry.
@@ -1468,7 +1468,7 @@ def fit_grid_by_fixed_points(electrodes, known_geometry,
         electrodes is used as the position.
         It is the caller's responsibility to filter the electrodes list as
         appropriate.
-    known_geometry : List(2x1)
+    geom : List(2x1)
         A 2x1 vector describing the grid geometry
     delta : Float
         A fitting parameter that controls the relative distance between
@@ -1490,11 +1490,6 @@ def fit_grid_by_fixed_points(electrodes, known_geometry,
         degrees for the starting point of a KxM grid where K>1,M>1. A
         larger parameter means the algorithm will try a larger range of
         starting positions before giving up. The default value is 10.
-    max_cost : Float
-        A fitting parameter for classification with fixed points only.
-        Represents the maximum value of the cost function for normal
-        iteration. Im not sure what this was supposed to be anymore now
-        that we are not using this function.
     '''
     electrode_arr = map((lambda x:getattr(x, 'iso_coords')), electrodes)
     elecs = np.array(electrode_arr)
@@ -1514,7 +1509,7 @@ def fit_grid_by_fixed_points(electrodes, known_geometry,
     for j,k in enumerate(ba):
         p0,p1,p2 = neighbs[k]
         pog = gl.Grid(p0, p1, p2, elecs, delta=delta, rho=rho,
-            rho_strict=rho_strict, rho_loose=rho_loose, name=grid_name)
+            rho_strict=rho_strict, rho_loose=rho_loose)
 
         pog.critical_percentage = 1.
             
@@ -1524,8 +1519,6 @@ def fit_grid_by_fixed_points(electrodes, known_geometry,
             print 'Could not recreate geometry with this initialization'
             continue
 
-        pog.all_elecs = all_elecs
-
         try:
             sp, corners, final_connectivity = pog.extract_strip(*geom)
         except gl.StripError as e:
@@ -1534,6 +1527,18 @@ def fit_grid_by_fixed_points(electrodes, known_geometry,
                 raise ValueError("Could not incorporate fixed points")
 
         for p in sp:
+            if tuple(p.tolist()) in electrode_arr:
+                ix, = np.where(np.logical_and(np.logical_and( 
+                    np.array(electrode_arr)[:,0]==p[0], 
+                    np.array(electrode_arr)[:,1]==p[1]),
+                    np.array(electrode_arr)[:,2]==p[2]))
+                try:
+                    elec = electrodes[ix]
+                except IndexError:
+                    raise ValueError("multiple electrodes at same point")
+            else:
+                raise ValueError('Electrodes in not same as electrodes out')
+
             for corner in corners:
                 if np.all(corner==np.array(elec.asiso())):
                     elec.corner = ['corner 1']
@@ -1600,12 +1605,32 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
 
     plane_points = np.array(plane.keys())
 
-    #assign the electrodes to the nearest plane point greedily
+#    #assign the electrodes to the nearest plane point greedily
+#    pp = {}
+#    for elec in electrodes:
+#        e_greedy = np.argmin(cdist([elec.asiso()], plane_points))
+#        pp[elec.iso_coords] = plane_points[e_greedy]
+#        plane_points = np.delete(plane_points, e_greedy, axis=0)
+
+    #assign the electrodes to the nearest plane point depending on their
+    #existing geometry prediction
     pp = {}
     for elec in electrodes:
-        e_greedy = np.argmin(cdist([elec.asiso()], plane_points))
-        pp[elec.iso_coords] = plane_points[e_greedy]
+        if len(elec.geom_coords) == 0:
+            continue
+
+        e_init_choice = reverse_plane[tuple(elec.geom_coords)]
+        pp[elec.asiso()] = e_init_choice
         plane_points = np.delete(plane_points, e_greedy, axis=0)
+
+    #assign remaining electrodes greedily
+    for elec in electrodes:
+        if len(elec.geom_coords) != 0:
+            continue
+
+        e_greedy_choice = np.argmin(cdist([elec.asiso()], plane_points))
+        pp[elec.asiso()] = plane_points[e_greedy_choice]
+        plane_points = np.delete(plane_points, e_greedy_choice, axis=0)
 
     pp_min = pp.copy()
 
