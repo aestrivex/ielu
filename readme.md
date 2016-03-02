@@ -1,4 +1,4 @@
-# Grids and Strips Electrode Localization Utility (gselu)
+# Interactive Electrode Localization Utility (gselu)
 This is a GUI utility to assist in preprocessing tasks for electrocorticography (ecog) and stereo eeg (seeg) data analysis. It includes:
 
 1. CT-to-MRI co-registration using Mutual Information (via Freesurfer)
@@ -20,4 +20,4 @@ Note - you can easily install these dependencies with tools such as pip and easy
 Simply clone this repository, then evoke the `run` script in the main folder. e.g., `cd gselu; ./run`
 
 # More info
-For more information about this package and how it works, see the [wiki](https://github.com/aestrivex/gselu/wiki).
+For more information about this package and how it works, see the [wiki](https://github.com/aestrivex/ielu/wiki).

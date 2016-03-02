@@ -1,3 +1,3 @@
 #!/bin/sh
 
-python gselu.py
+python ielu/gselu.py
