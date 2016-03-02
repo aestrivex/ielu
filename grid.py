@@ -3,9 +3,7 @@ import numpy as np
 from numpy.linalg import norm
 from geometry import (angle, is_parallel, is_perpend, within_distance, rm_pts,
     find_nearest_pt, find_neighbors, binarize)
-
-class StripError(ValueError):
-    pass
+from utils import SortingLabelingError
 
 class GridPoint():
     #this is just a class to make 3D arrays hashable
@@ -656,10 +654,15 @@ class Grid():
         '''
         print 'Extracting an %i by %i strip' % (M,N)
 
+        #from PyQt4.QtCore import pyqtRemoveInputHook
+        #pyqtRemoveInputHook()
+        #import pdb
+        #pdb.set_trace()
+
         fit_ok, best_locs, best_fit = self.matches_strip_geometry(M,N)
 
         if not fit_ok:
-            raise StripError("No strip had a sufficiently good fit, "
+            raise SortingLabelingError("No strip had a sufficiently good fit, "
                 " best fit was %i"%int(best_fit))
 
         best_loc, points = self.disambiguate_best_fit_strips(best_locs, M, N)
@@ -922,7 +925,7 @@ class Grid():
             (M-1+c-v, r-w) )
 
         #corner 4, HORIZ: x=N-1, y=M-1 VERT: x=M-1, y=N-1
-        c4 = self.get_3d_point( (N-1+r-v, M-1+c-2) if orient=='horiz' else
+        c4 = self.get_3d_point( (N-1+r-v, M-1+c-w) if orient=='horiz' else
             (M-1+c-v, N-1+r-w) )
         
         return (c1, c2, c3, c4)

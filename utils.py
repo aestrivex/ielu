@@ -12,6 +12,9 @@ from traitsui.message import error as error_dialog
 from functools import partial
 from mayavi import mlab
 
+class SortingLabelingError(Exception):
+    pass
+
 def virtual_points3d(coords, figure=None, scale_factor=None, color=None, 
     name=None):
 

@@ -116,10 +116,17 @@ class ElectrodeWindow(Handler):
     interpolate_action = Action(name='Linear interpolation',
         action='do_linear_interpolation')
 
-    naming_convention = Enum('line', 'grid', 'reverse_grid')
+    naming_convention = Enum('line', 'grid_serial', 'grid_concatenate')
     grid_type = Enum('depth', 'subdural')
     label_auto_action = Action(name='Automatic labeling',
         action='do_label_automatically')
+
+    #have grid type reflect the type of grid input and also change the
+    #default naming convention
+
+    #make these naming conventions apply
+
+    #then work on documentation
 
     rotate_grid_left_action = Action(name='Rotate left 90 deg',
         action='do_rotate_left')
@@ -147,6 +154,10 @@ class ElectrodeWindow(Handler):
     img_size = List(Float)
     save_coronal_slice_action = Action(name='Save coronal slice',
         action='do_coronal_slice')
+
+    labeling_delta = Float(0.25)
+    labeling_epsilon = Int(25)
+    labeling_rho = Int(40)
 
     def _img_size_default(self):
         return [450., 450.]
@@ -196,10 +207,15 @@ class ElectrodeWindow(Handler):
             HGroup(
                 VGroup( 
                     Label( 'Automatic labeling parameters' ),
-                    Item( 'name_stem' ),
                     HGroup(
+                        Item( 'name_stem' ),
                         Item( 'naming_convention' ),
                         Item( 'grid_type' ),
+                    ),
+                    HGroup(
+                        Item( 'labeling_delta' ),
+                        Item( 'labeling_rho' ),
+                        Item( 'labeling_epsilon' ),
                     ),
                 ),
                 #VGroup(
@@ -368,20 +384,26 @@ class ElectrodeWindow(Handler):
                 elec.name = '%s%i'%(self.name_stem, index)
 
         else:
-            pipe.fit_grid_to_plane(self.electrodes, c1.asiso(), c2.asiso(), 
-                c3.asiso(), cur_geom)
+            pipe.fit_grid_by_fixed_points(self.electrodes, cur_geom,
+                delta=self.labeling_delta, 
+                rho=self.labeling_rho, 
+                rho_strict=self.labeling_rho-10, 
+                rho_loose=self.labeling_rho+15,
+                epsilon=self.labeling_epsilon, 
+                mindist=0, maxdist=36)
 
-            #do actual labeling
-            for elec in self.model._grids[self.cur_grid]:
-                x,y = elec.geom_coords
-                if self.naming_convention=='grid':
-                    #index = y*np.max(cur_geom) + x + 1
-                    index = x*np.min(cur_geom) + y + 1
-                else: #reverse_grid
-                    #index = x*np.min(cur_geom) + y + 1
-                    index = y*np.max(cur_geom) + x + 1
-                
-                elec.name = '%s%i'%(self.name_stem, index)
+            self.naming_following_labeling(cur_geom)
+
+    def naming_following_labeling(self, cur_geom):
+        for elec in self.electrodes:
+            x, y = elec.geom_coords
+
+            if self.naming_convention == 'grid_serial':
+                index = x * np.min(cur_geom) + y + 1
+            elif self.naming_convention == 'grid_concatenate':
+                index = '{0}{1}'.format(x + 1, y + 1)
+
+            elec.name = '{0}_{1}'.format(self.name_stem, index)
 
     def do_linear_interpolation(self, info):
         #TODO does not feed back coordinates to model, 

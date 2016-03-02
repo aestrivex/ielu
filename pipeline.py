@@ -8,6 +8,7 @@ import numpy as np
 import nibabel as nib
 import geometry as geo
 import grid as gl
+from utils import SortingLabelingError
 from electrode import Electrode
 
 def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None, 
@@ -149,18 +150,15 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
             #But this is usually a good approximation of the shitty slice
             #thickness scans we have been getting.
 
-            if np.all(zf == 1):
-                print 'IMAGE HEADER IS ISOTROPIC, NO LINEARIZATION TO DO'
-            else:
-                zf = np.array([max_axis, max_axis, max_axis]) // ctd.shape
-                print 'DOING THE ISOTROPIC LINEARIZATION'
-                ctd = ndimage.interpolation.zoom(ctd, zf)
-                print 'FINISHED ISOTROPIC LINEARIZATION'
+            zf = np.array([max_axis, max_axis, max_axis]) // ctd.shape
+            print 'DOING THE ISOTROPIC LINEARIZATION'
+            ctd = ndimage.interpolation.zoom(ctd, zf)
+            print 'FINISHED ISOTROPIC LINEARIZATION'
 
-                new_shape = ctd.shape
+            new_shape = ctd.shape
 
-                print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(initial_shape,
-                    new_shape)
+            print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(initial_shape,
+                new_shape)
 
         elif isotropization_type == 'By header':
             initial_shape = ctd.shape
@@ -602,7 +600,7 @@ def classify_electrodes(electrodes, known_geometry,
         if ba.shape==():
             ba=[ba]
         elif len(ba)==0:
-            raise ValueError("Could not find any good angles")
+            raise SortingLabelingError("Could not find any good angles")
 
         for j,k in enumerate(ba):
             p0,p1,p2 = neighbs[k]
@@ -613,7 +611,7 @@ def classify_electrodes(electrodes, known_geometry,
 
             try:
                 sp, corners, final_connectivity = pog.extract_strip(*dims)
-            except gl.StripError as e:
+            except SortingLabelingError as e:
                 print 'Rejected this initialization'
                 if j==len(ba)-1:
                     print ('No suitable strip found. Returning an empty '
@@ -630,6 +628,8 @@ def classify_electrodes(electrodes, known_geometry,
             grid_geom[pog.name] = dims
             for p in sp:
                 used_points.append(p)
+                #from PyQt4.QtCore import pyqtRemoveInputHook
+                #pyqtRemoveInputHook()
                 #import pdb
                 #pdb.set_trace()
                 if tuple(p.tolist()) in electrode_arr:
@@ -640,8 +640,11 @@ def classify_electrodes(electrodes, known_geometry,
                     try:
                         elec = electrodes[ix]
                         found_grids[pog.name].append(elec)
-                    except IndexError:
-                        raise ValueError("multiple electrodes at same point")
+                    except (IndexError, TypeError) as e:
+                        print ix
+                        print p
+                        raise SortingLabelingError(
+                            "multiple electrodes at same point")
                 else:
                     #elec = Electrode(ct_coords=tuple(p), 
                     #    is_interpolation=True)
@@ -1429,7 +1432,7 @@ def fit_grid_to_line(electrodes, c1, c2, c3, geom=None, mindist=0, maxdist=36,
     pog.extend_grid_arbitrarily()
 
     if len(pog.points) < len(electrodes):
-        raise ValueError('Failed to fit all the electrodes')
+        raise SortingLabelingError('Failed to fit all the electrodes')
 
     #try:
     #    sp = pog.extract_strip(*geom)
@@ -1504,7 +1507,7 @@ def fit_grid_by_fixed_points(electrodes, geom,
     if ba.shape==():
         ba=[ba]
     elif len(ba)==0:
-        raise ValueError("Could not find any good angles")
+        raise SortingLabelingError("Could not find any good angles")
 
     for j,k in enumerate(ba):
         p0,p1,p2 = neighbs[k]
@@ -1515,16 +1518,17 @@ def fit_grid_by_fixed_points(electrodes, geom,
             
         try:
             pog.recreate_geometry( )
-        except gl.StripError as e:
+        except SortingLabelingError as e:
             print 'Could not recreate geometry with this initialization'
             continue
 
         try:
             sp, corners, final_connectivity = pog.extract_strip(*geom)
-        except gl.StripError as e:
+        except SortingLabelingError as e:
             print 'Rejected this choice'
             if j==len(ba)-1:
                 raise ValueError("Could not incorporate fixed points")
+            continue
 
         for p in sp:
             if tuple(p.tolist()) in electrode_arr:
@@ -1535,9 +1539,11 @@ def fit_grid_by_fixed_points(electrodes, geom,
                 try:
                     elec = electrodes[ix]
                 except IndexError:
-                    raise ValueError("multiple electrodes at same point")
+                    raise SortingLabelingError(
+                        "multiple electrodes at same point")
             else:
-                raise ValueError('Electrodes in not same as electrodes out')
+                raise SortingLabelingError(
+                    'Electrodes in not same as electrodes out')
 
             for corner in corners:
                 if np.all(corner==np.array(elec.asiso())):
@@ -1549,8 +1555,10 @@ def fit_grid_by_fixed_points(electrodes, geom,
             except KeyError:
                 pass
 
+        break
 
-def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
+
+def fit_grid_to_plane(electrodes, c1, c2, c3, geom, reverse_grid='check'):
     '''
     Given a list of electrodes and three corners of a plane, fit the
     electrodes onto the plane using a snapping algorithm minimizing a global
@@ -1566,6 +1574,11 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
         the user selected
     geom : 2-Tuple
         The known geometry of this grid 
+    reverse_grid : Bool | 'check'
+        Bool to indicate that the X is the maximum geom value and Y is
+        minimum. If False, Y is the maximum. If 'check', checks the grids
+        current geometry information for this, which could conceivably fail
+        if there are not enough points filled in.
 
     No return value
     '''
@@ -1605,6 +1618,31 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
 
     plane_points = np.array(plane.keys())
 
+    #check transposition
+    if reverse_grid == True:
+        transpix = [1, 0]
+    elif reverse_grid == False:
+        transpix = [0, 1]
+    elif reverse_grid == 'check':
+        max_x = 0
+        max_y = 0
+        for elec in electrodes:
+            if len(elec.geom_coords) == 0:
+                continue
+
+            x,y = elec.geom_coords
+            if x > max_x:
+                max_x = x
+            if y > max_y:
+                max_y = y
+
+        if max_x >= max_y:
+            transpix = [0, 1]
+        else:
+            transpix = [1, 0]
+    else:
+        raise BCTParamError('Invalid value of reverse_grid')
+
 #    #assign the electrodes to the nearest plane point greedily
 #    pp = {}
 #    for elec in electrodes:
@@ -1619,9 +1657,11 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
         if len(elec.geom_coords) == 0:
             continue
 
-        e_init_choice = reverse_plane[tuple(elec.geom_coords)]
+        e_init_choice = reverse_plane[tuple(
+            np.array(elec.geom_coords)[transpix])]
         pp[elec.asiso()] = e_init_choice
-        plane_points = np.delete(plane_points, e_greedy, axis=0)
+        e_init_ix = np.argmin(cdist([e_init_choice], plane_points))
+        plane_points = np.delete(plane_points, e_init_ix, axis=0)
 
     #assign remaining electrodes greedily
     for elec in electrodes:
@@ -1632,96 +1672,95 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom):
         pp[elec.asiso()] = plane_points[e_greedy_choice]
         plane_points = np.delete(plane_points, e_greedy_choice, axis=0)
 
-    pp_min = pp.copy()
-
-    deformation_constant = 1
-    adjacency_constant = 1
-
-    def globalcost(pp):
-        c=0
-    
-        #deformation term
-        for e in pp:
-            pe = pp[e]
-            c += deformation_constant*pdist((pe,e))**2
-
-        #adjacency term
-        for i in xrange(max(geom)):
-            for j in xrange(min(geom)):
-
-                pij = reverse_plane[(i,j)]
-                if i+1 < max(geom):
-                    px = reverse_plane[(i+1,j)]
-                    c += adjacency_constant*pdist((pij,px))**2
-
-                if j+1 > max(geom):
-                    py = reverse_plane[(i,j+1)]
-                    c += adjacency_constant*pdist((pij,py))**2
-
-        return c
-
-    # H determines maximal number of steps
-    H = 20000
-    #Texp determines the steepness of temperateure gradient
-    Texp=1-1/H
-    #T0 sets the initial temperature and scales the energy term
-    T0 = 1e-5
-    #Hbrk sets a break point for the annealing
-    Hbrk = 20000
-    
-    h=0; hcnt=0
-    lowcost = mincost = 1e16
-
-    while h<H:
-        h+=1; hcnt+=1
-
-        T=T0*(Texp**h)
-
-        #this doesnt even really allow for an search space
-        #since the set of possible changes is hopelessly constrained to 
-        #nearby swaps
-
-
-        e1 = np.random.randint(len(pp))
-        #cand_pt = np.argmin(cdist([electrodes[e1].asct()], pp.values()))
-        cand_pt = np.argmin(cdist([electrodes[e1].asiso()], pp.values()))
-
-        if cand_pt==e1:
-            continue
-        #eg = plane[tuple(pp[electrodes[e1].asct()])]
-        #cg = plane[tuple(pp[electrodes[cand_pt].asct()])]
-        eg = plane[tuple(pp[electrodes[e1].asiso()])]
-        cg = plane[tuple(pp[electrodes[cand_pt].asiso()])]
-        if np.abs(eg[0]-cg[0]) > 2 or np.abs(eg[1]-cg[1]) > 2:
-            continue
-
-        pp_tmp = pp.copy()
-        #old_e1 = pp_tmp[electrodes[e1].asct()]
-        #old_cp = pp_tmp[electrodes[cand_pt].asct()]
-
-        #pp_tmp[electrodes[cand_pt].asct()]=old_e1
-        #pp_tmp[electrodes[e1].asct()]=old_cp
-
-        old_e1 = pp_tmp[electrodes[e1].asiso()]
-        old_cp = pp_tmp[electrodes[cand_pt].asiso()]
-
-        pp_tmp[electrodes[cand_pt].asiso()]=old_e1
-        pp_tmp[electrodes[e1].asiso()]=old_cp
-
-        cost = globalcost(pp_tmp)
-        if cost < lowcost or np.random.random()<np.exp(-(cost-lowcost)/T):
-            pp = pp_tmp
-            lowcost = cost
- 
-            if cost < mincost:
-                pp_min = pp
-                mincost = cost
-                print 'step %i in plane fitting, cost %f' %(h, mincost)
-                
-    print 'Finished plane fitting, final cost %f' % mincost
+#    pp_min = pp.copy()
+#
+#    deformation_constant = 0
+#    adjacency_constant = 1
+#
+#    def globalcost(pp):
+#        c=0
+#    
+#        #deformation term
+#        for e in pp:
+#            pe = pp[e]
+#            c += deformation_constant*pdist((pe,e))**2
+#
+#        #adjacency term
+#        for i in xrange(max(geom)):
+#            for j in xrange(min(geom)):
+#
+#                pij = reverse_plane[(i,j)]
+#                if i+1 < max(geom):
+#                    px = reverse_plane[(i+1,j)]
+#                    c += adjacency_constant*pdist((pij,px))**2
+#
+#                if j+1 > max(geom):
+#                    py = reverse_plane[(i,j+1)]
+#                    c += adjacency_constant*pdist((pij,py))**2
+#
+#        return c
+#
+#    # H determines maximal number of steps
+#    H = 20000
+#    #Texp determines the steepness of temperateure gradient
+#    Texp=1-1/H
+#    #T0 sets the initial temperature and scales the energy term
+#    T0 = 1e-5
+#    #Hbrk sets a break point for the annealing
+#    Hbrk = 20000
+#    
+#    h=0; hcnt=0
+#    lowcost = mincost = 1e16
+#
+#    while h<H:
+#        h+=1; hcnt+=1
+#
+#        T=T0*(Texp**h)
+#
+#        #this doesnt even really allow for an search space
+#        #since the set of possible changes is hopelessly constrained to 
+#        #nearby swaps
+#
+#
+#        e1 = np.random.randint(len(pp))
+#        #cand_pt = np.argmin(cdist([electrodes[e1].asct()], pp.values()))
+#        cand_pt = np.argmin(cdist([electrodes[e1].asiso()], pp.values()))
+#
+#        if cand_pt==e1:
+#            continue
+#        #eg = plane[tuple(pp[electrodes[e1].asct()])]
+#        #cg = plane[tuple(pp[electrodes[cand_pt].asct()])]
+#        eg = plane[tuple(pp[electrodes[e1].asiso()])]
+#        cg = plane[tuple(pp[electrodes[cand_pt].asiso()])]
+#        if np.abs(eg[0]-cg[0]) > 2 or np.abs(eg[1]-cg[1]) > 2:
+#            continue
+#
+#        pp_tmp = pp.copy()
+#        #old_e1 = pp_tmp[electrodes[e1].asct()]
+#        #old_cp = pp_tmp[electrodes[cand_pt].asct()]
+#
+#        #pp_tmp[electrodes[cand_pt].asct()]=old_e1
+#        #pp_tmp[electrodes[e1].asct()]=old_cp
+#
+#        old_e1 = pp_tmp[electrodes[e1].asiso()]
+#        old_cp = pp_tmp[electrodes[cand_pt].asiso()]
+#
+#        pp_tmp[electrodes[cand_pt].asiso()]=old_e1
+#        pp_tmp[electrodes[e1].asiso()]=old_cp
+#
+#        cost = globalcost(pp_tmp)
+#        if cost < lowcost or np.random.random()<np.exp(-(cost-lowcost)/T):
+#            pp = pp_tmp
+#            lowcost = cost
+# 
+#            if cost < mincost:
+#                pp_min = pp
+#                mincost = cost
+#                print 'step %i in plane fitting, cost %f' %(h, mincost)
+#                
+#    print 'Finished plane fitting, final cost %f' % mincost
 
     for elec in electrodes:
-        #elec.geom_coords = list(plane[tuple(pp[elec.ct_coords])])
         elec.geom_coords = list(plane[tuple(pp[elec.iso_coords])])
 
 def identify_roi_from_atlas( pos, approx=4, atlas=None, subjects_dir=None,
@@ -1767,8 +1806,8 @@ def identify_roi_from_atlas( pos, approx=4, atlas=None, subjects_dir=None,
     pia = np.vstack((lh_pia, rh_pia))
 
     # find closest vertex
-    import pdb
-    pdb.set_trace()
+    #import pdb
+    #pdb.set_trace()
     closest_vert = np.argmin(cdist(pia, [pos]))
 
     # grow the area of surface surrounding the vertex

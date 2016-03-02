@@ -427,6 +427,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
             isotropization_strategy = self.isotropize,
             iso_vector_override=self.isotropization_override)
 
+        self._electrodes = np.unique(self._electrodes).tolist()
+
         #I considered allowing the user to manually specify a different
         #registration but we don't currently do this
         aff = self.acquire_affine()
@@ -735,12 +737,16 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #from utils import AutomatedAssignmentWindow
         from electrode import ElectrodeWindow
         #self.ew = AutomatedAssignmentWindow(
+        grid_type = self._grid_types[cur_grid.name]
         ew = ElectrodeWindow(
             model = self,
             cur_grid = cur_grid.name,
             name_stem = cur_grid.name,
             electrodes = self._grids[cur_grid.name],
-            grid_type = self._grid_types[cur_grid.name])
+            grid_type = grid_type,
+            naming_convention = ('line' if grid_type == 'depth' 
+                else 'grid_serial'),
+            )
         self.ews[cur_grid.name] = ew
         ew.edit_traits()
 
