@@ -7,13 +7,13 @@ def read(fname):
 
 setuptools.setup(
     name="ielu",
-    version="0.5.0",
+    version="0.2.0",
     maintainer="Roan LaPlante",
     maintainer_email="rlaplant@nmr.mgh.harvard.edu",
     description=("Interactive Electrode localization Utility"),
     license="Visuddhimagga Sutta; GPLv3+",
-    long_description=read('README'),
-    datafiles=[('', ['README', 'LICENSE'])],
+    long_description=read('readme.md'),
+    datafiles=[('', ['readme.md', 'LICENSE'])],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Environment :: X11 Applications",
@@ -26,5 +26,6 @@ setuptools.setup(
     url="https://github.com/aestrivex/ielu",
     platforms=['any'],
     packages=['ielu'],
-        requires=["numpy", "scipy", "pymcubes", "pysurfer", "nibabel", "mne"]
+    scripts=['bin/ielu'],
+    install_requires=["numpy", "scipy", "pymcubes", "pysurfer", "nibabel", "mne"]
 )

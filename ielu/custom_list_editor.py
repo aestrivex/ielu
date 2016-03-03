@@ -17,9 +17,25 @@ else:
 CustomEditorKlass = __import__('traitsui.%s.custom_editor'%_tk,
     fromlist=['CustomEditor'], ).CustomEditor
 
+#def mkeditor(*args, **kwargs):
+#    if _tk == 'qt4':
+#        klass_factory_fun = qt4_editor_factory
+#    else:
+#        klass_factory_fun = wx_editor_factory
+#
+#    return klass_factory_fun(*args, **kwargs)
+
 def mkeditor(*args, **kwargs):
-    return (getattr(__import__('custom_list_editor'),'%s_editor_factory'%_tk)
-        (*args,**kwargs))
+    custom_editor_replacement_klass = __import__('ielu.custom_list_editor',
+        fromlist=['ielu'])
+
+    klass_factory_fun = getattr(custom_editor_replacement_klass, 
+        '{0}_editor_factory'.format(_tk))
+
+    return klass_factory_fun(*args, **kwargs)
+
+#    return getattr(__import__('custom_list_editor', fromlist=['ielu']),
+#        '{0}_editor.factory'.format(_tk))(*args, **kwargs)
 
 def wx_editor_factory(*args, **kwargs):
     pass
