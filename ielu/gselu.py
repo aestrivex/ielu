@@ -821,7 +821,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._rebuild_vizpanel_event = True
     
     def construct_panel2d(self):
-        if self.panel2d is None:
+        def build_panel():
             import panel2d
             self.panel2d = pd = panel2d.TwoDimensionalPanel()
             #pd.on_trait_change( self._create_new_electrode, 
@@ -830,6 +830,18 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 subjects_dir=self.subjects_dir), 'mri', 'orig.mgz'), 
                 image_name='t1')
             pd.load_img(self.ct_scan, image_name='ct')    
+
+        if self.panel2d is None:
+            build_panel()
+        elif len(self.panel2d.images) < 2:
+            expected_images = 0
+            if self.subject and self.subjects_dir:
+                expected_images += 1
+            if self.ct_scan:
+                expected_images += 1
+            if expected_images == 2:
+                build_panel()
+
         return self.panel2d
 
     def move_electrode(self, elec, new_coords, in_ras=False,
