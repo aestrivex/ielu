@@ -10,6 +10,7 @@ import geometry as geo
 import grid as gl
 from utils import SortingLabelingError
 from electrode import Electrode
+from scipy.spatial.distance import cdist
 
 def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None, 
     overwrite=False):
@@ -1397,8 +1398,9 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
         elec.hemi = 'lh' if soln<len(lh_pia) else 'rh'
         elec.pial_coords = pia[soln]
 
-def fit_grid_to_line(electrodes, c1, c2, c3, geom=None, mindist=0, maxdist=36,
-    epsilon=30, delta=.5, rho=35, rho_strict=20, rho_loose=50):
+
+def fit_grid_to_line(electrodes, mindist=0, maxdist=36, epsilon=30, delta=.5,
+    rho=35, rho_strict=20, rho_loose=50):
     '''
     Given a list of electrodes and two endpoints of a line, fit the electrodes
     onto the Nx1 or 1xN line using a greedy fitting procedure. Set the
@@ -1408,50 +1410,38 @@ def fit_grid_to_line(electrodes, c1, c2, c3, geom=None, mindist=0, maxdist=36,
     ----------
     electrodes : List(Electrodes)
         List of electrodes in the specified strip
-    c1, c2, c3 : Tuple
-        Tuple containing coordinates (in CT space) of the endpoint electrodes
-        the user selected. It is assumed that the user selected endpoints
-        such that the line looks like (c1,c2,c3,....).
-    geom : 2-Tuple
-        The known geometry of this grid, which must be either Nx1 or 1xN
-        This is not used at all and can be None
 
     No return value
     '''
-    c1 = np.array(c1)
-    c2 = np.array(c2)
-    c3 = np.array(c3)
-
-    #electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
     electrode_arr = map((lambda x:getattr(x, 'iso_coords')), electrodes)
 
-    pog = gl.Grid(c2, c3, c1, np.array(electrode_arr), delta=delta,
+    #find most isolated point
+    eadist = cdist(electrode_arr, electrode_arr)
+    
+    isol = np.argmax(np.sum(eadist, axis=0))
+    next_isol = np.argmin(np.ma.masked_array(eadist[isol], 
+        mask=(eadist[isol]==0)))
+
+    c1 = np.array(electrodes[isol].asiso())
+    c2 = np.array(electrodes[next_isol].asiso())
+
+    pog = gl.Grid(c1, c2, None, np.array(electrode_arr), delta=delta,
         rho=rho, rho_strict=rho_strict, rho_loose=rho_loose, is_line=True)
-    #import pdb
-    #pdb.set_trace()
+
     pog.extend_grid_arbitrarily()
 
     if len(pog.points) < len(electrodes):
         raise SortingLabelingError('Failed to fit all the electrodes')
 
-    #try:
-    #    sp = pog.extract_strip(*geom)
-    #except gl.StripError as e:
-    #    raise ValueError('No acceptable interpolated line could be found')
-
-    miny=-1
+    miny=0
     for elec in electrodes:
-        #y = pog.connectivity[gl.GridPoint(elec.ct_coords)][1]
         y = pog.connectivity[gl.GridPoint(elec.iso_coords)][1]
         if y<miny:
             miny=y
 
     for elec in electrodes:
-        #conn = pog.connectivity[gl.GridPoint(elec.ct_coords)]
         conn = pog.connectivity[gl.GridPoint(elec.iso_coords)]
         elec.geom_coords = [0, conn[1]-miny]
-
-#def fit_grid_to_line(electrodes, mindist=0, maxdist=36, 
 
 def fit_grid_by_fixed_points(electrodes, geom, 
     delta=.35, rho=35, rho_strict=20, rho_loose=50, 

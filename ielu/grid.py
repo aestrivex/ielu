@@ -73,11 +73,17 @@ class Grid():
 
         #maintain a list of points (3D coordinates) that have been used so far
         #to easily calculate set of available points to draw from
-        self.points = [p0, p1, p2]
+        if is_line:
+            self.points = [p0, p1]
+        else:
+            self.points = [p0, p1, p2]
 
         #maintain an unsorted list of distances that have been created so far
         #to easily calculate the average distance
-        self.distances = [norm(p0-p1), norm(p0-p2)]
+        self.distances = [norm(p0-p1)]
+
+        #not necessary for line, we can get better estimate but probably will
+        #work in 99% of cases
 
         #maintain a dictionary mapping 3D locations to 2D locations on a grid.
         #this is used mostly as a sparse mapping of 2D grid points so that local connectivity
@@ -86,11 +92,13 @@ class Grid():
         if is_line:
             self.connectivity = { GridPoint(p0) : (0,0),
                                   GridPoint(p1) : (0,1), 
-                                  GridPoint(p2) : (0,-1), }
+                                  #GridPoint(p2) : (0,-1), 
+                                }
 
             self.reverse_connectivity = {(0,0) : p0,
                                          (0,1) : p1,
-                                         (0,-1) : p2}
+                                         #(0,-1) : p2
+                                        }
 
             self.is_line = True
 

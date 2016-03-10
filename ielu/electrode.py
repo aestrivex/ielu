@@ -337,24 +337,24 @@ class ElectrodeWindow(Handler):
 
     def do_label_automatically(self, info):
         #figure out c1, c2, c3
-        c1,c2,c3 = 3*(None,)
-        for e in self.electrodes:
-            if len(e.corner) == 0:
-                continue
-            elif len(e.corner) > 1:
-                error_dialog('Wrong corners specified, check again')
-                return
-    
-            elif 'corner 1' in e.corner:
-                c1 = e
-            elif 'corner 2' in e.corner:
-                c2 = e
-            elif 'corner 3' in e.corner:
-                c3 = e
-
-        if c1 is None or c2 is None or c3 is None:
-            error_dialog('Not all corners were specified')
-            return
+#        c1,c2,c3 = 3*(None,)
+#        for e in self.electrodes:
+#            if len(e.corner) == 0:
+#                continue
+#            elif len(e.corner) > 1:
+#                error_dialog('Wrong corners specified, check again')
+#                return
+#    
+#            elif 'corner 1' in e.corner:
+#                c1 = e
+#            elif 'corner 2' in e.corner:
+#                c2 = e
+#            elif 'corner 3' in e.corner:
+#                c3 = e
+#
+#        if c1 is None or c2 is None or c3 is None:
+#            error_dialog('Not all corners were specified')
+#            return
     
         cur_geom = self.model._grid_geom[self.cur_grid]
         if cur_geom=='user-defined' and self.naming_convention != 'line':
@@ -374,14 +374,11 @@ class ElectrodeWindow(Handler):
 
         import pipeline as pipe
         if self.naming_convention == 'line':
-            pipe.fit_grid_to_line(self.electrodes, c1.asiso(), c2.asiso(),
-                c3.asiso(), cur_geom, delta=self.model.delta,
-                rho_loose=self.model.rho_loose)
-            #do actual labeling
-            for elec in self.model._grids[self.cur_grid]:
-                _,y = elec.geom_coords
-                index = y+1
-                elec.name = '%s%i'%(self.name_stem, index)
+            pipe.fit_grid_to_line(self.electrodes, 
+                #c1.asiso(), c2.asiso(), c3.asiso(), cur_geom, 
+                delta=self.labeling_delta,
+                rho_loose=self.labeling_rho+10,
+                epsilon=self.labeling_epsilon)
 
         else:
             pipe.fit_grid_by_fixed_points(self.electrodes, cur_geom,
@@ -392,9 +389,9 @@ class ElectrodeWindow(Handler):
                 epsilon=self.labeling_epsilon, 
                 mindist=0, maxdist=36)
 
-            self.naming_following_labeling(cur_geom)
+        self.naming_following_labeling(cur_geom=cur_geom)
 
-    def naming_following_labeling(self, cur_geom):
+    def naming_following_labeling(self, cur_geom=None):
         for elec in self.electrodes:
             x, y = elec.geom_coords
 
@@ -402,6 +399,9 @@ class ElectrodeWindow(Handler):
                 index = x * np.min(cur_geom) + y + 1
             elif self.naming_convention == 'grid_concatenate':
                 index = '{0}{1}'.format(x + 1, y + 1)
+
+            elif self.naming_convention == 'line':
+                index = y+1
 
             elec.name = '{0}_{1}'.format(self.name_stem, index)
 
