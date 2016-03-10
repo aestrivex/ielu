@@ -1451,7 +1451,7 @@ def fit_grid_to_line(electrodes, c1, c2, c3, geom=None, mindist=0, maxdist=36,
         conn = pog.connectivity[gl.GridPoint(elec.iso_coords)]
         elec.geom_coords = [0, conn[1]-miny]
 
-def fit_grid_to_line(electrodes, mindist=0, maxdist=36, 
+#def fit_grid_to_line(electrodes, mindist=0, maxdist=36, 
 
 def fit_grid_by_fixed_points(electrodes, geom, 
     delta=.35, rho=35, rho_strict=20, rho_loose=50, 
