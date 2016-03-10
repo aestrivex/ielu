@@ -12,8 +12,8 @@ setuptools.setup(
     maintainer_email="rlaplant@nmr.mgh.harvard.edu",
     description=("Interactive Electrode localization Utility"),
     license="Visuddhimagga Sutta; GPLv3+",
-    long_description=read('readme.md'),
     datafiles=[('', ['readme.md', 'LICENSE'])],
+    long_description=read('readme.md'),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Environment :: X11 Applications",
