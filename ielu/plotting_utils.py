@@ -6,7 +6,7 @@ import nibabel as nib
 from traits.api import HasTraits, Float, Int, Tuple
 from traitsui.api import View, Item, CSVListEditor
 
-from geometry import get_vox2rasxfm, apply_affine
+from geometry import get_vox2rasxfm, apply_affine, get_std_orientation
 from utils import get_subjects_dir
 
 def force_render( figure=None ):
@@ -76,7 +76,7 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
 
     ras2vox[0:3,3] = (x_size/2, y_size/2, z_size/2)
 
-    rd, ad, sd = geo.get_std_orientation(ras2vox)
+    rd, ad, sd = get_std_orientation(ras2vox)
 
 #    rd, = np.where(np.abs(ras2vox[:,0]) == np.max(np.abs(ras2vox[:,0])))
 #    ad, = np.where(np.abs(ras2vox[:,1]) == np.max(np.abs(ras2vox[:,1])))

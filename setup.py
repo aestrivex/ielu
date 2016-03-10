@@ -7,7 +7,7 @@ def read(fname):
 
 setuptools.setup(
     name="ielu",
-    version="0.2.0",
+    version="0.2.1",
     maintainer="Roan LaPlante",
     maintainer_email="rlaplant@nmr.mgh.harvard.edu",
     description=("Interactive Electrode localization Utility"),
