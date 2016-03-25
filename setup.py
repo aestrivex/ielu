@@ -26,6 +26,7 @@ setuptools.setup(
     url="https://github.com/aestrivex/ielu",
     platforms=['any'],
     packages=['ielu'],
+    package_data={'ielu':['make_dural_surface.csh']},
     scripts=['bin/ielu'],
     install_requires=["numpy", "scipy", "pymcubes", "pysurfer", "nibabel", "mne"]
 )
