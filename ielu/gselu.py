@@ -433,8 +433,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #registration but we don't currently do this
         aff = self.acquire_affine()
 
-        pipe.create_dural_surface(subjects_dir=self.subjects_dir, 
-            subject=self.subject)
+        #pipe.create_dural_surface(subjects_dir=self.subjects_dir, 
+        #    subject=self.subject)
 
         # make the electrodes translated way outside of the brain go away
         # and not be included in the classification at all

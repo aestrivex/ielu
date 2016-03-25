@@ -453,7 +453,7 @@ class TwoDimensionalPanel(Handler):
             self.current_affine)
         self.info_panel.cursor_tkr = self.map_cursor(self.cursor,
             self.current_tkr_affine)
-        self.info_panel.cursor_intensity = self.current_image[x,y,z]
+        self.info_panel.cursor_intensity = truncate(self.current_image[x,y,z])
 
         self._finished_plotting = True
 

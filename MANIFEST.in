@@ -1,2 +1,5 @@
 include LICENSE
 include readme.md
+
+include ielu/make_dural_surface.csh
+
