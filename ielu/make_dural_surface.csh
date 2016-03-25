@@ -104,11 +104,11 @@ endif
 set arg1 = ${tmpdir}/${input}.filled.mgz
 set arg2 = ${closespheresize}
 set arg3 =  ${tmpdir}/${input}-outer
-echo "${SCRIPTS_DIR}/mkoutersurf.py ${arg1} ${arg2} ${arg3}"
+echo "mkoutersurf.py ${arg1} ${arg2} ${arg3}"
 echo "================="
 if ($RunIt) then
   pwd
-  ${SCRIPTS_DIR}/mkoutersurf.py ${arg1} ${arg2} ${arg3}
+  mkoutersurf.py ${arg1} ${arg2} ${arg3}
 endif
 echo ""
 if ( $RunIt && ! -e ${arg3} ) then

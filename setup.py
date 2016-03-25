@@ -27,6 +27,6 @@ setuptools.setup(
     platforms=['any'],
     packages=['ielu'],
     package_data={'ielu':['make_dural_surface.csh']},
-    scripts=['bin/ielu'],
+    scripts=['bin/ielu', 'ielu/mkoutersurf.py'],
     install_requires=["numpy", "scipy", "pymcubes", "pysurfer", "nibabel", "mne"]
 )
