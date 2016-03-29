@@ -132,7 +132,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     ct_threshold = Float(2500.)
     dilation_iterations = Int(25)
 
-    critical_percentage = Float(0.75)
+    critical_percentage = Range(0., 1., 0.75)
 
     delta = Float(0.5)
     epsilon = Float(10.)
