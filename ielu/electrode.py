@@ -159,6 +159,8 @@ class ElectrodeWindow(Handler):
     labeling_epsilon = Int(25)
     labeling_rho = Int(40)
 
+    include_underscore = Bool(True)
+
     def _img_size_default(self):
         return [450., 450.]
 
@@ -210,6 +212,7 @@ class ElectrodeWindow(Handler):
                     HGroup(
                         Item( 'name_stem' ),
                         Item( 'naming_convention' ),
+                        Item( 'include_underscore' ),
                         Item( 'grid_type' ),
                     ),
                     HGroup(
@@ -403,7 +406,9 @@ class ElectrodeWindow(Handler):
             elif self.naming_convention == 'line':
                 index = y+1
 
-            elec.name = '{0}_{1}'.format(self.name_stem, index)
+            elec.name = '{0}{1}{2}'.format(self.name_stem, 
+                '_' if self.include_underscore else '', 
+                index)
 
     def do_linear_interpolation(self, info):
         #TODO does not feed back coordinates to model, 

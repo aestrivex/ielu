@@ -132,6 +132,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     ct_threshold = Float(2500.)
     dilation_iterations = Int(25)
 
+    critical_percentage = Float(0.75)
+
     delta = Float(0.5)
     epsilon = Float(10.)
     rho = Float(35.)
@@ -160,8 +162,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
         return [450., 450.]
 
     _snapping_completed = Bool(False, )
-    nr_steps = Int(2500)
     deformation_constant = Float(1.)
+    sa_steps_break = Int(2500)
+    sa_steps_total = Int(2500)
+    sa_init_temp = Float(1e-3)
+    sa_exp = Float(1.)
 
     #state-storing interactive labeling windows
     ews = Dict(transient=True) #str -> Instance(HasTraits)
@@ -433,8 +438,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #registration but we don't currently do this
         aff = self.acquire_affine()
 
-        pipe.create_dural_surface(subjects_dir=self.subjects_dir, 
-            subject=self.subject)
+        #pipe.create_dural_surface(subjects_dir=self.subjects_dir, 
+        #    subject=self.subject)
 
         # make the electrodes translated way outside of the brain go away
         # and not be included in the classification at all
@@ -465,7 +470,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
                                          epsilon = self.epsilon,
                                          rho = self.rho,
                                          rho_strict = self.rho_strict,
-                                         rho_loose = self.rho_loose
+                                         rho_loose = self.rho_loose,
+                                         crit_pct = self.critical_percentage
                                         ))
         except ValueError as e:
             error_dialog(str(e))
@@ -787,7 +793,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         pipe.snap_electrodes_to_surface(
             snappable_electrodes, subjects_dir=self.subjects_dir,
-            subject=self.subject, max_steps=self.nr_steps)
+            subject=self.subject, 
+            max_steps=self.sa_steps_total,
+            giveup_steps=self.sa_steps_break,
+            init_temp=self.sa_init_temp,
+            temperature_exponent=self.sa_exp,
+            )
 
         self._snapping_completed = True
 
@@ -1056,6 +1067,7 @@ class ExtractionRegistrationSortingPanel(HasTraits):
     model = Instance(ElectrodePositionsModel)
 
     ct_threshold = DelegatesTo('model')
+    critical_percentage = DelegatesTo('model')
     delta = DelegatesTo('model')
     epsilon = DelegatesTo('model')
     rho = DelegatesTo('model')
@@ -1067,7 +1079,10 @@ class ExtractionRegistrationSortingPanel(HasTraits):
     rho_loose_recon = DelegatesTo('model')
     rho_strict_recon = DelegatesTo('model')
     #visualize_in_ctspace = DelegatesTo('model')
-    nr_steps = DelegatesTo('model')
+    sa_steps_break = DelegatesTo('model')
+    sa_steps_total = DelegatesTo('model')
+    sa_init_temp = DelegatesTo('model')
+    sa_exp = DelegatesTo('model')
     deformation_constant = DelegatesTo('model')
     use_ct_mask = DelegatesTo('model')
     disable_erosion = DelegatesTo('model')
@@ -1086,9 +1101,6 @@ class ExtractionRegistrationSortingPanel(HasTraits):
             Label('The threshold above which electrode clusters will be\n'
                 'extracted from the CT image'),
             Item('ct_threshold'),
-            Label('Number of steps before convergence in snap-to-surface\n'
-                'algorithm'),
-            Item('nr_steps'),
             Label('Weight given to the deformation term in the snapping\n'
                 'algorithm, reduce if snapping error is very high.'),
             Item('deformation_constant'),
@@ -1102,14 +1114,10 @@ class ExtractionRegistrationSortingPanel(HasTraits):
             Item('overwrite_xfms'),
             Label('Disable binary erosion procedure to reduce CT noise'),
             Item('disable_erosion'),
-            Label('Type of registration'),
-            Item('registration_procedure'),
             HGroup(
                 VGroup(
-                Label('Slice separation for shape correction'),
-                Item('shapereg_slice_diff', 
-                enabled_when='registration_procedure==\'experimental shape '
-                'correction\'', show_label=False),
+                Label('Type of registration'),
+                Item('registration_procedure', show_label=False),
                 ),
                 VGroup(
                 Label('Override zoom factor'),
@@ -1118,8 +1126,18 @@ class ExtractionRegistrationSortingPanel(HasTraits):
                 'correction\'', show_label=False),
                 ),
             ),
+            Label('Convert electrode locations to isotropic coordinate '
+                'space\nbefore sorting'),
+            HGroup(
+                Item('isotropize', show_label=False),
+                Item('isotropization_override', editor=CSVListEditor(),
+                    enabled_when='isotropize==\'Manual override\'',
+                    show_label=False),
+            ),
         show_labels=False),
         VGroup(
+            Label('The percentage of electrodes to find in sorting'),
+            Item('critical_percentage'),
             Label('Delta controls the distance between electrodes. That is,\n'
                 'electrode distances must be between c*(1-d) and c*(1+d),\n'
                 'where c is an estimate of the correct distance.'),
@@ -1135,13 +1153,14 @@ class ExtractionRegistrationSortingPanel(HasTraits):
             Item('rho'),
             Item('rho_strict'),
             Item('rho_loose'),
-            Label('Convert electrode locations to isotropic coordinate '
-                'space\nbefore sorting'),
+            Label('Simulated annealing parameters'),
             HGroup(
-                Item('isotropize', show_label=False),
-                Item('isotropization_override', editor=CSVListEditor(),
-                    enabled_when='isotropize==\'Manual override\'',
-                    show_label=False),
+                Item('sa_steps_break', label='steps before convergence'),
+                Item('sa_steps_total', label='steps total'),
+            ),
+            HGroup(
+                Item('sa_init_temp', label='initial temperature'),
+                Item('sa_exp', label='exponential term'),
             ),
         ),
         ),

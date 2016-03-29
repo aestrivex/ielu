@@ -499,7 +499,7 @@ def identify_extracranial_electrodes_in_freesurfer_space(electrodes,
 
 def classify_electrodes(electrodes, known_geometry,
     delta=.35, rho=35, rho_strict=20, rho_loose=50, color_scheme=None,
-    epsilon=10, mindist=0, maxdist=36):
+    epsilon=10, mindist=0, maxdist=36, crit_pct=.75):
     '''
     Sort the given electrodes (generally in the space of the CT scan) into
     grids and strips matching the specified geometry.
@@ -554,6 +554,9 @@ def classify_electrodes(electrodes, known_geometry,
         points to fit at a 90 degree angle. The scale of this distance is in
         voxel space of the CT image and therefore a bit arbitrary, so a
         wide range is used by default: the default value is 36.
+    crit_pct : Float
+        The critical percentage of electrodes to find before returning.
+        Default value 0.75
 
     Returns
     -------
@@ -607,7 +610,7 @@ def classify_electrodes(electrodes, known_geometry,
             p0,p1,p2 = neighbs[k]
             pog = gl.Grid(p0,p1,p2,new_elecs, delta=delta,
                 rho=rho, rho_strict=rho_strict, rho_loose=rho_loose,
-                name=names.next())
+                name=names.next(), critical_percentage=crit_pct)
             pog.extend_grid_arbitrarily()
 
             try:
@@ -1158,6 +1161,7 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
 
 def snap_electrodes_to_surface(electrodes, subjects_dir=None, 
     subject=None, max_steps=40000, giveup_steps=10000, 
+    init_temp=1e-3, temperature_exponent=1,
     deformation_constant=1.):
     '''
     Transforms electrodes from surface space to positions on the surface
@@ -1185,6 +1189,11 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
         The number of steps after which, with no change of objective function,
         the algorithm gives up. A higher value may cause the algorithm to
         take longer. The default value is 10000.
+    init_temp : Float
+        The initial annealing temperature. Default value 1e-3
+    temperature_exponent : Float
+        The exponentially determined temperature when making random changes.
+        The value is Texp0 = 1 - Texp/H where H is max_steps
     deformation_constant : Float
         A constant to weight the deformation term of the energy cost. When 1,
         the deformation and displacement are weighted equally. When less than
@@ -1310,9 +1319,9 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
     # H determines maximal number of steps
     H = max_steps
     #Texp determines the steepness of temperateure gradient
-    Texp=1-1/H
+    Texp=1-temperature_exponent/H
     #T0 sets the initial temperature and scales the energy term
-    T0 = 1e-3
+    T0 = init_temp
     #Hbrk sets a break point for the annealing
     Hbrk = giveup_steps
 

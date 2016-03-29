@@ -60,6 +60,9 @@ class Grid():
         angle but a 180 degree angle (potentially within a higher epsilon
         tolerance). The connectivity can only be extended in one dimension
         under this setup. The default is false.
+    crit_pct : Float
+        The critical percentage of electrodes to find. The algorithm won't
+        make a lot of sense if this is less than 50/60%
     '''
 
     def __init__(self,p0,p1,p2, all_elecs, delta=.35, rho=35,
