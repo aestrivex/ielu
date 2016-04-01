@@ -988,7 +988,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     from scipy.ndimage.interpolation import zoom
     print 'resampling image with zoom_factor {0}'.format(zoom_factor)
     #ct_zoom = zoom( ctd, (1,1,zoom_factor))
-    ct_zoom = zoom( ctd, zoom_factor )
+    ct_zoom = zoom( ctd, 1/np.array(zoom_factor) )
 
     resampled_ct = os.path.join(ct_register_dir, 'ct_resampled_zf.nii.gz')
 
