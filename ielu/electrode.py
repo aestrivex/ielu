@@ -120,6 +120,8 @@ class ElectrodeWindow(Handler):
     grid_type = Enum('depth', 'subdural')
     label_auto_action = Action(name='Automatic labeling',
         action='do_label_automatically')
+    label_manually_action = Action(name='Label with current geometry',
+        action='do_label_manually')
 
     #have grid type reflect the type of grid input and also change the
     #default naming convention
@@ -240,6 +242,7 @@ class ElectrodeWindow(Handler):
             buttons = [self.label_auto_action, self.swap_action, OKButton],
             menubar = MenuBar(
                 Menu( self.label_auto_action,
+                      self.label_manually_action,
                       self.rotate_grid_left_action,
                       self.rotate_grid_right_action,
                       self.rotate_grid_180_action,
@@ -392,6 +395,10 @@ class ElectrodeWindow(Handler):
                 epsilon=self.labeling_epsilon, 
                 mindist=0, maxdist=36)
 
+        self.naming_following_labeling(cur_geom=cur_geom)
+
+    def do_labeling_manually(self):
+        cur_geom = self.model._grid_geom[self.cur_grid]
         self.naming_following_labeling(cur_geom=cur_geom)
 
     def naming_following_labeling(self, cur_geom=None):
