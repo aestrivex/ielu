@@ -553,6 +553,8 @@ class ElectrodeWindow(Handler):
         # getting geom coords from the model wouldn't ensure the order
         geom_x, geom_y = -1, -1
         for elec in electrodes:
+            if len(elec.geom_coords) == 0:
+                continue
             curx, cury = elec.geom_coords
             if curx > geom_x:
                 geom_x = curx
@@ -561,6 +563,8 @@ class ElectrodeWindow(Handler):
             
         # now change the coordinates
         for elec in electrodes:
+            if len(elec.geom_coords) == 0:
+                continue
             curx, cury = elec.geom_coords
             newx = cury
             newy = geom_x - curx
@@ -575,6 +579,8 @@ class ElectrodeWindow(Handler):
         # getting geom coords from the model wouldn't ensure the order
         geom_x, geom_y = -1, -1
         for elec in electrodes:
+            if len(elec.geom_coords) == 0:
+                continue
             curx, cury = elec.geom_coords
             if curx > geom_x:
                 geom_x = curx
@@ -583,6 +589,8 @@ class ElectrodeWindow(Handler):
             
         # now change the coordinates
         for elec in electrodes:
+            if len(elec.geom_coords) == 0:
+                continue
             curx, cury = elec.geom_coords
             newx = geom_y - cury
             newy = curx
@@ -597,6 +605,8 @@ class ElectrodeWindow(Handler):
         # getting geom coords from the model wouldn't ensure the order
         geom_x, geom_y = -1, -1
         for elec in electrodes:
+            if len(elec.geom_coords) == 0:
+                continue
             curx, cury = elec.geom_coords
             if curx > geom_x:
                 geom_x = curx
@@ -605,6 +615,8 @@ class ElectrodeWindow(Handler):
             
         # now change the coordinates
         for elec in electrodes:
+            if len(elec.geom_coords) == 0:
+                continue
             curx, cury = elec.geom_coords
             newx = geom_x - curx
             newy = geom_y - cury
@@ -616,6 +628,8 @@ class ElectrodeWindow(Handler):
             electrodes=self.electrodes)
 
         for elec in electrodes:
+            if len(elec.geom_coords) == 0:
+                continue
             curx, cury = elec.geom_coords
             newx = cury
             newy = curx
