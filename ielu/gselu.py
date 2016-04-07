@@ -47,6 +47,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     overwrite_xfms = Bool(False)
     registration_procedure = Enum('experimental shape correction',
         'uncorrected MI registration', 'no registration')
+    registration_algorithm = Enum('normalized mutual information', 
+        'mutual information', 'rigid')
     shapereg_slice_diff = Float(5.0)
 
     #this was previously marked as transient which did not cause any problem
@@ -336,6 +338,10 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         overwrite = self.overwrite_xfms and not self._visualization_ready
 
+        registration_strings = {'mutual information' : ['--cost', 'mi'],
+                    'normalized mutual information' : ['--cost', 'nmi'], 
+                    'rigid' : ['']}
+
         if self.ct_registration not in (None, ''):
             aff = load_affine(self.ct_registration)
 
@@ -343,12 +349,14 @@ class ElectrodePositionsModel(HasPrivateTraits):
             aff = pipe.register_ct_using_zoom_correction(
                 self.ct_scan, subjects_dir=self.subjects_dir,
                 subject=self.subject, overwrite=overwrite,
-                zf_override=self.zoom_factor_override)
+                zf_override=self.zoom_factor_override,
+                registration_algorithm=registration_strings[registration_algorithm])
 
         elif self.registration_procedure == 'uncorrected MI registration':
             aff = pipe.register_ct_to_mr_using_mutual_information(
                 self.ct_scan, subjects_dir=self.subjects_dir, 
-                subject=self.subject, overwrite=overwrite)
+                subject=self.subject, overwrite=overwrite,
+                registration_algorithm=registration_strings[registration_algorithm])
 
         #recommend that the user never do this
         elif self.registration_procedure == 'no registration':
@@ -1088,6 +1096,7 @@ class ExtractionRegistrationSortingPanel(HasTraits):
     disable_erosion = DelegatesTo('model')
     overwrite_xfms = DelegatesTo('model')
     registration_procedure = DelegatesTo('model')
+    registration_algorithm = DelegatesTo('model')
     shapereg_slice_diff = DelegatesTo('model')
     zoom_factor_override = DelegatesTo('model')
     dilation_iterations = DelegatesTo('model')
@@ -1126,6 +1135,8 @@ class ExtractionRegistrationSortingPanel(HasTraits):
                 'correction\'', show_label=False),
                 ),
             ),
+            Label('Registration cost function'),
+            Item('registration_algorithm', show_label=False),
             Label('Convert electrode locations to isotropic coordinate '
                 'space\nbefore sorting'),
             HGroup(

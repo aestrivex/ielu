@@ -723,7 +723,7 @@ def remove_large_negative_values_from_ct(ct, subjects_dir=None,
     nib.save(ct_new, ct)
 
 def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
-    subject=None, overwrite=False):
+    subject=None, overwrite=False, registration_algorithm=['--cost', 'nmi']):
     '''
     Performs the registration between CT and MR using the normalized mutual
     information cost option in freesurfer's mri_robust_register. Saves the
@@ -745,6 +745,10 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     overwrite : Bool
         When true, will do the computation and not search for a saved value.
         Defaults to false.
+    registration_algorithm : Enum
+        uses mi or nmi or blank cost function. If blank, then its not actually
+        using MI at all, just rigid 6 parameter dof registration (with resampling
+        tricks and so on)
 
     Returns
     -------
@@ -775,7 +779,8 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     out = os.path.join(subjects_dir, subject, 'mri', 'ct_nas.nii.gz')
 
     mri_robustreg_cmd = ['mri_robust_register','--mov',ct,'--dst',rawavg,
-        '--lta',lta,'--satit','--vox2vox','--cost','nmi','--mapmov',out]
+        '--lta',lta,'--satit','--vox2vox','--mapmov',out]
+    mri_robustreg_cmd.extend(registration_algorithm)
     p=subprocess.call(mri_robustreg_cmd)
 
     affine=geo.get_lta(lta)
@@ -784,7 +789,8 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     return affine
 
 def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
-    cm_dist=5, overwrite=False, zf_override=None):
+    cm_dist=5, overwrite=False, zf_override=None,
+    registration_algorithm=['--cost', 'nmi']):
     '''
     Performs a sophisticated and somewhat specific hack to register a
     high resolution CT image with an awkward slice thickness and skewed
@@ -1002,7 +1008,8 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
 
     mri_robustreg_resampled_cmd = ['mri_robust_register', '--mov', 
         resampled_ct, '--dst', rawavg, '--lta', skewed_lta, '--satit',
-        '--vox2vox', '--mapmov', ct_final, '--cost', 'mi']
+        '--vox2vox', '--mapmov', ct_final]
+    mri_robustreg_resampled_cmd.extend(registration_algorithm)
     s = subprocess.call(mri_robustreg_resampled_cmd)
 
     skew_aff = geo.get_lta(skewed_lta)
