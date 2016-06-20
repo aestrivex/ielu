@@ -350,13 +350,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 self.ct_scan, subjects_dir=self.subjects_dir,
                 subject=self.subject, overwrite=overwrite,
                 zf_override=self.zoom_factor_override,
-                registration_algorithm=registration_strings[registration_algorithm])
+                registration_algorithm=registration_strings[self.registration_algorithm])
 
         elif self.registration_procedure == 'uncorrected MI registration':
             aff = pipe.register_ct_to_mr_using_mutual_information(
                 self.ct_scan, subjects_dir=self.subjects_dir, 
                 subject=self.subject, overwrite=overwrite,
-                registration_algorithm=registration_strings[registration_algorithm])
+                registration_algorithm=registration_strings[self.registration_algorithm])
 
         #recommend that the user never do this
         elif self.registration_procedure == 'no registration':
