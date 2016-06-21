@@ -670,24 +670,37 @@ class Grid():
         #import pdb
         #pdb.set_trace()
 
-        fit_ok, best_locs, best_fit = self.matches_strip_geometry(M,N)
+        # use the same graph for every step
+        # in the disambiguate step, the new interpolated points can get added
+        # when that happens, the subsequent graph is extracted using the same 
+        # padding. instead of having this, we use a single padded graph which
+        # can be safely expanded.
+        graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
+
+        fit_ok, best_locs, best_fit = self.matches_strip_geometry(M,N,graph)
 
         if not fit_ok:
             raise SortingLabelingError("No strip had a sufficiently good fit, "
                 " best fit was %i"%int(best_fit))
 
-        best_loc, points = self.disambiguate_best_fit_strips(best_locs, M, N)
+#        from PyQt4.QtCore import pyqtRemoveInputHook
+#        pyqtRemoveInputHook() 
+#        import pdb
+#        pdb.set_trace()
 
-        corners = self.determine_corners( best_loc, M, N, best_locs )
+        best_loc, points = self.disambiguate_best_fit_strips(best_locs, M, N, 
+            graph)
 
-        final_connectivity = self.finalize_connectivity( best_loc, M, N )
+        corners = self.determine_corners( best_loc, M, N, graph )
+
+        final_connectivity = self.finalize_connectivity( best_loc, M, N, graph)
 
         print ('Decided that the %i by %i strip at %s is the best fit' % 
             (M,N,best_loc))
 
         return points, corners, final_connectivity
 
-    def disambiguate_best_fit_strips(self, potential_strip_locs, M, N):
+    def disambiguate_best_fit_strips(self, potential_strip_locs, M, N, graph):
         '''
         given a list of equally full potential strip locations, assign an 
         objective plausibility score to
@@ -722,7 +735,7 @@ class Grid():
                 len(potential_strip_locs), M, N)
             print potential_strip_locs
 
-        graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
+        #graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
 
         best_penalty = np.inf
         best_points = []
@@ -847,6 +860,8 @@ class Grid():
                     else:
                         print 'adding the point (%i,%i), %s'%(i,j,str(pInterp))
                         self.add_point(pInterp, (i,j)) 
+                        if graph[i,j] == 0:
+                            graph[i,j] = 1
                         #total_points += 1
 
                     interpolated_points.append(pInterp) 
@@ -872,8 +887,8 @@ class Grid():
             
         return best_loc, best_points 
 
-    def matches_strip_geometry(self, M, N):
-        graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
+    def matches_strip_geometry(self, M, N, graph):
+        #graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
 
         best_locs = []
         best_fit = -1
@@ -907,7 +922,7 @@ class Grid():
             return False, None, best_fit
         return True, best_locs, best_fit
 
-    def determine_corners(self, best_loc, M, N, useless):
+    def determine_corners(self, best_loc, M, N, graph):
         #print best_loc
         #print M,N
         #print self
@@ -917,7 +932,7 @@ class Grid():
         #pyqtRemoveInputHook()
         #pdb.set_trace()
 
-        graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
+        #graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
 
         r, c, orient = best_loc
 
@@ -941,8 +956,8 @@ class Grid():
         
         return (c1, c2, c3, c4)
 
-    def finalize_connectivity(self, best_loc, M, N):
-        graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
+    def finalize_connectivity(self, best_loc, M, N, graph):
+        #graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
 
         final_connectivity = {}
 

@@ -45,8 +45,8 @@ class ElectrodePositionsModel(HasPrivateTraits):
     use_ct_mask = Bool(False)
     disable_erosion = Bool(False)
     overwrite_xfms = Bool(False)
-    registration_procedure = Enum('experimental shape correction',
-        'uncorrected MI registration', 'no registration')
+    registration_procedure = Enum('uncorrected MI registration',
+        'experimental shape correction', 'no registration')
     registration_algorithm = Enum('normalized mutual information', 
         'mutual information', 'rigid')
     shapereg_slice_diff = Float(5.0)
