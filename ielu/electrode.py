@@ -199,7 +199,7 @@ class ElectrodeWindow(Handler):
                                   editor=TextEditor(),
                                   style='readonly',
                                   editable=False,
-                                  name='ct_repr'),
+                                  name='default_repr'),
 
                      ObjectColumn(label='corner',
                                   editor=CheckListEditor(
