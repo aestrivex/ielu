@@ -46,19 +46,38 @@ class Electrode(HasTraits):
 
     roi_list = List(Str)
 
-    strrepr = Property
-    def _get_strrepr(self):
+    default_repr = Property
+    def _get_default_repr(self):
         if self.special_name != '':
             return self.special_name
-        return str(self)
+        return self._coord_repr('ct_coords')
 
-    #def __eq__(self, other):
-    #    return np.all(self.snap_coords == other)
+    def _coord_print(self, coord_type):
+        return ', '.join(
+            ['{0:.2f}'.format(c) for c in getattr(self, coord_type)]))
+
+    def _coord_repr(self, coord_type):
+        return 'Elec: {0} ({1})'.format(
+            self.grid_name,
+            self._coord_print(coord_type)
 
     def __str__(self):
-        return 'Elec: %s %s'%(self.grid_name, self.ct_coords)
+        return self._coord_repr('ct_coords')
+    
     def __repr__(self):
         return self.__str__()
+
+    ras_repr = Property
+    def _get_ras_repr(self):
+        return self._coord_print('surf_coords')
+
+    iso_repr = Property
+    def _get_iso_repr(self):
+        return self._coord_print'iso_coords')
+
+    postsnap_repr = Property
+    def _get_postsnap_repr(self):
+        return self._coord_print('pial_coords')
 
     def __cmp__(self, other):
         if other is None and self is not None:
@@ -180,7 +199,7 @@ class ElectrodeWindow(Handler):
                                   editor=TextEditor(),
                                   style='readonly',
                                   editable=False,
-                                  name='strrepr'),
+                                  name='ct_repr'),
 
                      ObjectColumn(label='corner',
                                   editor=CheckListEditor(
@@ -201,6 +220,24 @@ class ElectrodeWindow(Handler):
                                   editor=ListStrEditor(),
                                   editable=False, 
                                   name='roi_list'),
+
+                     ObjectColumn(label='RAS',
+                                  editor=TextEditor(),
+                                  style='readonly',
+                                  editable=False,
+                                  name='ras_repr'),
+
+                     ObjectColumn(label='iso',
+                                  editor=TextEditor(),
+                                  style='readonly',
+                                  editable=False,
+                                  name='iso_repr'),
+
+                     ObjectColumn(label='snap',
+                                  editor=TextEditor(),
+                                  style='readonly',
+                                  editable=False,
+                                  name='postsnap_repr'),
                      ],
                     selected='cur_sel',
                     deletable=True,
