@@ -59,7 +59,7 @@ class Electrode(HasTraits):
     def _coord_repr(self, coord_type):
         return 'Elec: {0} ({1})'.format(
             self.grid_name,
-            self._coord_print(coord_type)
+            self._coord_print(coord_type))
 
     def __str__(self):
         return self._coord_repr('ct_coords')
