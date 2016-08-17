@@ -24,6 +24,8 @@ from geometry import load_affine
 from functools import partial
 import nibabel as nib
 
+
+
 class ElectrodePositionsModel(HasPrivateTraits):
 #class ElectrodePositionsModel(HasTraits):
     ct_scan = File
@@ -178,6 +180,27 @@ class ElectrodePositionsModel(HasPrivateTraits):
     panel2d = Instance(HasTraits, transient=True)
     _cursor_tracker = Instance(Electrode, transient=True)
     
+
+    #do special operations on old pickle types
+#    def __setstate__(self, d):
+#        self.__dict__ = d
+#        if type(d['zoom_factor_override'] == float:
+#            self.zoom_factor_override = [1.0, 1.0, d['zoom_factor_override']]
+
+    def __setstate__(self, pickle_dict):
+        self._init_trait_listeners()
+
+        for field in pickle_dict: 
+            try:
+                #setattr(self, field, getattr(pickle_dict, field)) 
+                setattr(self, field, pickle_dict[field])
+            except Exception as e:
+                print('Failed to load field {0} from pickle file '
+                    ''.format(field))
+                print e
+        
+        #print self.__dict__
+
     def _create_default_name_holders(self):
     #    return self._get__grid_named_objects()
         name_holders = [NameHolder(name=''), 
@@ -592,6 +615,12 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._rebuild_vizpanel_event = True
         self._rebuild_guipanel_event = True
 
+    def get_next_color(self):
+        color = self._color_scheme.next()
+        while color in self._colors:
+            color = self._color_scheme.next()
+        return color
+
     def add_grid(self):
         name = 'usergrid%s'%gensym()
 
@@ -603,7 +632,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #geometry and color data should be defined first so that when grids
         #grids is updated the GUI does not error out looking for this info
         self._grid_geom[name] = 'user-defined'
-        self._colors[name] = self._color_scheme.next()
+        self._colors[name] = self.get_next_color()
         self._grid_types[name] = 'depth'
 
         #testing GUI update bug
@@ -1785,6 +1814,7 @@ class iEEGCoregistrationFrame(HasTraits):
         name = 'Visualization/Output',
         action = 'do_visualization_params')
 
+
     traits_view = View(
         Group(
             HGroup(
@@ -1842,35 +1872,52 @@ class iEEGCoregistrationFrame(HasTraits):
         from pickle import dump
         with open(savefile, 'w') as fd:
             dump(self.model, fd)
+         
 
     def do_load_pickle(self):
         loadfile = self.model._ask_user_for_loadfile(title='load pkl file')
 
         from pickle import load
+        #from restricted_pickler import restricted_load
         try:
             with open(loadfile) as fd:
-                self.model = load(fd)
+                pickle_model = load(fd)
+            #pickle_model = restricted_load(loadfile)
         except (KeyError, AttributeError) as e:
-            error_dialog('Failed to load ElectrodePositionsModel object from\n'
-                'provided pickle file.\n\n'
-                'Are you sure that was a correct pickle file?')
+            error_dialog('Failed to load ElectrodePositionsModel object\n'
+                'from provided pickle file {0}.\n\n'
+                'Are you sure that was a correct pickle file?'
+                .format(loadfile))
+            print e
             return
+
+        #automatically assign pickle to model (old)
+        self.model = pickle_model
+
+            #manually assign every attribute
+#            for field in pickle_model.__dict__:
+#                try:
+#                    setattr(self.model, field, getattr(pickle_model, field))
+#                    #self.model.field = pickle_model.field
+#                except Exception as e:
 
         #color scheme is a generator and therefore can't be imported properly
         #but we can recreate the correct generator state easily enough
         from utils import get_default_color_scheme
         colors = get_default_color_scheme()
         #get rid of the right number of colors
-        for i in xrange( len( self.model._grids)):
+        for i in xrange(len(self.model._grids)):
             colors.next()
 
         self.model._color_scheme = colors
-    
+
         #the trait notifiers set up on the displayer are not reproduced
-        #after pickling since those are not defined in the NameHolder 
+        #after pickling since those are not defined in the NameHolder
         #initializer but by private method _new_grid_name_holder(grid_name)
         #maybe they could be defined in the initializer instead but whatever
         #here we just manually call our tools to rebuild the displayer safely
+
+
         self.model._rebuild_interactive_mode_displayer()
 
         self.model._rebuild_guipanel_event = True
