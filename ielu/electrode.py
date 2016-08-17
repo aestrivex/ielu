@@ -54,7 +54,7 @@ class Electrode(HasTraits):
 
     def _coord_print(self, coord_type):
         return ', '.join(
-            ['{0:.2f}'.format(c) for c in getattr(self, coord_type)]))
+            ['{0:.2f}'.format(c) for c in getattr(self, coord_type)])
 
     def _coord_repr(self, coord_type):
         return 'Elec: {0} ({1})'.format(
