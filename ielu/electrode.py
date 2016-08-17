@@ -73,7 +73,7 @@ class Electrode(HasTraits):
 
     iso_repr = Property
     def _get_iso_repr(self):
-        return self._coord_print'iso_coords')
+        return self._coord_print('iso_coords')
 
     postsnap_repr = Property
     def _get_postsnap_repr(self):
