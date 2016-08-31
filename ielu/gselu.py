@@ -1057,6 +1057,62 @@ class ElectrodePositionsModel(HasPrivateTraits):
         from utils import ask_user_for_loadfile
         return ask_user_for_loadfile(title=title)
 
+    def _save_to_pickle(self, savefile):
+        self._commit_grid_changes()
+
+        from pickle import dump
+        with open(savefile, 'w') as fd:
+            dump(self, fd)
+
+    def _load_from_pickle(self, loadfile):
+        from pickle import load
+        #from restricted_pickler import restricted_load
+        try:
+            with open(loadfile) as fd:
+                pickle_model = load(fd)
+            #pickle_model = restricted_load(loadfile)
+        except (KeyError, AttributeError) as e:
+            error_dialog('Failed to load ElectrodePositionsModel object\n'
+                'from provided pickle file {0}.\n\n'
+                'Are you sure that was a correct pickle file?'
+                .format(loadfile))
+            print e
+            return
+
+        #automatically assign pickle to model (old)
+        #self.model = pickle_model
+
+        self.__dict__.update(pickle_model.__dict__)
+
+            #manually assign every attribute
+#            for field in pickle_model.__dict__:
+#                try:
+#                    setattr(self.model, field, getattr(pickle_model, field))
+#                    #self.model.field = pickle_model.field
+#                except Exception as e:
+
+        #color scheme is a generator and therefore can't be imported properly
+        #but we can recreate the correct generator state easily enough
+        from utils import get_default_color_scheme
+        colors = get_default_color_scheme()
+        #get rid of the right number of colors
+        for i in xrange(len(self._grids)):
+            colors.next()
+
+        self._color_scheme = colors
+
+        #the trait notifiers set up on the displayer are not reproduced
+        #after pickling since those are not defined in the NameHolder
+        #initializer but by private method _new_grid_name_holder(grid_name)
+        #maybe they could be defined in the initializer instead but whatever
+        #here we just manually call our tools to rebuild the displayer safely
+
+
+        self._rebuild_interactive_mode_displayer()
+
+        self._rebuild_guipanel_event = True
+        self._rebuild_vizpanel_event = True
+
     def add_annotation(self, annot_name, hemi='both', border=True, opacity=1.):
         self._label_file = annot_name
         self._label_borders = border
@@ -1865,63 +1921,12 @@ class iEEGCoregistrationFrame(HasTraits):
             ctviz=self.ct_visualizer_panel)
 
     def do_save_pickle(self):
-        self.model._commit_grid_changes()
-
         savefile = self.model._ask_user_for_savefile(title='save pkl file')
-
-        from pickle import dump
-        with open(savefile, 'w') as fd:
-            dump(self.model, fd)
-         
+        self.model._save_to_pickle(savefile)
 
     def do_load_pickle(self):
         loadfile = self.model._ask_user_for_loadfile(title='load pkl file')
-
-        from pickle import load
-        #from restricted_pickler import restricted_load
-        try:
-            with open(loadfile) as fd:
-                pickle_model = load(fd)
-            #pickle_model = restricted_load(loadfile)
-        except (KeyError, AttributeError) as e:
-            error_dialog('Failed to load ElectrodePositionsModel object\n'
-                'from provided pickle file {0}.\n\n'
-                'Are you sure that was a correct pickle file?'
-                .format(loadfile))
-            print e
-            return
-
-        #automatically assign pickle to model (old)
-        self.model = pickle_model
-
-            #manually assign every attribute
-#            for field in pickle_model.__dict__:
-#                try:
-#                    setattr(self.model, field, getattr(pickle_model, field))
-#                    #self.model.field = pickle_model.field
-#                except Exception as e:
-
-        #color scheme is a generator and therefore can't be imported properly
-        #but we can recreate the correct generator state easily enough
-        from utils import get_default_color_scheme
-        colors = get_default_color_scheme()
-        #get rid of the right number of colors
-        for i in xrange(len(self.model._grids)):
-            colors.next()
-
-        self.model._color_scheme = colors
-
-        #the trait notifiers set up on the displayer are not reproduced
-        #after pickling since those are not defined in the NameHolder
-        #initializer but by private method _new_grid_name_holder(grid_name)
-        #maybe they could be defined in the initializer instead but whatever
-        #here we just manually call our tools to rebuild the displayer safely
-
-
-        self.model._rebuild_interactive_mode_displayer()
-
-        self.model._rebuild_guipanel_event = True
-        self.model._rebuild_vizpanel_event = True
+        self.model._load_from_pickle(loadfile)
     
     #def do_quit(self):
     #    sys.exit(0)
