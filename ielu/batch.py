@@ -2,13 +2,20 @@
 
 from __future__ import division
 
+from xvfbwrapper import Xvfb
+
+vdisplay = Xvfb()
+vdisplay.start()
+
 import os
 import sys
 from gselu import ElectrodePositionsModel
 import pipeline as pipe
 
-pickles_dir = '/home/blackreach/subjects/pickle_files'
-output_dir = '/home/blackreach/subjects/output_files'
+ct_dir = '/space/truffles/2/users/rlaplant/ct'
+
+pickles_dir = os.path.join(ct_dir, 'batch_files')
+output_dir = os.path.join(ct_dir, 'output_files')
 
 #1. read batch file, consisting of subject (pickle) and scope of parameters
 
@@ -111,5 +118,7 @@ output_file = os.path.join(output_dir, '{0}_{1}_{2}_{3}_{4}.output'.format(
                     tau,
                     epsilon))
 
-with open('output_file', 'w') as fd:
+with open(output_file, 'w') as fd:
     fd.write(str(solution_score))
+
+vdisplay.stop()
