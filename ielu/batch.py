@@ -14,14 +14,12 @@ import pipeline as pipe
 
 ct_dir = '/space/truffles/2/users/rlaplant/ct'
 
-pickles_dir = os.path.join(ct_dir, 'batch_files')
-output_dir = os.path.join(ct_dir, 'output_files')
 
 #1. read batch file, consisting of subject (pickle) and scope of parameters
 
 model = ElectrodePositionsModel()
-if len(sys.argv) != 2:
-    raise RuntimeError('provide batch file as argument')
+if len(sys.argv) != 3:
+    raise RuntimeError('provide batch file and batch symbol as argument')
 
 batch_file = sys.argv[1]
 
@@ -30,6 +28,12 @@ with open(batch_file) as fd:
 
 subject, delta, rho, tau, epsilon = map(lambda x:x.strip(), batch_data)
 
+batch_symbol = sys.argv[2]
+
+pickles_dir = os.path.join(ct_dir, 'batch_files')
+#batch_dir = os.path.join(pickles_dir, '{0}_batch'.format(batch_symbol))
+output_dir = os.path.join(ct_dir, 'output_files', 
+    '{0}_output'.format(batch_symbol))
 
 pickle_file = os.path.join(pickles_dir, '{0}_batch.pkl'.format(subject))
 delta = float(delta)
