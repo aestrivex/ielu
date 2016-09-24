@@ -73,11 +73,17 @@ _, _, new_grids, _ = pipe.classify_electrodes(  all_electrodes,
                                                 rho_strict = rho_strict,
                                                 rho_loose = rho_loose )
 
+
+from PyQt4.QtCore import pyqtRemoveInputHook
+pyqtRemoveInputHook()
+import pdb
+pdb.set_trace()
+
 #4. calculate correctness
 
 electrode_scores = []
 
-for true_grid in true_grids:
+for true_grid in true_grids.values():
     for elec in true_grid:
 
         grid_concordance = 0
@@ -86,7 +92,7 @@ for true_grid in true_grids:
         #find provisional grid
 
         provisional_grid = None
-        for new_grid in new_grids:
+        for new_grid in new_grids.values():
             if elec in new_grid:
                 provisional_grid = new_grid
                 break

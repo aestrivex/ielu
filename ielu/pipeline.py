@@ -598,6 +598,11 @@ def classify_electrodes(electrodes, known_geometry,
         angles, _, neighbs = gl.find_init_angles(new_elecs, mindist=mindist, 
             maxdist=maxdist)
 
+        #from PyQt4.QtCore import pyqtRemoveInputHook
+        #pyqtRemoveInputHook()
+        #import pdb
+        #pdb.set_trace()
+
         ba = np.squeeze(sorted(zip(*np.where(np.abs(90-angles)<epsilon)),
                 key=lambda v:np.abs(90-angles[v])))
 
