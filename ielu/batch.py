@@ -68,6 +68,8 @@ all_electrodes = model._all_electrodes.values()
 
 #3. run grid algorithm with specified data and parameters
 
+print delta, epsilon, rho, tau
+
 _, _, new_grids, _ = pipe.classify_electrodes(  all_electrodes,
                                                 true_grid_geom,
                                                 delta = delta,
