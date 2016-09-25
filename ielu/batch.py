@@ -78,10 +78,10 @@ _, _, new_grids, _ = pipe.classify_electrodes(  all_electrodes,
                                                 rho_loose = rho_loose )
 
 
-from PyQt4.QtCore import pyqtRemoveInputHook
-pyqtRemoveInputHook()
-import pdb
-pdb.set_trace()
+#from PyQt4.QtCore import pyqtRemoveInputHook
+#pyqtRemoveInputHook()
+#import pdb
+#pdb.set_trace()
 
 #4. calculate correctness
 
