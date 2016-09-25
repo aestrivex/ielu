@@ -38,7 +38,7 @@ output_dir = os.path.join(ct_dir, 'output_files',
 pickle_file = os.path.join(pickles_dir, '{0}_batch.pkl'.format(subject))
 delta = float(delta)
 rho = float(rho)
-tau = float(tau)
+tau = float(tau) / 100
 epsilon = float(epsilon)
 
 if rho < 15:
@@ -68,7 +68,7 @@ all_electrodes = model._all_electrodes.values()
 
 #3. run grid algorithm with specified data and parameters
 
-print delta, epsilon, rho, tau
+print delta, rho, tau, epsilon
 
 _, _, new_grids, _ = pipe.classify_electrodes(  all_electrodes,
                                                 true_grid_geom,
