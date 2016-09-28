@@ -877,7 +877,7 @@ class Grid():
                         px, py, pz = pInterp
                         pInterp = np.array((px+.01, py, pz))
 
-                        print 'adding the repeat point (%i,%i), %s'(i,
+                        print 'adding the repeat point (%i,%i), %s'%(i,
                             j,str(pInterp))
                         self.add_point(pInterp, (i,j))
                         if graph[i,j] == 0:
