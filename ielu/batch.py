@@ -70,7 +70,8 @@ all_electrodes = model._all_electrodes.values()
 
 print delta, rho, tau, epsilon
 
-_, _, new_grids, _ = pipe.classify_electrodes(  all_electrodes,
+try:
+    colors, grid_geom, new_grids, color_scheme = pipe.classify_electrodes(  all_electrodes,
                                                 true_grid_geom,
                                                 delta = delta,
                                                 epsilon = epsilon,
@@ -78,7 +79,9 @@ _, _, new_grids, _ = pipe.classify_electrodes(  all_electrodes,
                                                 crit_pct = tau,
                                                 rho_strict = rho_strict,
                                                 rho_loose = rho_loose )
-
+    #if anything goes bad then set 0
+except:
+    new_grids = {}
 
 #from PyQt4.QtCore import pyqtRemoveInputHook
 #pyqtRemoveInputHook()
@@ -98,6 +101,7 @@ for true_grid in true_grids.values():
         #find provisional grid
 
         provisional_grid = None
+        #for new grid in new_grids:
         for new_grid in new_grids.values():
             if elec in new_grid:
                 provisional_grid = new_grid
@@ -132,5 +136,21 @@ output_file = os.path.join(output_dir, '{0}_{1}_{2}_{3}_{4}.output'.format(
 
 with open(output_file, 'w') as fd:
     fd.write(str(solution_score))
+
+
+if len(new_grids) > 0:
+
+    out_pickle_file = os.path.join(output_dir, 
+        '{0}_optimized_output.pkl'.format(subject))
+
+    with open(out_pickle_file, 'w') as fd:
+        model._colors = colors
+        model._grid_geom = grid_geom
+        model._grids = new_grids
+        model._color_scheme = color_scheme
+
+        pickle.dump(model, fd)
+
+
 
 vdisplay.stop()
