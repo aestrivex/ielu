@@ -839,6 +839,12 @@ class Grid():
                         pInterp = None
                         continue
                     
+                    
+                    #from PyQt4.QtCore import pyqtRemoveInputHook
+                    #pyqtRemoveInputHook()
+                    #import pdb
+                    #pdb.set_trace()
+
                     if pInterp is None:
                         raise ValueError('Could not interpolate point with ' 
                             'current methods')
@@ -856,6 +862,26 @@ class Grid():
                         #otherwise, we added this point on another strip 
                         #choice. We should add it to the interpolated
                         #points  as normally, but not add the point to the Grid
+
+                    elif GridPoint(pInterp) in self.connectivity:
+                        # suppose the exact point to be interpolated at i,j is actually
+                        # already in the grid at m,n and the grid has horribly
+                        # twisted over itself. To gracefully handle this (the
+                        # solution will be bad), we would like to allow this
+                        # configuration.
+
+                        # we previously got an error because we can't add two points
+                        # (i,j) and also (m,n) with the same coordinates.
+
+                        # give it a different value
+                        px, py, pz = pInterp
+                        pInterp = np.array((px+.01, py, pz))
+
+                        print 'adding the repeat point (%i,%i), %s'(i,
+                            j,str(pInterp))
+                        self.add_point(pInterp, (i,j))
+                        if graph[i,j] == 0:
+                            graph[i,j] = 1
 
                     else:
                         print 'adding the point (%i,%i), %s'%(i,j,str(pInterp))
