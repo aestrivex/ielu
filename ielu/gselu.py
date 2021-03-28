@@ -1,4 +1,4 @@
-from __future__ import division
+
 import os
 import sys
 import numpy as np
@@ -13,14 +13,14 @@ from traitsui.api import (View, Item, Group, OKCancelButtons, ShellEditor,
 from traitsui.message import error as error_dialog
 from traitsui.api import MenuBar, Menu, Action
 
-from custom_list_editor import CustomListEditor
+from .custom_list_editor import CustomListEditor
 
-from electrode import Electrode
-from name_holder import NameHolder, GeometryNameHolder, NameHolderDisplayer
-from utils import (virtual_points3d, crash_if_freesurfer_is_not_sourced,
+from .electrode import Electrode
+from .name_holder import NameHolder, GeometryNameHolder, NameHolderDisplayer
+from .utils import (virtual_points3d, crash_if_freesurfer_is_not_sourced,
     gensym, get_subjects_dir, intize)
-from color_utils import mayavi2traits_color
-from geometry import load_affine
+from .color_utils import mayavi2traits_color
+from .geometry import load_affine
 from functools import partial
 import nibabel as nib
 
@@ -195,9 +195,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 #setattr(self, field, getattr(pickle_dict, field)) 
                 setattr(self, field, pickle_dict[field])
             except Exception as e:
-                print('Failed to load field {0} from pickle file '
-                    ''.format(field))
-                print e
+                print(('Failed to load field {0} from pickle file '
+                    ''.format(field)))
+                print(e)
         
         #print self.__dict__
 
@@ -211,7 +211,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         # put additional grids in
         if self._colors is not None:
-            for key in self._colors.keys():
+            for key in list(self._colors.keys()):
                 if key in ('unsorted','selection'):
                     continue
                 name_holders.append( self._new_grid_name_holder(key) )
@@ -301,7 +301,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         #otherwise visualizations will get confused
         from collections import OrderedDict
 
-        colors_index = self._colors.keys().index(old_name)
+        colors_index = list(self._colors.keys()).index(old_name)
         new_colors_dict = OrderedDict()
         for i, key in enumerate(self._colors):
             if i == colors_index:
@@ -357,7 +357,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._points_to_unsorted = {}
     
     def acquire_affine(self):
-        import pipeline as pipe
+        from . import pipeline as pipe
 
         overwrite = self.overwrite_xfms and not self._visualization_ready
 
@@ -436,7 +436,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._visualization_ready = False
 
         #pipeline
-        import pipeline as pipe
+        from . import pipeline as pipe
         
         #if self.use_ct_mask:
         if False:
@@ -479,14 +479,14 @@ class ElectrodePositionsModel(HasPrivateTraits):
             subject=self.subject)
 
         if self.use_ct_mask:
-            print 'eliminating extracranial noise'
+            print('eliminating extracranial noise')
             removals=(
                 pipe.identify_extracranial_electrodes_in_freesurfer_space(
                 self._electrodes, 
                 dilation_iterations=self.dilation_iterations,
                 subjects_dir=self.subjects_dir, subject=self.subject))
 
-            print 'removed %i electrodes' % len(removals)
+            print('removed %i electrodes' % len(removals))
 
             for e in removals:
                 self._electrodes.remove(e)
@@ -584,7 +584,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._all_electrodes.update(self._sorted_electrodes)
     
         #save mapping from ct to surface coords
-        for elec in self._all_electrodes.values():
+        for elec in list(self._all_electrodes.values()):
             #snapping is never completed by this point anymore
             surf_coord = elec.asras()
 
@@ -616,9 +616,9 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._rebuild_guipanel_event = True
 
     def get_next_color(self):
-        color = self._color_scheme.next()
+        color = next(self._color_scheme)
         while color in self._colors:
-            color = self._color_scheme.next()
+            color = next(self._color_scheme)
         return color
 
     def add_grid(self):
@@ -670,20 +670,20 @@ class ElectrodePositionsModel(HasPrivateTraits):
             if intize(xyz) in self._points_to_unsorted:
                 del self._points_to_unsorted[ intize(xyz) ]
                 elec.grid_transition_to = ''
-                self._new_glyph_color = self._colors.keys().index(current_key)
+                self._new_glyph_color = list(self._colors.keys()).index(current_key)
             else:
                 self._points_to_unsorted[ intize(xyz) ] = elec
                 elec.grid_transition_to = 'unsorted'
-                self._new_glyph_color = self._colors.keys().index('unsorted')
+                self._new_glyph_color = list(self._colors.keys()).index('unsorted')
         else:
             if intize(xyz) in self._points_to_cur_grid:
                 del self._points_to_cur_grid[ intize(xyz) ]
                 elec.grid_transition_to = ''
-                self._new_glyph_color = self._colors.keys().index(current_key)
+                self._new_glyph_color = list(self._colors.keys()).index(current_key)
             else:
                 self._points_to_cur_grid[ intize(xyz) ] = elec
                 elec.grid_transition_to = target
-                self._new_glyph_color = self._colors.keys().index(target)
+                self._new_glyph_color = list(self._colors.keys()).index(target)
 
         self._single_glyph_to_recolor = xyz
         self._update_single_glyph_event = True
@@ -778,7 +778,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
             return
 
         #from utils import AutomatedAssignmentWindow
-        from electrode import ElectrodeWindow
+        from .electrode import ElectrodeWindow
         #self.ew = AutomatedAssignmentWindow(
         grid_type = self._grid_types[cur_grid.name]
         ew = ElectrodeWindow(
@@ -795,7 +795,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
     def open_add_label_window(self):
         if self.alw is None:
-            from utils import AddLabelsWindow
+            from .utils import AddLabelsWindow
             self.alw = AddLabelsWindow(model=self)
         self.alw.edit_traits()
 
@@ -814,11 +814,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
     def snap_all(self):
         self._commit_grid_changes()
 
-        import pipeline as pipe
+        from . import pipeline as pipe
 
         snappable_electrodes = []
 
-        for key in self._grids.keys():
+        for key in list(self._grids.keys()):
             if self._grid_types[key] != 'subdural':
                 continue
 
@@ -840,7 +840,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._snapping_completed = True
 
         #update CT to surf mappings for clickability
-        for key in self._grids.keys():
+        for key in list(self._grids.keys()):
             if self._grid_types[key] == 'subdural':
                 for elec in self._grids[key]: 
                     
@@ -870,7 +870,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     
     def construct_panel2d(self):
         def build_panel():
-            import panel2d
+            from . import panel2d
             self.panel2d = pd = panel2d.TwoDimensionalPanel()
             #pd.on_trait_change( self._create_new_electrode, 
             #    'add_electrode_event')
@@ -920,7 +920,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
             elec.ct_coords = new_coords
             aff = self.acquire_affine()
 
-            import pipeline as pipe
+            from . import pipeline as pipe
             pipe.translate_electrodes_to_surface_space( [elec], aff,
                 subjects_dir=self.subjects_dir, subject=self.subject) 
         else:
@@ -962,7 +962,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         #px,py,pz,_ = pd.pins[image_name][pd.current_pin]
 
-        from electrode import Electrode
+        from .electrode import Electrode
         elec = Electrode(ct_coords = (px,py,pz))
 
         if image_name == 't1':
@@ -972,7 +972,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
     
         elif image_name == 'ct':
             aff = self.acquire_affine()
-            import pipeline as pipe
+            from . import pipeline as pipe
 
             pipe.translate_electrodes_to_surface_space( [elec], aff,
                 subjects_dir=self.subjects_dir, subject=self.subject)
@@ -1026,7 +1026,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self._cursor_tracker = elec
             
             aff = self.acquire_affine()
-            import pipeline as pipe
+            from . import pipeline as pipe
             pipe.linearly_transform_electrodes_to_isotropic_coordinate_space(
                 [elec], self.ct_scan,
                 isotropization_direction_off = 'copy_to_iso',
@@ -1050,11 +1050,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
             self._rebuild_vizpanel_event = True
 
     def _ask_user_for_savefile(self, title=None):
-        from utils import ask_user_for_savefile
+        from .utils import ask_user_for_savefile
         return ask_user_for_savefile(title=title)
 
     def _ask_user_for_loadfile(self, title=None):
-        from utils import ask_user_for_loadfile
+        from .utils import ask_user_for_loadfile
         return ask_user_for_loadfile(title=title)
 
     def _save_to_pickle(self, savefile):
@@ -1076,7 +1076,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
                 'from provided pickle file {0}.\n\n'
                 'Are you sure that was a correct pickle file?'
                 .format(loadfile))
-            print e
+            print(e)
             return
 
         #automatically assign pickle to model (old)
@@ -1093,11 +1093,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
 
         #color scheme is a generator and therefore can't be imported properly
         #but we can recreate the correct generator state easily enough
-        from utils import get_default_color_scheme
+        from .utils import get_default_color_scheme
         colors = get_default_color_scheme()
         #get rid of the right number of colors
-        for i in xrange(len(self._grids)):
-            colors.next()
+        for i in range(len(self._grids)):
+            next(colors)
 
         self._color_scheme = colors
 
@@ -1134,11 +1134,11 @@ class ElectrodePositionsModel(HasPrivateTraits):
         if target is None:
             self._commit_grid_changes()
             if self.interactive_mode_displayer.interactive_mode is None:
-                print "select a grid to save labels from"
+                print("select a grid to save labels from")
                 return
             target = self.interactive_mode_displayer.interactive_mode.name
             if target in ('unsorted',):
-                print "select a grid to save labels from"
+                print("select a grid to save labels from")
                 return
 
         #for now only save label files for the current grid, may change
@@ -1153,8 +1153,7 @@ class ElectrodePositionsModel(HasPrivateTraits):
         return sorted(electrodes)
 
     def get_electrodes_all(self):
-        return sorted(filter(lambda e:e.grid_name != 'unsorted', 
-            self._all_electrodes.values()))
+        return sorted([e for e in list(self._all_electrodes.values()) if e.grid_name != 'unsorted'])
 
 class ExtractionRegistrationSortingPanel(HasTraits):
     model = Instance(ElectrodePositionsModel)
@@ -1383,7 +1382,7 @@ class SurfaceVisualizerPanel(HasTraits):
         #from utils import clear_scene
         #clear_scene(self.scene.mayavi_scene)
 
-        from color_utils import set_discrete_lut
+        from .color_utils import set_discrete_lut
 
         import surfer
         if not self.visualize_in_ctspace:
@@ -1420,15 +1419,15 @@ class SurfaceVisualizerPanel(HasTraits):
         #unsorted
         if not self.model._noise_hidden:
         
-            unsorted_elecs = map(
+            unsorted_elecs = list(map(
                 partial(fix_elec, coordtype=unsorted_coordtype),
-                 self._unsorted_electrodes.values() )
+                 list(self._unsorted_electrodes.values()) ))
             self.gs_glyphs['unsorted'] = glyph = virtual_points3d( 
                 unsorted_elecs, scale_factor=scale_factor, name='unsorted',
                 figure=self.scene.mayavi_scene, 
                 color=self._colors['unsorted'])  
 
-            set_discrete_lut(glyph, self._colors.values())
+            set_discrete_lut(glyph, list(self._colors.values()))
             glyph.mlab_source.dataset.point_data.scalars=(
                 np.zeros(len(unsorted_elecs)))
 
@@ -1440,9 +1439,9 @@ class SurfaceVisualizerPanel(HasTraits):
                  self._grid_types[key]=='subdural') else 
                 'surf_coords')
 
-            grid_elecs = map(
+            grid_elecs = list(map(
                 partial(fix_elec, coordtype=grid_coordtype),
-                self._grids[key])
+                self._grids[key]))
                         
             if len(grid_elecs)==0:
                 continue
@@ -1451,8 +1450,8 @@ class SurfaceVisualizerPanel(HasTraits):
                 scale_factor=scale_factor, color=self._colors[key], 
                 name=key, figure=self.scene.mayavi_scene)
 
-            set_discrete_lut(glyph, self._colors.values())
-            scalar_color = self._colors.keys().index(key)
+            set_discrete_lut(glyph, list(self._colors.values()))
+            scalar_color = list(self._colors.keys()).index(key)
 
             glyph.mlab_source.dataset.point_data.scalars=(
                 np.ones(len(self._grids[key])) * scalar_color)
@@ -1478,13 +1477,13 @@ class SurfaceVisualizerPanel(HasTraits):
         #it is always easier to redraw everything, and avoids memory leaks
 
         from mayavi import mlab
-        from color_utils import set_discrete_lut
+        from .color_utils import set_discrete_lut
 
         #removing glyphs may cause memory leaks
         self.gs_glyphs[key].remove()
 
-        grid_elecs = map((lambda x:getattr(x, self._viz_coordtype)),
-            self._grids[key])
+        grid_elecs = list(map((lambda x:getattr(x, self._viz_coordtype)),
+            self._grids[key]))
 
         if len(grid_elecs)==0:
             return
@@ -1493,8 +1492,8 @@ class SurfaceVisualizerPanel(HasTraits):
             scale_factor=scale_factor, color=self._colors[key],
             name=key, figure=self.scene.mayavi_scene)
       
-        set_discrete_lut(glyph, self._colors.values())
-        scalar_color = self._colors.keys().index(key)
+        set_discrete_lut(glyph, list(self._colors.values()))
+        scalar_color = list(self._colors.keys()).index(key)
 
         glyph.mlab_source.dataset.point_data.scalars=(
             np.ones(len(self._grids[key])) * scalar_color)
@@ -1514,7 +1513,7 @@ class SurfaceVisualizerPanel(HasTraits):
 
         current_key = None
 
-        for key,nodes in zip(self.gs_glyphs.keys(), self.gs_glyphs.values()):
+        for key,nodes in zip(list(self.gs_glyphs.keys()), list(self.gs_glyphs.values())):
             if picker.actor in nodes.actor.actors:
                 pt = int(picker.point_id/nodes.glyph.glyph_source.
                     glyph_source.output.points.to_array().shape[0])
@@ -1552,7 +1551,7 @@ class SurfaceVisualizerPanel(HasTraits):
             #instance which has been disconnected from the scene
             return
 
-        from color_utils import change_single_glyph_color
+        from .color_utils import change_single_glyph_color
         from mayavi import mlab
         #import pdb
         #pdb.set_trace()
@@ -1564,7 +1563,7 @@ class SurfaceVisualizerPanel(HasTraits):
             else:
                 xyz[0] -= self._rh_pysurfer_offset
 
-        for nodes in self.gs_glyphs.values():
+        for nodes in list(self.gs_glyphs.values()):
             pt, = np.where( np.all(nodes.mlab_source.points == xyz, axis=1 ))
             if len(pt) > 0:
                 break
@@ -1580,21 +1579,21 @@ class SurfaceVisualizerPanel(HasTraits):
 
     @on_trait_change('model:_draw_event')
     def force_render(self):
-        from plotting_utils import force_render as fr
+        from .plotting_utils import force_render as fr
         fr( figure=self.scene.mayavi_scene )
 
     @on_trait_change('model:_update_glyph_lut_event')
     def update_glyph_lut(self):
-        from color_utils import set_discrete_lut
-        for glyph in self.gs_glyphs.values():
-            set_discrete_lut(glyph, self._colors.values())
+        from .color_utils import set_discrete_lut
+        for glyph in list(self.gs_glyphs.values()):
+            set_discrete_lut(glyph, list(self._colors.values()))
 
     #not used. has the problem of crescent moon shaped electrodes,
     #transparent electrodes are still occlusive despite being transparent
     @on_trait_change('model:_hide_noise_event')
     def hide_unsorted_electrodes(self):
-        from color_utils import make_transparent
-        for glyph in self.gs_glyphs.values():
+        from .color_utils import make_transparent
+        for glyph in list(self.gs_glyphs.values()):
             make_transparent(glyph, 0) 
 
     @on_trait_change('model:_add_annotation_event')
@@ -1632,7 +1631,7 @@ class SurfaceVisualizerPanel(HasTraits):
             return
 
         import mne
-        from color_utils import traits2mayavi_color
+        from .color_utils import traits2mayavi_color
         self.brain.add_label(self.model._label_file,
             borders=self.model._label_borders,
             alpha=self.model._label_opacity,
@@ -1940,7 +1939,7 @@ class iEEGCoregistrationFrame(HasTraits):
         self.model.snap_all()
 
     def do_examine_ct(self):
-        import panel2d
+        from . import panel2d
 
         pd = self.model.construct_panel2d()
 
@@ -1962,7 +1961,7 @@ class iEEGCoregistrationFrame(HasTraits):
     def do_find_rois(self):
         self.model._commit_grid_changes()
 
-        from electrode_group import get_nearby_rois_all
+        from .electrode_group import get_nearby_rois_all
         get_nearby_rois_all( self.model._grids,
                              subjects_dir=self.model.subjects_dir,
                              subject=self.model.subject,
@@ -1972,7 +1971,7 @@ class iEEGCoregistrationFrame(HasTraits):
     def do_coronal_slices(self):
         self.model._commit_grid_changes()
 
-        from electrode_group import coronal_slice_all
+        from .electrode_group import coronal_slice_all
         coronal_slice_all( self.model._grids,
                            self.model._grid_types,
                            subjects_dir=self.model.subjects_dir,
@@ -1991,7 +1990,7 @@ class iEEGCoregistrationFrame(HasTraits):
         if not self.model._noise_hidden:
             self.model.hide_noise()
 
-        from plotting_utils import save_opaque_clinical_sequence
+        from .plotting_utils import save_opaque_clinical_sequence
         save_opaque_clinical_sequence( savefile, 
             self.surface_visualizer_panel.scene.mayavi_scene )
 
@@ -2004,7 +2003,7 @@ class iEEGCoregistrationFrame(HasTraits):
 
         electrodes = self.model.get_electrodes_all()
 
-        from electrode_group import save_coordinates
+        from .electrode_group import save_coordinates
         save_coordinates( electrodes, self.model._grid_types,
             snapping_completed=self.model._snapping_completed,
             file_type='montage')
@@ -2014,7 +2013,7 @@ class iEEGCoregistrationFrame(HasTraits):
 
         electrodes = self.model.get_electrodes_all()
 
-        from electrode_group import save_coordinates
+        from .electrode_group import save_coordinates
         save_coordinates( electrodes, self.model._grid_types,
             snapping_completed=self.model._snapping_completed,
             file_type='csv')
@@ -2048,5 +2047,5 @@ class iEEGCoregistrationFrame(HasTraits):
 
 if __name__ == '__main__':
     #force Qt to relay ctrl+C
-    from main import main
+    from .main import main
     main()

@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import numpy as np
 
@@ -18,7 +18,7 @@ from chaco.tools.api import SelectTool, ZoomTool, PanTool
 
 import nibabel as nib
 
-from geometry import truncate, apply_affine, get_vox2rasxfm
+from .geometry import truncate, apply_affine, get_vox2rasxfm
 
 reorient_orig2std_tkr_mat = np.array(((1, 0, 0, 0),
                                       (0, 0, -1, 0),
@@ -94,7 +94,7 @@ class Click2DPanelTool(PanTool):
     def normal_right_down(self, event):
         pin_name = self.panel2d.current_pin
         if pin_name is None:
-            print 'Nothing currently pinned'
+            print('Nothing currently pinned')
             return
 
         x,y,z = self.panel2d.cursor
@@ -311,7 +311,7 @@ class TwoDimensionalPanel(Handler):
         x,y,z = cursor
         aff_to_use = np.linalg.inv(affine) if invert else affine
         mcursor, = apply_affine([cursor], aff_to_use)
-        return tuple(map(lambda x: truncate(x, 2), mcursor))
+        return tuple([truncate(x, 2) for x in mcursor])
 
     #def cut_data(self, data, mcursor):
     def cut_data(self, ndata, mcursor):
@@ -357,7 +357,7 @@ class TwoDimensionalPanel(Handler):
         #print 'image size', imgd.shape
 
         if image_name is None:
-            from utils import gensym
+            from .utils import gensym
             image_name = 'image%s'%gensym()
 
         self.images[image_name] = (imgd, aff, tkr_aff)
@@ -487,15 +487,15 @@ class TwoDimensionalPanel(Handler):
         cursor = x,y,z
 
         if self.cursor_outside_image_dimensions(cursor):
-            print ('Cursor %.2f %.2f %.2f outside image dimensions, doing '
-                'nothing'%(x,y,z))
+            print(('Cursor %.2f %.2f %.2f outside image dimensions, doing '
+                'nothing'%(x,y,z)))
             return
 
         self.cursor = cursor
 
         xy_cut, xz_cut, yz_cut = self.cut_data(self.current_image, self.cursor)
 
-        print 'clicked on point %.2f %.2f %.2f'%(x,y,z)
+        print('clicked on point %.2f %.2f %.2f'%(x,y,z))
 
         self.xy_plane.data.set_data('imagedata', xy_cut)
         self.xz_plane.data.set_data('imagedata', xz_cut)
@@ -512,7 +512,7 @@ class TwoDimensionalPanel(Handler):
 
         if not suppress_cursor:
             self.info_panel.cursor = tuple(
-                map(lambda x:truncate(x, 2), self.cursor))
+                [truncate(x, 2) for x in self.cursor])
         if not suppress_ras:
             self.info_panel.cursor_ras = self.map_cursor(self.cursor,
                 self.current_affine)
@@ -593,7 +593,7 @@ class TwoDimensionalPanel(Handler):
         if self.cursor_outside_image_dimensions(mouse):
             return
 
-        self.info_panel.mouse = tuple(map(lambda x:truncate(x, 2), mouse))
+        self.info_panel.mouse = tuple([truncate(x, 2) for x in mouse])
         self.info_panel.mouse_ras = self.map_cursor(mouse,
             self.current_affine)
         self.info_panel.mouse_tkr = self.map_cursor(mouse, 

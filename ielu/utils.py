@@ -32,8 +32,7 @@ def virtual_points3d(coords, figure=None, scale_factor=None, color=None,
 def intize( tuple_of_floats ):
     return tuple( 
         map ( int,
-        map ( lambda x:x*1e4, 
-        map( partial( round, ndigits=4 ), tuple_of_floats ))))
+        [x*1e4 for x in list(map( partial( round, ndigits=4 ), tuple_of_floats ))]))
 
 def clear_scene(scene):
     #this bugs out for a reason I haven't figured out yet
@@ -71,17 +70,17 @@ def _count():
 _counter=_count()
 def gensym():
     global _counter
-    return _counter.next()
+    return next(_counter)
 
 def crash_if_freesurfer_is_not_sourced():
     import os, subprocess
     with open(os.devnull, 'w') as nil:
         p = subprocess.call(['which', 'mri_info'], stdout=nil)
     if p!=0:
-        print 'Freesurfer is not sourced or not in the subshell path'
+        print('Freesurfer is not sourced or not in the subshell path')
         import sys
 
-        print os.environ['PATH']
+        print(os.environ['PATH'])
 
         sys.exit(1)
 

@@ -1,8 +1,9 @@
-from __future__ import division
+
 import numpy as np
 from numpy.linalg import norm
 import math
 from scipy.spatial.distance import pdist
+from functools import reduce
 
 ###########################
 # simple geometry functions
@@ -59,7 +60,7 @@ def find_plane_from_corners(p0,p1,p2):
     #g = reduce(gcd, (a,b,c,d)
     #return a//g, b//g, c//g, d//g
 
-    return map(lambda x:x//reduce(gcd, (a,b,c,d)), (a,b,c,d))
+    return [x//reduce(gcd, (a,b,c,d)) for x in (a,b,c,d)]
 
 def find_best_fit_plane(points):
     '''
@@ -104,7 +105,7 @@ def find_neighbors(p0, coords, n):
     if n > n_p - 1:
         raise ValueError('number of neighbors exceeds the total number of points')
     else:
-        ind = range(n_p)
+        ind = list(range(n_p))
         ps = []
         for _ in range(n):
             p, which_p = find_nearest_pt(p0, coords[ind, :])
@@ -122,7 +123,7 @@ def rm_pts(P, coords):
         x, = np.where(np.sum(np.apply_along_axis(np.equal, 1, coords, v), axis=1) == 3)
         if len(x) > 0:
             ind.append(x[0])
-    ind = np.setdiff1d(range(coords.shape[0]), ind)
+    ind = np.setdiff1d(list(range(coords.shape[0])), ind)
     
     return coords[ind, :]
 
@@ -190,7 +191,7 @@ def get_lta(lta):
                 break
             #else
             #print ln
-            affine[i-8,:] = np.array(map(float, ln.strip().split()))
+            affine[i-8,:] = np.array(list(map(float, ln.strip().split())))
     return affine
 
 def get_vox2rasxfm(volume, stem='vox2ras'):
@@ -206,7 +207,7 @@ def get_vox2rasxfm(volume, stem='vox2ras'):
     i = 0
     for ln in ps.stdout:
         try:
-            loc = np.array(map(float, ln.strip('()[]\n').split()))
+            loc = np.array(list(map(float, ln.strip('()[]\n').split())))
         except:
             continue
 
@@ -223,7 +224,7 @@ def get_xfm(xfm_file):
         i=0
         for ln in fd:
             try:
-                loc = np.array(map(float, ln.strip('()[]\n;').split()))
+                loc = np.array(list(map(float, ln.strip('()[]\n;').split())))
             except:
                 continue
             if len(loc) != 4:
@@ -254,7 +255,7 @@ def apply_affine(locs, affine):
         new_loc = np.dot( affine, (loc[0], loc[1], loc[2], 1))
         #new_locs.append( [round(new_loc[i]) for i in xrange(3)] )
         new_locs.append( [np.around(new_loc[i], decimals=4) 
-            for i in xrange(3)] )
+            for i in range(3)] )
     return new_locs
 
 def concat_affines(aff1, aff2):

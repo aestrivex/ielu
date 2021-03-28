@@ -2,14 +2,14 @@
 # The code in identify_roi_from_aparc originally comes from Gio Piantoni
 #
 
-from __future__ import division
+
 import os
 import numpy as np
 import nibabel as nib
-import geometry as geo
-import grid as gl
-from utils import SortingLabelingError
-from electrode import Electrode
+from . import geometry as geo
+from . import grid as gl
+from .utils import SortingLabelingError
+from .electrode import Electrode
 from scipy.spatial.distance import cdist
 
 def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None, 
@@ -39,7 +39,7 @@ def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None,
         The location of the textfile where the brainmask is located,
         which is currently $SUBJECTS_DIR/mri/brain_ct.nii.gz
     '''
-    print 'converting brainmask to CT image space'
+    print('converting brainmask to CT image space')
 
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
@@ -58,7 +58,7 @@ def create_brainmask_in_ctspace(ct, subjects_dir=None, subject=None,
     ct_brain = os.path.join(subjects_dir, subject, 'mri', 'brain_ct.nii.gz')
 
     if os.path.exists(lta) and not overwrite:
-        print 'brainmask in ct space already exists, using it'
+        print('brainmask in ct space already exists, using it')
         return ct_brain
 
     import tempfile
@@ -131,7 +131,7 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
     electrodes : List(Electrode)
         an list of Electrode objects with only the ct coords indicated.
     '''
-    print 'identifying electrode locations from CT image'
+    print('identifying electrode locations from CT image')
 
     from scipy import ndimage
     import sys
@@ -152,14 +152,14 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
             #thickness scans we have been getting.
 
             zf = np.array([max_axis, max_axis, max_axis]) // ctd.shape
-            print 'DOING THE ISOTROPIC LINEARIZATION'
+            print('DOING THE ISOTROPIC LINEARIZATION')
             ctd = ndimage.interpolation.zoom(ctd, zf)
-            print 'FINISHED ISOTROPIC LINEARIZATION'
+            print('FINISHED ISOTROPIC LINEARIZATION')
 
             new_shape = ctd.shape
 
-            print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(initial_shape,
-                new_shape)
+            print('INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(initial_shape,
+                new_shape))
 
         elif isotropization_type == 'By header':
             initial_shape = ctd.shape
@@ -172,8 +172,7 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
             rd, ad, sd = geo.get_std_orientation(vox2ras)
 
             vox2ras_rstd = np.array(
-                map( lambda ix: np.squeeze( vox2ras[ix, :3] ),
-                     (rd, ad, sd) ))
+                [np.squeeze( vox2ras[ix, :3] ) for ix in (rd, ad, sd)])
 
             vox2ras_dg = np.abs(np.diag(vox2ras_rstd)[:3])
 
@@ -181,39 +180,39 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
             zf = vox2ras_dg / min_axis
 
             if np.all(zf == 1):
-                print 'IMAGE HEADER IS ISOTROPIC, NO LINEARIZATION TO DO'
+                print('IMAGE HEADER IS ISOTROPIC, NO LINEARIZATION TO DO')
             else:
 
-                print 'DOING THE ISOTROPIC LINEARIZATION'
+                print('DOING THE ISOTROPIC LINEARIZATION')
                 ctd = ndimage.interpolation.zoom(ctd, zf)
-                print 'FINISHED ISOTROPIC LINEARIZATION'
+                print('FINISHED ISOTROPIC LINEARIZATION')
                 new_shape = ctd.shape
 
-                print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(
-                    initial_shape, new_shape)
+                print('INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(
+                    initial_shape, new_shape))
 
         elif isotropization_type == 'Manual override':
             initial_shape = ctd.shape
             zf = np.array(iso_vector_override)
 
             if np.all(zf == 1):
-                print 'IMAGE HEADER IS ISOTROPIC, NO LINEARIZATION TO DO'
+                print('IMAGE HEADER IS ISOTROPIC, NO LINEARIZATION TO DO')
             else:
-                print 'DOING THE ISOTROPIC LINEARIZATION'
+                print('DOING THE ISOTROPIC LINEARIZATION')
                 ctd = ndimage.interpolation.zoom(ctd, zf)
-                print 'FINISHED ISOTROPIC LINEARIZATION'
+                print('FINISHED ISOTROPIC LINEARIZATION')
                 new_shape = ctd.shape
 
-                print 'INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(
-                    initial_shape, new_shape)
+                print('INITIAL SHAPE: {0}, NEW SHAPE {1}'.format(
+                    initial_shape, new_shape))
 
         #istropization done
 
-        print np.mean(ctd), 'CT MEAN'
-        print np.std(ctd), 'CT STDEV'
+        print(np.mean(ctd), 'CT MEAN')
+        print(np.std(ctd), 'CT STDEV')
 
         #threshold = np.mean(mask_test)+3*np.std(mask_test)
-        print threshold, 'COMPROMISE'
+        print(threshold, 'COMPROMISE')
 
         #supthresh_locs = np.where(np.logical_and(ctd > threshold, maskd))
         supthresh_locs = np.where( ctd > threshold )
@@ -250,7 +249,7 @@ def identify_electrodes_in_ctspace(ct, mask=None, threshold=2500,
         #this makes very little difference compared to choosing an
         #appropriate threshold and having good quality images
         def iter_bfs(x,y,z,im,c):
-            from Queue import Queue
+            from queue import Queue
             queue = Queue()
 
             queue.put( (x,y,z) )
@@ -418,8 +417,7 @@ def linearly_transform_electrodes_to_isotropic_coordinate_space(electrodes,
             za, zb, zc = np.array([cts_max, cts_max, cts_max]) / cti.shape
         elif isotropization_strategy == 'By header':
             aff = cti.get_affine()
-            aff_rstd = np.array( map( lambda ix: aff[ix, :3],
-                                      geo.get_std_orientation(aff)))
+            aff_rstd = np.array( [aff[ix, :3] for ix in geo.get_std_orientation(aff)])
             aff_dg = np.abs(np.diag(aff_rstd)[:3])
             za, zb, zc = aff_dg / np.min(aff_dg)
         elif isotropization_strategy == 'Manual override':
@@ -480,7 +478,7 @@ def identify_extracranial_electrodes_in_freesurfer_space(electrodes,
     for e in electrodes:
         #find nearest voxel in voxel space
         voxel, = geo.apply_affine([e.asras()], np.linalg.inv(mask_aff))
-        nx, ny, nz = map(int, (np.around(voxel)))
+        nx, ny, nz = list(map(int, (np.around(voxel))))
 
         #a value not in [0-255] index range means a value not in the image at all
         #these values are potentially possible for outlying noise but usually
@@ -569,7 +567,7 @@ def classify_electrodes(electrodes, known_geometry,
     from collections import OrderedDict    
 
     if color_scheme is None:
-        from utils import get_default_color_scheme as color_scheme
+        from .utils import get_default_color_scheme as color_scheme
 
     def name_generator():
         i=0
@@ -581,7 +579,7 @@ def classify_electrodes(electrodes, known_geometry,
     names = name_generator()
 
     #electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
-    electrode_arr = map((lambda x:getattr(x, 'iso_coords')), electrodes)
+    electrode_arr = list(map((lambda x:getattr(x, 'iso_coords')), electrodes))
 
     found_grids = {}
     grid_colors = OrderedDict()
@@ -615,25 +613,25 @@ def classify_electrodes(electrodes, known_geometry,
             p0,p1,p2 = neighbs[k]
             pog = gl.Grid(p0,p1,p2,new_elecs, delta=delta,
                 rho=rho, rho_strict=rho_strict, rho_loose=rho_loose,
-                name=names.next(), critical_percentage=crit_pct)
+                name=next(names), critical_percentage=crit_pct)
             pog.extend_grid_arbitrarily()
 
             try:
                 sp, corners, final_connectivity = pog.extract_strip(*dims)
             except SortingLabelingError as e:
-                print 'Rejected this initialization'
+                print('Rejected this initialization')
                 if j==len(ba)-1:
                     print ('No suitable strip found. Returning an empty '
                         'strip in its place')
                     found_grids[pog.name] = []
-                    grid_colors[pog.name] = colors.next()
+                    grid_colors[pog.name] = next(colors)
                     grid_geom[pog.name] = dims
                 continue
 
             sp = np.reshape(sp, (-1,3))
 
             found_grids[pog.name] = []
-            grid_colors[pog.name] = colors.next()
+            grid_colors[pog.name] = next(colors)
             grid_geom[pog.name] = dims
             for p in sp:
                 used_points.append(p)
@@ -650,8 +648,8 @@ def classify_electrodes(electrodes, known_geometry,
                         elec = electrodes[ix]
                         found_grids[pog.name].append(elec)
                     except (IndexError, TypeError) as e:
-                        print ix
-                        print p
+                        print(ix)
+                        print(p)
                         raise SortingLabelingError(
                             "multiple electrodes at same point")
                 else:
@@ -699,7 +697,7 @@ def remove_large_negative_values_from_ct(ct, subjects_dir=None,
         The freesurfer subject. If this is None, it is assumed to be the
         $SUBJECT environment variable.
     '''
-    print 'removing negative values from CT'
+    print('removing negative values from CT')
 
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
@@ -710,7 +708,7 @@ def remove_large_negative_values_from_ct(ct, subjects_dir=None,
     ctd = cti.get_data()
 
     if np.min(ctd) > threshold:
-        print 'No large negative values in CT image'
+        print('No large negative values in CT image')
         return
 
     ct_unaltered = os.path.join(subjects_dir, subject, 'mri', 
@@ -760,7 +758,7 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     affine : 4x4 np.ndarray
         The matrix containing the affine transformation from CT to MR space.
     '''
-    print 'registering CT to MR'
+    print('registering CT to MR')
 
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
@@ -774,7 +772,7 @@ def register_ct_to_mr_using_mutual_information(ct, subjects_dir=None,
     lta = os.path.join(xfms_dir,'ct2mr.lta')
 
     if os.path.exists(lta) and not overwrite:
-        print 'using existing CT to MR transformation'
+        print('using existing CT to MR transformation')
         return geo.get_lta(lta)
 
     #import tempfile
@@ -822,7 +820,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     Clearly, this hack is pretty specific to the type of CT image we are
     collecting at our center. But maybe it can be of more general use.
     '''
-    print 'registering CT to MR with manual resampling and hacky tricks'
+    print('registering CT to MR with manual resampling and hacky tricks')
 
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
@@ -845,7 +843,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     lta = os.path.join(ct_register_dir,'true_ct2mr.lta')
 
     if os.path.exists(lta) and not overwrite:
-        print 'using existing CT to MR transformation'
+        print('using existing CT to MR transformation')
 
         #perform some temporary corrections
 #        zf = 1.43
@@ -897,7 +895,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     #import pdb
     #pdb.set_trace()
 
-    print 'loading CT data'
+    print('loading CT data')
     ctd = cti.get_data()
 
     orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
@@ -918,7 +916,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
             'center_ct_slice.nii.gz')
         upper_fname = os.path.join( ct_register_dir, 'upper_ct_slice.nii.gz')
 
-        print 'saving CT slices'
+        print('saving CT slices')
         nib.save(center_img, center_fname)
         nib.save(upper_img, upper_fname)
 
@@ -932,7 +930,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
         center_to_orig_lta = os.path.join( ct_register_dir, 'c2o.lta')
 
         _,gbg = tempfile.mkstemp()
-        print 'registering orig to slices'
+        print('registering orig to slices')
 
         mri_robustreg_cslice_cmd = ['mri_robust_register', '--mov', orig, 
             '--dst',
@@ -951,7 +949,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
         os.unlink(gbg)
 
         #register the two translated origs to each other
-        print 'registering slices to each other'
+        print('registering slices to each other')
         translate_lta = os.path.join( ct_register_dir, 'u2c_translation.lta')
         
         mri_robustreg_trans_cmd = ['mri_robust_register', '--mov', 
@@ -997,7 +995,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
     #resample the ct image and do the final registration
 
     from scipy.ndimage.interpolation import zoom
-    print 'resampling image with zoom_factor {0}'.format(zoom_factor)
+    print('resampling image with zoom_factor {0}'.format(zoom_factor))
     #ct_zoom = zoom( ctd, (1,1,zoom_factor))
     ct_zoom = zoom( ctd, 1/np.array(zoom_factor) )
 
@@ -1019,7 +1017,7 @@ def register_ct_using_zoom_correction(ct, subjects_dir=None, subject=None,
 
     skew_aff = geo.get_lta(skewed_lta)
     unskew_aff = np.eye(4)
-    for j in xrange(3):
+    for j in range(3):
         unskew_aff[j,j] = zoom_factor[j]
     aff = np.dot(skew_aff, unskew_aff)
     np.savetxt(lta, aff)
@@ -1047,7 +1045,7 @@ def create_dural_surface(subjects_dir=None, subject=None):
         The freesurfer subject. If this is None, it is assumed to be the
         $SUBJECT environment variable.
     '''
-    print 'create dural surface step'
+    print('create dural surface step')
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
     if subject is None or subject=='':
@@ -1056,12 +1054,12 @@ def create_dural_surface(subjects_dir=None, subject=None):
     scripts_dir = os.path.dirname(__file__)
     os.environ['SCRIPTS_DIR'] = scripts_dir
 
-    print scripts_dir
+    print(scripts_dir)
 
     if (os.path.exists(os.path.join(subjects_dir,subject,'surf','lh.dural'))
             and os.path.exists(os.path.join(subjects_dir, subject,'surf',
             'rh.dural'))):
-        print 'dural surfaces already exist'
+        print('dural surfaces already exist')
         return
 
     import subprocess
@@ -1072,7 +1070,7 @@ def create_dural_surface(subjects_dir=None, subject=None):
     for hemi in ('lh','rh'):
         make_dural_surface_cmd = [os.path.join(scripts_dir, 
             'make_dural_surface.csh'),'-i','%s.pial'%hemi]
-	print make_dural_surface_cmd
+	print(make_dural_surface_cmd)
         p=subprocess.call(make_dural_surface_cmd)
 
     os.chdir(curdir)
@@ -1142,7 +1140,7 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
     There is no return value. The 'surf_coords' attribute will be used to
     store the surface locations of the electrodes
     '''
-    print 'translating electrodes to surface space'
+    print('translating electrodes to surface space')
 
     if subjects_dir is None or subjects_dir=='':
         subjects_dir = os.environ['SUBJECTS_DIR']
@@ -1152,7 +1150,7 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
     if len(electrodes) == 0:
         raise ValueError('No electrodes to translate to surface space')
 
-    electrode_arr = map((lambda x:getattr(x, 'ct_coords')), electrodes)
+    electrode_arr = list(map((lambda x:getattr(x, 'ct_coords')), electrodes))
     orig_elecs = geo.apply_affine(electrode_arr, ct2mr)
 
     orig = os.path.join(subjects_dir, subject, 'mri', 'orig.mgz')
@@ -1224,7 +1222,7 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
     from scipy.spatial.distance import cdist
 
     n = len(electrodes)
-    electrode_arr = map((lambda x:getattr(x, 'surf_coords')), electrodes)
+    electrode_arr = list(map((lambda x:getattr(x, 'surf_coords')), electrodes))
     e_init = np.array(electrode_arr)
 
     # first set the alpha parameter exactly as described in Dykstra 2012.
@@ -1235,7 +1233,7 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
 
     neighbors = []
 
-    for i in xrange(n):
+    for i in range(n):
         neighbor_vec = init_dist[:,i]
         #take 5 highest neighbors
         h5, = np.where(np.logical_and(neighbor_vec<np.sort(neighbor_vec)[5],
@@ -1247,7 +1245,7 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
 
     # get distances from each neighbor pairing
     neighbor_dists = []
-    for i in xrange(n):
+    for i in range(n):
         neighbor_dists.append( init_dist[i, neighbors[i]] )
 
     neighbor_dists = np.hstack(neighbor_dists)
@@ -1263,7 +1261,7 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
     #apply fundist to alpha matrix
     alpha_tweak = 1.75
 
-    for i in xrange(n):
+    for i in range(n):
         neighbor_vec = init_dist[:,i]
         neighbor_vec[i] = np.inf
 
@@ -1278,7 +1276,7 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
 
         alpha[i,neighbors]=1
 
-        for j in xrange(i):
+        for j in range(i):
             if alpha[j,i]==1:
                 alpha[i,j]=1 
             if alpha[i,j]==1:
@@ -1293,10 +1291,10 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
 
         H=0
 
-        for i in xrange(n):
+        for i in range(n):
             H += deformation_constant*float(cdist( [e_new[i]], [e_old[i]] ))
 
-            for j in xrange(i):
+            for j in range(i):
                 H += alpha[i,j] * (dist_new[i,j] - dist_old[i,j])**2
 
         return H
@@ -1384,13 +1382,13 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
             if cost < mincost:
                 emin = e
                 mincost = cost
-                print 'step %i ... current lowest cost = %f' % (h, mincost)
+                print('step %i ... current lowest cost = %f' % (h, mincost))
                 hcnt = 0
 
             if mincost==0:
                 break
 
-        print 'step %i ... final lowest cost = %f' % (h, mincost)
+        print('step %i ... final lowest cost = %f' % (h, mincost))
 
     #return the emin coordinates
     for elec, loc in zip(electrodes, emin):
@@ -1437,7 +1435,7 @@ def fit_grid_to_line(electrodes, mindist=0, maxdist=36, epsilon=30, delta=.5,
 
     No return value
     '''
-    electrode_arr = map((lambda x:getattr(x, 'iso_coords')), electrodes)
+    electrode_arr = list(map((lambda x:getattr(x, 'iso_coords')), electrodes))
 
     #find most isolated point
     eadist = cdist(electrode_arr, electrode_arr)
@@ -1510,7 +1508,7 @@ def fit_grid_by_fixed_points(electrodes, geom,
         larger parameter means the algorithm will try a larger range of
         starting positions before giving up. The default value is 10.
     '''
-    electrode_arr = map((lambda x:getattr(x, 'iso_coords')), electrodes)
+    electrode_arr = list(map((lambda x:getattr(x, 'iso_coords')), electrodes))
     elecs = np.array(electrode_arr)
 
 
@@ -1535,13 +1533,13 @@ def fit_grid_by_fixed_points(electrodes, geom,
         try:
             pog.recreate_geometry( )
         except SortingLabelingError as e:
-            print 'Could not recreate geometry with this initialization'
+            print('Could not recreate geometry with this initialization')
             continue
 
         try:
             sp, corners, final_connectivity = pog.extract_strip(*geom)
         except SortingLabelingError as e:
-            print 'Rejected this choice'
+            print('Rejected this choice')
             if j==len(ba)-1:
                 raise ValueError("Could not incorporate fixed points")
             continue
@@ -1617,8 +1615,8 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom, reverse_grid='check'):
     reverse_plane = {}
     xg = max(geom)-1
     ng = min(geom)-1
-    for i in xrange(max(geom)):
-        for j in xrange(min(geom)):
+    for i in range(max(geom)):
+        for j in range(min(geom)):
             if np.sum(v1**2) >= np.sum(v2**2):
                 #longer side in direction of c2 
                 s1 = c2*i/xg + c1*(xg-i)/xg
@@ -1632,7 +1630,7 @@ def fit_grid_to_plane(electrodes, c1, c2, c3, geom, reverse_grid='check'):
             plane[tuple(pN)]=(i,j)
             reverse_plane[(i,j)] = pN
 
-    plane_points = np.array(plane.keys())
+    plane_points = np.array(list(plane.keys()))
 
     #check transposition
     if reverse_grid == True:
@@ -1880,7 +1878,7 @@ def identify_roi_from_aparc( pos, approx=4, subjects_dir=None, subject=None,
 
     def find_neighboring_regions(pos, mri_dat, region, approx, excludes):
         spot_sz = int(np.around(approx * 2 + 1))
-        x, y, z = np.meshgrid(range(spot_sz), range(spot_sz), range(spot_sz))
+        x, y, z = np.meshgrid(list(range(spot_sz)), list(range(spot_sz)), list(range(spot_sz)))
 
         # approx is in units of millimeters as long as we use the RAS space
         # segmentation
@@ -1893,7 +1891,7 @@ def identify_roi_from_aparc( pos, approx=4, subjects_dir=None, subject=None,
         #import pdb
         #pdb.set_trace()
 
-        for p in xrange(neighb.shape[0]):
+        for p in range(neighb.shape[0]):
             cx, cy, cz = (pos[0]+neighb[p,0], pos[1]+neighb[p,1],
                 pos[2]+neighb[p,2])
             d_type = mri_dat[cx, cy, cz]

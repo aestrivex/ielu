@@ -1,4 +1,4 @@
-from __future__ import division
+
 import os
 import numpy as np
 import nibabel as nib
@@ -6,8 +6,8 @@ import nibabel as nib
 from traits.api import HasTraits, Float, Int, Tuple
 from traitsui.api import View, Item, CSVListEditor
 
-from geometry import get_vox2rasxfm, apply_affine, get_std_orientation
-from utils import get_subjects_dir
+from .geometry import get_vox2rasxfm, apply_affine, get_std_orientation
+from .utils import get_subjects_dir
 
 def force_render( figure=None ):
     from mayavi import mlab
@@ -59,7 +59,7 @@ def coronal_slice(elecs, start=None, end=None, outfile=None,
     title : Str
         Specify a matplotlib title
     '''
-    print 'creating coronal slice with start electrodes %s' % str(start)
+    print('creating coronal slice with start electrodes %s' % str(start))
 
     subjdir_subj = get_subjects_dir( subjects_dir=subjects_dir,
                                      subject=subject )

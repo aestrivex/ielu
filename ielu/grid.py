@@ -1,9 +1,9 @@
-from __future__ import division
+
 import numpy as np
 from numpy.linalg import norm
-from geometry import (angle, is_parallel, is_perpend, within_distance, rm_pts,
+from .geometry import (angle, is_parallel, is_perpend, within_distance, rm_pts,
     find_nearest_pt, find_neighbors, binarize)
-from utils import SortingLabelingError
+from .utils import SortingLabelingError
 
 class GridPoint():
     #this is just a class to make 3D arrays hashable
@@ -145,7 +145,7 @@ class Grid():
         max_x = 1
         min_y = 0
         max_y = 1
-        for x,y in self.connectivity.values():
+        for x,y in list(self.connectivity.values()):
             if x < min_x:
                 min_x = x
             if x > max_x:
@@ -156,7 +156,7 @@ class Grid():
                 max_y = y
 
         graph = np.zeros((max_x-min_x+1, max_y-min_y+1), dtype=int)
-        for x,y in self.connectivity.values():
+        for x,y in list(self.connectivity.values()):
             graph[x-min_x, y-min_y]=1
         graph[-min_x,-min_y]=2
         graph[-min_x,-min_y+1]=3
@@ -209,8 +209,8 @@ class Grid():
 
         #update the connectivity dictionary with the proper 2D coordinate
         p = GridPoint( pJ ) 
-        if p in self.connectivity.keys():
-            print self
+        if p in list(self.connectivity.keys()):
+            print(self)
             raise ValueError("Tried to reproduce an existing 2D grid point")
         self.connectivity[p] = coord_2d
         self.reverse_connectivity[coord_2d] = pJ
@@ -444,7 +444,7 @@ class Grid():
                     points.append(point)
 
             self.extend_grid_systematically()
-            print 'started with %i points, now has %i' % (len(points), len(self.points))
+            print('started with %i points, now has %i' % (len(points), len(self.points)))
 
     def recreate_geometry(self):
         '''
@@ -663,7 +663,7 @@ class Grid():
         interpolated points that are not in the
         image at all
         '''
-        print 'Extracting an %i by %i strip' % (M,N)
+        print('Extracting an %i by %i strip' % (M,N))
 
         #from PyQt4.QtCore import pyqtRemoveInputHook
         #pyqtRemoveInputHook()
@@ -695,8 +695,8 @@ class Grid():
 
         final_connectivity = self.finalize_connectivity( best_loc, M, N, graph)
 
-        print ('Decided that the %i by %i strip at %s is the best fit' % 
-            (M,N,best_loc))
+        print(('Decided that the %i by %i strip at %s is the best fit' % 
+            (M,N,best_loc)))
 
         return points, corners, final_connectivity
 
@@ -731,9 +731,9 @@ class Grid():
             print ('Only one strip location possible, possibly the result of '
                 'user intervention, returning it')
         else:
-            print '%i potential %ix%i strip locations to check' % (
-                len(potential_strip_locs), M, N)
-            print potential_strip_locs
+            print('%i potential %ix%i strip locations to check' % (
+                len(potential_strip_locs), M, N))
+            print(potential_strip_locs)
 
         #graph = self.repr_as_2d_graph(pad_zeros = max(M,N))
 
@@ -742,7 +742,7 @@ class Grid():
         #best_loc = None
         best_loc = potential_strip_locs[0]
 
-        origin = v,w = zip(*np.where(graph==2))[0]
+        origin = v,w = list(zip(*np.where(graph==2)))[0]
 
         #set the critical distance before we start adding points
         critdist = self.critdist()
@@ -768,7 +768,7 @@ class Grid():
                     orient=='horiz' else (x+c-v, y+r-w) ))
                 #total_points += 1
 
-            print 'starting disambiguation with %i points'%(len(cur_points))
+            print('starting disambiguation with %i points'%(len(cur_points)))
 
             iter = 0
             while len(interpolated_points) < M*N - len(cur_points):
@@ -877,14 +877,14 @@ class Grid():
                         px, py, pz = pInterp
                         pInterp = np.array((px+.01, py, pz))
 
-                        print 'adding the repeat point (%i,%i), %s'%(i,
-                            j,str(pInterp))
+                        print('adding the repeat point (%i,%i), %s'%(i,
+                            j,str(pInterp)))
                         self.add_point(pInterp, (i,j))
                         if graph[i,j] == 0:
                             graph[i,j] = 1
 
                     else:
-                        print 'adding the point (%i,%i), %s'%(i,j,str(pInterp))
+                        print('adding the point (%i,%i), %s'%(i,j,str(pInterp)))
                         self.add_point(pInterp, (i,j)) 
                         if graph[i,j] == 0:
                             graph[i,j] = 1
@@ -922,8 +922,8 @@ class Grid():
         #If the orientation is 'horiz', then the row dimension corresponds to N.
         #if is 'vert', the row dimension corresponds to M
         for orient in ('horiz', 'vert'):
-            for r in xrange(graph.shape[int(orient=='vert')]-N+1):
-                for c in xrange(graph.shape[int(orient=='horiz')]-M+1):
+            for r in range(graph.shape[int(orient=='vert')]-N+1):
+                for c in range(graph.shape[int(orient=='horiz')]-M+1):
                     cur_loc = (r, c, orient)
                     subgraph = (graph[r:r+N, c:c+M] if orient=='horiz' 
                         else graph[c:c+M, r:r+N])
@@ -962,7 +962,7 @@ class Grid():
 
         r, c, orient = best_loc
 
-        origin = v,w = zip(*np.where(graph==2))[0]
+        origin = v,w = list(zip(*np.where(graph==2)))[0]
 
         #corner 1, x=0 y=0
         c1 = self.get_3d_point( (r-v, c-w) if orient=='horiz' else
@@ -989,18 +989,18 @@ class Grid():
 
         r, c, orient = best_loc
 
-        origin = v,w = zip(*np.where(graph==2))[0]
+        origin = v,w = list(zip(*np.where(graph==2)))[0]
 
         if orient=='horiz': 
-            for xn in xrange(N):
-                for ym in xrange(M):
+            for xn in range(N):
+                for ym in range(M):
 
                     p = self.get_3d_point( (xn+r-v, ym+c-w) )
                     final_connectivity[tuple(p)] = (xn, ym)
 
         else:
-            for xm in xrange(M):
-                for yn in xrange(N):
+            for xm in range(M):
+                for yn in range(N):
                 
                     p = self.get_3d_point( (xm+c-v, yn+r-w) )
                     final_connectivity[tuple(p)] = (xm, yn)
@@ -1019,7 +1019,7 @@ def find_init_angles(all_elecs, mindist=10, maxdist=25):
     dists = np.zeros((n,2))
     actual_points = np.zeros((n,3,3))
 
-    for k in xrange(n):
+    for k in range(n):
         p0 = all_elecs[k,:]
         p1, p2 = find_neighbors(p0, all_elecs, 2)
 

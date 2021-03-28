@@ -12,7 +12,7 @@ if _tk in ('null','',None):
     #there's no situation other than debugging this file directly
     #where this won't be set. To debug this file, set the environment var.
 else:
-    print _tk
+    print(_tk)
 
 CustomEditorKlass = __import__('traitsui.%s.custom_editor'%_tk,
     fromlist=['CustomEditor'], ).CustomEditor

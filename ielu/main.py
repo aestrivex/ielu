@@ -1,8 +1,8 @@
 from traitsui.api import toolkit
 from traits.trait_base import ETSConfig
 
-from gselu import iEEGCoregistrationFrame
-from utils import crash_if_freesurfer_is_not_sourced
+from .gselu import iEEGCoregistrationFrame
+from .utils import crash_if_freesurfer_is_not_sourced
 import signal
 
 

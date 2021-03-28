@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 
@@ -11,14 +11,14 @@ def map_to_table(cmap,nvals=256):
     cmap - the LinearSegmentedColormap instance
     nvals- the number of values to span over.  The default is 256.
     '''
-    return cmap(xrange(nvals),bytes=True)
+    return cmap(range(nvals),bytes=True)
 
 def mayavi2vtk_color(mayavi_color):
     '''
     converts a 3-tuple mayavi color with values [0,1] to a 4-tuple RGBA
     VTK color with float values [0.0, 255.0]
     '''
-    rgb_col = map(lambda color:round(255*color), mayavi_color)
+    rgb_col = [round(255*color) for color in mayavi_color]
     rgba_col = (rgb_col[0], rgb_col[1], rgb_col[2], 255.0)
     return rgba_col
 
@@ -29,7 +29,7 @@ def mayavi2traits_color(mayavi_color):
 
     does not use QColor objects at all currently
     '''
-    return tuple(map(lambda color:int(255*color), mayavi_color))
+    return tuple([int(255*color) for color in mayavi_color])
 
 def traits2mayavi_color(traits_color):
     '''
@@ -44,9 +44,9 @@ def traits2mayavi_color(traits_color):
     from traits.trait_base import ETSConfig
     _tk = ETSConfig.toolkit
     if _tk == 'wx':
-        rgba_col = map(lambda color:color/255, traits_color)
+        rgba_col = [color/255 for color in traits_color]
     elif _tk == 'qt4':
-        rgba_col = map(lambda color:color/255, traits_color.getRgb())
+        rgba_col = [color/255 for color in traits_color.getRgb()]
     rgb_col = (rgba_col[0], rgba_col[1], rgba_col[2])
     return rgb_col 
 
@@ -77,7 +77,7 @@ def set_discrete_lut(mayavi_obj, colors, use_vector_lut=False):
 
     n = len(colors)
     #cmap = LinearSegmentedColormap.from_list('ign', colors)
-    cmap = map(mayavi2vtk_color, colors)
+    cmap = list(map(mayavi2vtk_color, colors))
 
     #lut_mgr.lut.table = map_to_table(cmap, nvals=n)
     lut_mgr.lut.table = cmap

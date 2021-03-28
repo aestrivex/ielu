@@ -3,8 +3,9 @@
 
 #i intend to move working code to this file on an as-tweaked basis
 
-from utils import ask_user_for_savefile
-from plotting_utils import coronal_slice
+from .utils import ask_user_for_savefile
+from .plotting_utils import coronal_slice
+from functools import reduce
 
 ###############
 # coronal_slice
@@ -79,7 +80,7 @@ def _find_surrounding_rois( elec, parcellation='aparc', error_radius=4,
     else:
         pos = elec.surf_coords
 
-    import pipeline as pipe
+    from . import pipeline as pipe
     #TODO incorporate subcortical structures into non-aparc
     roi_hits = pipe.identify_roi_from_atlas( pos,
         atlas = parcellation,
@@ -106,7 +107,7 @@ def get_nearby_rois_grid( electrodes, parcellation='aparc',
                                     subjects_dir=subjects_dir,
                                     subject=subject )
         except:
-            print 'Failed to find ROIs for %s' % str(elec)
+            print('Failed to find ROIs for %s' % str(elec))
 
 def get_nearby_rois_all( grids, subjects_dir=None, subject=None,
                          parcellation='aparc', error_radius=4 ):

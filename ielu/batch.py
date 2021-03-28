@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from __future__ import division
+
 
 from xvfbwrapper import Xvfb
 
@@ -9,8 +9,8 @@ vdisplay.start()
 
 import os
 import sys
-from gselu import ElectrodePositionsModel
-import pipeline as pipe
+from .gselu import ElectrodePositionsModel
+from . import pipeline as pipe
 
 ct_dir = '/space/truffles/2/users/rlaplant/ct'
 
@@ -26,7 +26,7 @@ batch_file = sys.argv[1]
 with open(batch_file) as fd:
     batch_data = fd.readlines()
 
-subject, delta, rho, tau, epsilon = map(lambda x:x.strip(), batch_data)
+subject, delta, rho, tau, epsilon = [x.strip() for x in batch_data]
 
 batch_symbol = sys.argv[2]
 
@@ -60,15 +60,15 @@ with open(pickle_file) as fd:
     model = load(fd)
 
 true_grids = model._grids
-true_grid_geom = filter(lambda x:x!='user-defined', model._grid_geom.values())
+true_grid_geom = [x for x in list(model._grid_geom.values()) if x!='user-defined']
 
-print true_grid_geom
+print(true_grid_geom)
 
-all_electrodes = model._all_electrodes.values()
+all_electrodes = list(model._all_electrodes.values())
 
 #3. run grid algorithm with specified data and parameters
 
-print delta, rho, tau, epsilon
+print(delta, rho, tau, epsilon)
 
 try:
     colors, grid_geom, new_grids, color_scheme = pipe.classify_electrodes(  all_electrodes,
@@ -92,7 +92,7 @@ except:
 
 electrode_scores = []
 
-for true_grid in true_grids.values():
+for true_grid in list(true_grids.values()):
     for elec in true_grid:
 
         grid_concordance = 0
@@ -102,7 +102,7 @@ for true_grid in true_grids.values():
 
         provisional_grid = None
         #for new grid in new_grids:
-        for new_grid in new_grids.values():
+        for new_grid in list(new_grids.values()):
             if elec in new_grid:
                 provisional_grid = new_grid
                 break

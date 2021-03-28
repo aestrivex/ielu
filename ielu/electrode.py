@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import numpy as np
 from traits.api import (HasTraits, List, Float, Tuple, Instance, Bool, Str, 
@@ -8,7 +8,7 @@ from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor, VGroup,
     TextEditor, OKButton, CheckListEditor, Label, Action, ListStrEditor,
     MenuBar, Menu)
 from traitsui.message import error as error_dialog
-from utils import ask_user_for_savefile
+from .utils import ask_user_for_savefile
 from functools import partial
 
 class Electrode(HasTraits):
@@ -329,9 +329,9 @@ class ElectrodeWindow(Handler):
             self.distinct_prev_sel = self.previous_sel
 
         self.previous_sel = self.cur_sel
-        self.previous_color = self.model._colors.keys().index(self.cur_grid)
+        self.previous_color = list(self.model._colors.keys()).index(self.cur_grid)
 
-        selection_color = (self.model._colors.keys().index('selection'))
+        selection_color = (list(self.model._colors.keys()).index('selection'))
 
         self.model._new_glyph_color = selection_color
         self.model._single_glyph_to_recolor = self.cur_sel.asiso()
@@ -401,8 +401,8 @@ class ElectrodeWindow(Handler):
     
         cur_geom = self.model._grid_geom[self.cur_grid]
         if cur_geom=='user-defined' and self.naming_convention != 'line':
-            from color_utils import mayavi2traits_color
-            from name_holder import GeometryNameHolder, GeomGetterWindow
+            from .color_utils import mayavi2traits_color
+            from .name_holder import GeometryNameHolder, GeomGetterWindow
             nameholder = GeometryNameHolder(
                 geometry=cur_geom,
                 color=mayavi2traits_color(
@@ -415,7 +415,7 @@ class ElectrodeWindow(Handler):
                 error_dialog("User did not specify any geometry")
                 return
 
-        import pipeline as pipe
+        from . import pipeline as pipe
         if self.naming_convention == 'line':
             pipe.fit_grid_to_line(self.electrodes, 
                 #c1.asiso(), c2.asiso(), c3.asiso(), cur_geom, 
@@ -537,7 +537,7 @@ class ElectrodeWindow(Handler):
                 'Better algorithm needed')
 
         # translate the electrode into RAS space
-        import pipeline as pipe
+        from . import pipeline as pipe
 
         pipe.linearly_transform_electrodes_to_isotropic_coordinate_space(
             [self.cur_sel], self.model.ct_scan,
@@ -687,7 +687,7 @@ class ElectrodeWindow(Handler):
         if electrodes is None:
             return
 
-        from electrode_group import save_coordinates
+        from .electrode_group import save_coordinates
         save_coordinates( electrodes, self.model._grid_types,
             snapping_completed=self.model._snapping_completed,
             file_type='montage')
@@ -700,13 +700,13 @@ class ElectrodeWindow(Handler):
         if electrodes is None:
             return
 
-        from electrode_group import save_coordinates
+        from .electrode_group import save_coordinates
         save_coordinates( electrodes, self.model._grid_types,
             snapping_completed=self.model._snapping_completed,
             file_type='csv')
 
     def do_rois(self, info):
-        from electrode_group import get_nearby_rois_elec
+        from .electrode_group import get_nearby_rois_elec
         get_nearby_rois_elec( self.cur_sel,
             parcellation=self.model.roi_parcellation,
             error_radius=self.model.roi_error_radius,
@@ -714,7 +714,7 @@ class ElectrodeWindow(Handler):
             subject=self.model.subject )
 
     def do_all_rois(self, info):
-        from electrode_group import get_nearby_rois_grid
+        from .electrode_group import get_nearby_rois_grid
         get_nearby_rois_grid( self.electrodes,
             parcellation=self.model.roi_parcellation,
             error_radius=self.model.roi_error_radius,
@@ -724,7 +724,7 @@ class ElectrodeWindow(Handler):
     def do_coronal_slice(self, info):
         savefile = ask_user_for_savefile('save png file with slice image')
 
-        from electrode_group import coronal_slice_grid
+        from .electrode_group import coronal_slice_grid
         coronal_slice_grid(self.electrodes, savefile=savefile,
             subjects_dir=self.model.subjects_dir, subject=self.model.subject,
             dpi=self.model.coronal_dpi, 
