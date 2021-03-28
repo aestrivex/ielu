@@ -7,7 +7,7 @@ def read(fname):
 
 setuptools.setup(
     name="ielu",
-    version="0.2.5",
+    version="0.3.0",
     maintainer="Roan LaPlante",
     maintainer_email="rlaplant@nmr.mgh.harvard.edu",
     description=("Interactive Electrode localization Utility"),
@@ -20,7 +20,7 @@ setuptools.setup(
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
         "Natural Language :: English",
-        "Programming Language :: Python :: 2.7",
+        "Programming Language :: Python :: 3.8",
         "Topic :: Scientific/Engineering :: Information Analysis",
     ],
     url="https://github.com/aestrivex/ielu",
