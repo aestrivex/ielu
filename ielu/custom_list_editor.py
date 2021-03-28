@@ -139,7 +139,7 @@ class CustomQtListEditorKlass(CustomEditorKlass):
                 # fix bug in pyqt, reverts back to traitsui 4.3 version
                 if qt_api == 'pyside':
                     control = IconButton('list_editor.png', self.mapper.map)
-                elif qt_api == 'pyqt':
+                elif qt_api in ('pyqt', 'pyqt5'):
                     control = IconButton('list_editor.png',
                         lambda : self.popup_menu(
                             self._list_pane.layout().sender() ))
