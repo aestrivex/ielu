@@ -1061,17 +1061,17 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._commit_grid_changes()
 
         from pickle import dump
-        with open(savefile, 'w') as fd:
+        with open(savefile, 'wb') as fd:
             dump(self, fd)
 
     def _load_from_pickle(self, loadfile):
         from pickle import load
         #from restricted_pickler import restricted_load
         try:
-            with open(loadfile) as fd:
+            with open(loadfile, "rb") as fd:
                 pickle_model = load(fd)
             #pickle_model = restricted_load(loadfile)
-        except (KeyError, AttributeError) as e:
+        except (KeyError, AttributeError, TypeError) as e:
             error_dialog('Failed to load ElectrodePositionsModel object\n'
                 'from provided pickle file {0}.\n\n'
                 'Are you sure that was a correct pickle file?'

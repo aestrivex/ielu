@@ -1070,7 +1070,7 @@ def create_dural_surface(subjects_dir=None, subject=None):
     for hemi in ('lh','rh'):
         make_dural_surface_cmd = [os.path.join(scripts_dir, 
             'make_dural_surface.csh'),'-i','%s.pial'%hemi]
-	print(make_dural_surface_cmd)
+        print(make_dural_surface_cmd)
         p=subprocess.call(make_dural_surface_cmd)
 
     os.chdir(curdir)
