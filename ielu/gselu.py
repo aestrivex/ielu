@@ -1,4 +1,3 @@
-
 import os
 import sys
 import numpy as np
@@ -1061,8 +1060,13 @@ class ElectrodePositionsModel(HasPrivateTraits):
         self._commit_grid_changes()
 
         from pickle import dump
-        with open(savefile, 'wb') as fd:
-            dump(self, fd)
+        try:
+            with open(savefile, 'wb') as fd:
+                dump(self, fd)
+                print('Saved pickle file {0}'.format(savefile))
+        except (KeyError, AttributeError, TypeError) as e:
+            error_dialog('Failed to save pickle file {0}'.format(savefile))
+            print(e)
 
     def _load_from_pickle(self, loadfile):
         from pickle import load
