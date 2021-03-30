@@ -77,33 +77,47 @@ class Electrode(HasTraits):
     def _get_postsnap_repr(self):
         return self._coord_print('pial_coords')
 
-    def __cmp__(self, other):
-        if other is None and self is not None:
-            return 1
-        if self is None and other is not None:
-            return -1
-        if self.name != '' and other.name != '':
-            return cmp(self.name, other.name)
-        else:
-            return cmp(str(self), str(other))
-
     def __eq__(self, other):
-        return self.__cmp__(other) == 0
-
-    def __ne__(self, other):
-        return self.__cmp__(other) != 0
+        if other is None and self is None:
+            return True
+        if None in (other, self):
+            return False
+        if self.name != '' and other.name != '':
+            return self.name == other.name
+        else:
+            return str(self) == str(other)
 
     def __lt__(self, other):
-        return self.__cmp__(other) < 0
+        if None in (other, self):
+            return False
+        if self.name != '' and other.name != '':
+            return self.name < other.name
+        else:
+            return str(self) < str(other)
 
     def __gt__(self, other):
-        return self.__cmp__(other) > 0
+        if None in (other, self):
+            return False
+        if self.name != '' and other.name != '':
+            return self.name > other.name
+        else:
+            return str(self) > str(other)
    
     def __le__(self, other):
-        return self.__cmp__(other) <= 0
+        if None in (other, self):
+            return False
+        if self.name != '' and other.name != '':
+            return self.name <= other.name
+        else:
+            return str(self) <= str(other)
     
     def __ge__(self, other):
-        return self.__cmp__(other) >= 0
+        if None in (other, self):
+            return False
+        if self.name != '' and other.name != '':
+            return self.name >= other.name
+        else:
+            return str(self) >= str(other)
 
     def astuple(self):
         #snap_coords is an intermediate variable. the final value of
