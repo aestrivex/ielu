@@ -1,5 +1,3 @@
-
-
 import numpy as np
 from traits.api import (HasTraits, List, Float, Tuple, Instance, Bool, Str, 
     Int, Either, Property, Method, on_trait_change, Any, Enum, Button)
@@ -9,7 +7,7 @@ from traitsui.api import (View, Item, HGroup, Handler, CSVListEditor, VGroup,
     MenuBar, Menu)
 from traitsui.message import error as error_dialog
 from .utils import ask_user_for_savefile
-from functools import partial
+from functools import partial, total_ordering
 
 class Electrode(HasTraits):
 #    ct_coords = List(Float)
@@ -88,6 +86,24 @@ class Electrode(HasTraits):
             return cmp(self.name, other.name)
         else:
             return cmp(str(self), str(other))
+
+    def __eq__(self, other):
+        return self.__cmp__(other) == 0
+
+    def __ne__(self, other):
+        return self.__cmp__(other) != 0
+
+    def __lt__(self, other):
+        return self.__cmp__(other) < 0
+
+    def __gt__(self, other):
+        return self.__cmp__(other) > 0
+   
+    def __le__(self, other):
+        return self.__cmp__(other) <= 0
+    
+    def __ge__(self, other):
+        return self.__cmp__(other) >= 0
 
     def astuple(self):
         #snap_coords is an intermediate variable. the final value of
