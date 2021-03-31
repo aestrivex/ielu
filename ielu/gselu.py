@@ -1392,7 +1392,7 @@ class SurfaceVisualizerPanel(HasTraits):
         if not self.visualize_in_ctspace:
             brain = self.brain = surfer.Brain( 
                 self.subject, subjects_dir=self.subjects_dir,
-                surf='pial', curv=False, hemi='both',
+                surf='pial', hemi='both',
                 figure=self.scene.mayavi_scene)
 
             brain.toggle_toolbars(True)
