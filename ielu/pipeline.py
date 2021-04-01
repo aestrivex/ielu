@@ -1155,6 +1155,11 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
     if len(electrodes) == 0:
         raise ValueError('No electrodes to translate to surface space')
 
+    from PyQt5.QtCore import pyqtRemoveInputHook
+    pyqtRemoveInputHook()
+    import pdb
+    pdb.set_trace()
+
     electrode_arr = list(map((lambda x:getattr(x, 'ct_coords')), electrodes))
     orig_elecs = geo.apply_affine(electrode_arr, ct2mr)
 
@@ -1170,6 +1175,8 @@ def translate_electrodes_to_surface_space(electrodes, ct2mr,
     nas_locs = geo.apply_affine(orig_elecs, nas2ras)
 
     tkr = geo.get_vox2rasxfm(orig, stem='vox2ras-tkr')
+
+
 
     surf_locs = geo.apply_affine(nas_locs, tkr)
     for elec, loc in zip(electrodes, surf_locs):
