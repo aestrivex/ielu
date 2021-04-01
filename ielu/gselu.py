@@ -1419,6 +1419,11 @@ class SurfaceVisualizerPanel(HasTraits):
         unsorted_coordtype = (self._viz_coordtype if 
             self._viz_coordtype not in ('pial_coords', 'snap_coords')
             else 'surf_coords')
+        
+        #from PyQt5.QtCore import pyqtRemoveInputHook
+        #import pdb
+        #pyqtRemoveInputHook()
+        #pdb.set_trace()
 
         #unsorted
         if not self.model._noise_hidden:

@@ -593,13 +593,18 @@ class TwoDimensionalPanel(Handler):
         if self.cursor_outside_image_dimensions(mouse):
             return
 
-        self.info_panel.mouse = tuple([truncate(x, 2) for x in mouse])
+        from PyQt5.QtCore import pyqtRemoveInputHook
+        import pdb
+        pyqtRemoveInputHook()
+        pdb.set_trace()
+
+        self.info_panel.mouse = tuple([truncate(i, 2) for i in mouse])
         self.info_panel.mouse_ras = self.map_cursor(mouse,
             self.current_affine)
         self.info_panel.mouse_tkr = self.map_cursor(mouse, 
             self.current_tkr_affine)
         self.info_panel.mouse_intensity = truncate(
-            self.current_image[x,y,z], 3)
+            self.current_image[np.round(mouse)], 3)
 
     def _confirm_movepin_internal_button_fired(self):
         self.move_electrode_internally_event = True

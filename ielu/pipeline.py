@@ -645,7 +645,12 @@ def classify_electrodes(electrodes, known_geometry,
                         np.array(electrode_arr)[:,1]==p[1]),
                         np.array(electrode_arr)[:,2]==p[2]))
                     try:
-                        elec = electrodes[ix]
+                        #from PyQt5.QtCore import pyqtRemoveInputHook
+                        #pyqtRemoveInputHook()
+                        #import pdb
+                        #pdb.set_trace()
+
+                        elec = electrodes[int(ix)]
                         found_grids[pog.name].append(elec)
                     except (IndexError, TypeError) as e:
                         print(ix)
