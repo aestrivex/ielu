@@ -593,10 +593,10 @@ class TwoDimensionalPanel(Handler):
         if self.cursor_outside_image_dimensions(mouse):
             return
 
-        from PyQt5.QtCore import pyqtRemoveInputHook
-        import pdb
-        pyqtRemoveInputHook()
-        pdb.set_trace()
+        #from PyQt5.QtCore import pyqtRemoveInputHook
+        #import pdb
+        #pyqtRemoveInputHook()
+        #pdb.set_trace()
 
         self.info_panel.mouse = tuple([truncate(i, 2) for i in mouse])
         self.info_panel.mouse_ras = self.map_cursor(mouse,
