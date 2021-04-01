@@ -604,7 +604,7 @@ class TwoDimensionalPanel(Handler):
         self.info_panel.mouse_tkr = self.map_cursor(mouse, 
             self.current_tkr_affine)
         self.info_panel.mouse_intensity = truncate(
-            self.current_image[np.round(mouse)], 3)
+            self.current_image[np.around(mouse).astype(int)], 3)
 
     def _confirm_movepin_internal_button_fired(self):
         self.move_electrode_internally_event = True
