@@ -1824,6 +1824,11 @@ def identify_roi_from_atlas( pos, approx=4, atlas=None, subjects_dir=None,
     if subject is None or subject=='':
         subject = os.environ['SUBJECT']
 
+    from PyQt5.QtCore import pyqtRemoveInputHook
+    import pdb
+    pyqtRemoveInputHook()
+    pdb.set_trace()
+
     if atlas is None or atlas in ('', 'aparc'):
         return identify_roi_from_aparc(pos, approx=approx, 
             subjects_dir=subjects_dir, subject=subject)
@@ -1845,8 +1850,6 @@ def identify_roi_from_atlas( pos, approx=4, atlas=None, subjects_dir=None,
     pia = np.vstack((lh_pia, rh_pia))
 
     # find closest vertex
-    #import pdb
-    #pdb.set_trace()
     closest_vert = np.argmin(cdist(pia, [pos]))
 
     # grow the area of surface surrounding the vertex
@@ -1917,8 +1920,7 @@ def identify_roi_from_aparc( pos, approx=4, subjects_dir=None, subject=None,
         #pdb.set_trace()
 
         for p in range(neighb.shape[0]):
-            cx, cy, cz = (pos[0]+neighb[p,0], pos[1]+neighb[p,1],
-                pos[2]+neighb[p,2])
+            cx, cy, cz = (int(pos[i]+neighb[p,i]) for i in range(3))
             d_type = mri_dat[cx, cy, cz]
             label_index = region['index'].index(d_type)
             regions.append(region['label'][label_index])
