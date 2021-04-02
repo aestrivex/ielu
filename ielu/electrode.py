@@ -474,8 +474,8 @@ class ElectrodeWindow(Handler):
         for elec in self.electrodes:
             x, y = elec.geom_coords
 
-            xmax = np.max(x, xmax)
-            ymax = np.max(y, ymax)
+            xmax = np.max((x, xmax))
+            ymax = np.max((y, ymax))
 
         for elec in self.electrodes:
             x, y = elec.geom_coords
