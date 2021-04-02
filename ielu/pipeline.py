@@ -1824,10 +1824,10 @@ def identify_roi_from_atlas( pos, approx=4, atlas=None, subjects_dir=None,
     if subject is None or subject=='':
         subject = os.environ['SUBJECT']
 
-    from PyQt5.QtCore import pyqtRemoveInputHook
-    import pdb
-    pyqtRemoveInputHook()
-    pdb.set_trace()
+#    from PyQt5.QtCore import pyqtRemoveInputHook
+#    import pdb
+#    pyqtRemoveInputHook()
+#    pdb.set_trace()
 
     if atlas is None or atlas in ('', 'aparc'):
         return identify_roi_from_aparc(pos, approx=approx, 
