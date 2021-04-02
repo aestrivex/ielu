@@ -1485,11 +1485,14 @@ def fit_grid_by_fixed_points(electrodes, geom,
     Sort the given electrodes (generally in the space of the CT scan) into
     grids and strips matching the specified geometry.
     
-    This function is not currently used. The idea was to have the user
+    The original idea of this function was to have the user
     fix some errors of the algorithm and then send it back. But really this
     step is completely unnecessary because it is not appreciably more work for
-    the user to do the entire job manually. As the software ages this
-    function will be removed.
+    the user to do the entire job manually.
+
+    However, we use this function to do labeling -- it is the same as the
+    general function that uses all the electrodes, if the automatic sorting
+    fails and the user specifies the points.
 
     Parameters
     ----------
@@ -1521,6 +1524,10 @@ def fit_grid_by_fixed_points(electrodes, geom,
         larger parameter means the algorithm will try a larger range of
         starting positions before giving up. The default value is 10.
     '''
+    if np.product(geom) != len(electrodes):
+        print("Grid geometry does not conform to provided number of electrodes")
+        return
+
     electrode_arr = list(map((lambda x:getattr(x, 'iso_coords')), electrodes))
     elecs = np.array(electrode_arr)
 
@@ -1564,8 +1571,8 @@ def fit_grid_by_fixed_points(electrodes, geom,
                     np.array(electrode_arr)[:,1]==p[1]),
                     np.array(electrode_arr)[:,2]==p[2]))
                 try:
-                    elec = electrodes[ix]
-                except IndexError:
+                    elec = electrodes[int(ix)]
+                except (IndexError, TypeError):
                     raise SortingLabelingError(
                         "multiple electrodes at same point")
             else:
@@ -1576,11 +1583,16 @@ def fit_grid_by_fixed_points(electrodes, geom,
                 if np.all(corner==np.array(elec.asiso())):
                     elec.corner = ['corner 1']
 
+#            from PyQt5.QtCore import pyqtRemoveInputHook
+#            import pdb
+#            pyqtRemoveInputHook()
+#            pdb.set_trace()
+
             try:
                 elec.geom_coords = list(final_connectivity[
                     elec.asiso()])
             except KeyError:
-                pass
+                print('Skipping labeling of electrode {0}'.format(elec))
 
         break
 

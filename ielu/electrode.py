@@ -469,11 +469,22 @@ class ElectrodeWindow(Handler):
         self.naming_following_labeling(cur_geom=cur_geom)
 
     def naming_following_labeling(self, cur_geom=None):
+        xmax, ymax = (0, 0)
+
+        for elec in self.electrodes:
+            x, y = elec.geom_coords
+
+            xmax = np.max(x, xmax)
+            ymax = np.max(y, ymax)
+
         for elec in self.electrodes:
             x, y = elec.geom_coords
 
             if self.naming_convention == 'grid_serial':
-                index = x * np.min(cur_geom) + y + 1
+                if xmax > ymax:
+                    index = x * np.max(cur_geom) + y + 1
+                else:
+                    index = x * np.min(cur_geom) + y + 1
             elif self.naming_convention == 'grid_concatenate':
                 index = '{0}{1}'.format(x + 1, y + 1)
 
