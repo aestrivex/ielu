@@ -482,9 +482,9 @@ class ElectrodeWindow(Handler):
 
             if self.naming_convention == 'grid_serial':
                 if xmax > ymax:
-                    index = x * np.max(cur_geom) + y + 1
-                else:
                     index = x * np.min(cur_geom) + y + 1
+                else:
+                    index = x * np.max(cur_geom) + y + 1
             elif self.naming_convention == 'grid_concatenate':
                 index = '{0}{1}'.format(x + 1, y + 1)
 
