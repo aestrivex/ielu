@@ -1266,7 +1266,8 @@ def snap_electrodes_to_surface(electrodes, subjects_dir=None,
     max = np.max( np.around(neighbor_dists) )
     min = np.min( np.around(neighbor_dists) )
 
-    hist,_ = np.histogram(neighbor_dists, bins=(max-min)/2, range=(min, max))
+    hist,_ = np.histogram(neighbor_dists, bins=int((max-min)/2),
+                          range=(min, max))
 
     fundist = np.argmax(hist)*2 + min + 1
 
